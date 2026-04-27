@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
+try:
+    from fastapi import Request as FastAPIRequest
+except ImportError:  # pragma: no cover - guarded again in create_app
+    FastAPIRequest = object
+
 from tarkov.config import Config
 from tarkov.database.session import SessionLocal, create_all, init_engine
 from tarkov.pipeline.event_handlers import AMLScoringEventHandler
@@ -24,7 +29,7 @@ def _check_db_connection() -> None:
 
 def create_app(config: Config | None = None):
     try:
-        from fastapi import FastAPI, HTTPException, Request
+        from fastapi import FastAPI, HTTPException
     except ImportError as exc:
         raise RuntimeError("FastAPI is required to run Tarkov API") from exc
 
@@ -44,7 +49,7 @@ def create_app(config: Config | None = None):
             raise HTTPException(status_code=503, detail=f"DB health check failed: {exc}") from exc
 
     @app.post("/v1/articles")
-    def receive_article(article: ArticleIn, request: Request):
+    def receive_article(article: ArticleIn, request: FastAPIRequest):
         session = SessionLocal()
         try:
             correlation_id = None
