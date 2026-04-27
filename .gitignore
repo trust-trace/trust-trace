@@ -2,3 +2,14 @@
 *.pyc
 .claude/
 .worktrees/
+
+__pycache__/
+*.py[cod]
+.env
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/

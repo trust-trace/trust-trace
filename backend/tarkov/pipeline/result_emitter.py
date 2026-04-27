@@ -1,0 +1,48 @@
+"""Result emitter for parsed article events."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime
+from typing import Awaitable, Callable
+
+from tarkov.schemas.parsed_result import ParsedResult, ParsingEvent
+from tarkov.utils.logger import get_logger
+
+
+logger = get_logger(__name__)
+
+
+class ResultEmitter:
+    def __init__(self):
+        self.handlers: list[Callable[[ParsingEvent], None]] = []
+        self.async_handlers: list[Callable[[ParsingEvent], Awaitable[None]]] = []
+
+    def register_handler(self, handler: Callable[[ParsingEvent], None]) -> None:
+        self.handlers.append(handler)
+
+    def register_async_handler(self, handler: Callable[[ParsingEvent], Awaitable[None]]) -> None:
+        self.async_handlers.append(handler)
+
+    def emit(self, parsed_result: ParsedResult, correlation_id: str) -> ParsingEvent:
+        event = ParsingEvent(
+            timestamp=datetime.utcnow(),
+            parsed_result=parsed_result,
+            correlation_id=correlation_id,
+        )
+
+        for handler in self.handlers:
+            try:
+                handler(event)
+            except Exception as exc:
+                logger.exception("Sync handler failed: %s", exc)
+
+        for async_handler in self.async_handlers:
+            try:
+                asyncio.create_task(async_handler(event))
+            except RuntimeError:
+                asyncio.run(async_handler(event))
+            except Exception as exc:
+                logger.exception("Async handler failed: %s", exc)
+
+        return event

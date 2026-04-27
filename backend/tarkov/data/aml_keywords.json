@@ -1,0 +1,6 @@
+{
+  "money_laundering": ["money laundering", "suspicious transaction", "structuring", "smurfing"],
+  "fraud": ["fraud", "embezzlement", "ponzi", "pyramid scheme"],
+  "regulatory_action": ["regulatory action", "investigation", "sanction", "fine"],
+  "bankruptcy": ["bankruptcy", "insolvency", "liquidation"]
+}

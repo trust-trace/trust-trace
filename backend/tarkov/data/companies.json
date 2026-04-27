@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Acme Corp",
+    "ticker": "ACME",
+    "aliases": ["Acme Corp", "ACME", "Acme"],
+    "exchange": "TEST"
+  },
+  {
+    "name": "Globex Holdings",
+    "ticker": "GLOB",
+    "aliases": ["Globex", "Globex Holdings"],
+    "exchange": "TEST"
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "event_type": "fraud",
+    "risk_level": 8,
+    "title": "Fraud investigation launched",
+    "confidence": 0.89,
+    "description": "Regulator opened investigation into fraudulent filings."
+  },
+  {
+    "event_type": "money_laundering",
+    "risk_level": 9,
+    "title": "Suspicious transaction network identified",
+    "confidence": 0.87,
+    "description": "Multiple suspicious transfers point to laundering activities."
+  }
+]
