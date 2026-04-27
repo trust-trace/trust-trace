@@ -122,7 +122,7 @@ export function Sidebar({ companies, selectedId, onSelect }: SidebarProps) {
 
       <div className="tt-list">
         {filtered.length === 0 && (
-          <div className="tt-empty">Brak wyników dla „{query}"</div>
+          <div className="tt-empty">Brak wyników dla &bdquo;{query}&rdquo;</div>
         )}
         {filtered.map((c, idx) => {
           const isActive = c.id === selectedId;

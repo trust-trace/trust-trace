@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Polsat News milczy o aferze Plus — MediaWatch</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=Space+Mono:wght@400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --ink: #0f0e0e;
+      --ink-mid: #2c2a2a;
+      --ink-light: #585454;
+      --ink-faint: #989494;
+      --paper: #f6f3ee;
+      --warm: #ebe7df;
+      --red: #bf3325;
+      --redd: #8b2419;
+      --border: #cfc9c0;
+      --borderdk: #a89f94;
+      --gold: #a67c00;
+      --blue: #1b4f8a;
+      --col: 720px
+    }
+
+    html {
+      font-size: 16px
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Source Serif 4', Georgia, serif;
+      line-height: 1.7;
+      min-height: 100vh
+    }
+
+    /* masthead */
+    .mh {
+      background: var(--ink);
+      border-bottom: 4px solid var(--red)
+    }
+
+    .mh-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 16px 24px 13px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--red);
+      text-transform: uppercase
+    }
+
+    .mhdate {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #6a6a6a;
+      letter-spacing: .06em
+    }
+
+    /* cat bar */
+    .cb {
+      padding: 7px 0
+    }
+
+    .cb-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .85)
+    }
+
+    /* article */
+    .aw {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px 80px
+    }
+
+    /* header */
+    .ah {
+      padding: 42px 0 28px;
+      border-bottom: 2px solid var(--ink)
+    }
+
+    .tr {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px
+    }
+
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      padding: 4px 11px;
+      border: 1px solid;
+      display: inline-block
+    }
+
+    .ts {
+      color: var(--red);
+      border-color: var(--red)
+    }
+
+    .tf {
+      color: var(--gold);
+      border-color: var(--gold)
+    }
+
+    .to {
+      color: var(--blue);
+      border-color: var(--blue)
+    }
+
+    .tg {
+      color: #1a6b3c;
+      border-color: #1a6b3c
+    }
+
+    .tk {
+      color: var(--ink-light);
+      border-color: var(--ink-light)
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(26px, 4.2vw, 38px);
+      font-weight: 700;
+      line-height: 1.17;
+      margin-bottom: 18px;
+      letter-spacing: -.015em
+    }
+
+    .deck {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--ink-mid);
+      font-style: italic;
+      border-left: 3px solid var(--red);
+      padding-left: 16px;
+      margin-bottom: 24px;
+      line-height: 1.56
+    }
+
+    .meta {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-faint);
+      letter-spacing: .05em
+    }
+
+    .meta b {
+      color: var(--ink-mid);
+      font-weight: 700
+    }
+
+    /* body */
+    .ab {
+      padding: 32px 0 0
+    }
+
+    .ab p {
+      font-size: 17px;
+      line-height: 1.8;
+      color: var(--ink-mid);
+      margin-bottom: 22px;
+      font-weight: 300
+    }
+
+    .ab p:first-of-type::first-letter {
+      font-family: 'Playfair Display', serif;
+      font-size: 66px;
+      font-weight: 900;
+      float: left;
+      line-height: .8;
+      padding-right: 10px;
+      padding-top: 6px;
+      color: var(--ink)
+    }
+
+    .kw {
+      color: var(--ink);
+      font-weight: 600
+    }
+
+    .kr {
+      color: var(--redd);
+      font-weight: 600
+    }
+
+    .tick {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 2px 7px;
+      border-radius: 2px;
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1.6
+    }
+
+    /* pull quote */
+    .pq {
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      margin: 38px 0;
+      padding: 24px 0;
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-style: italic;
+      line-height: 1.45;
+      color: var(--ink)
+    }
+
+    .pq::before {
+      content: '\201C';
+      font-size: 52px;
+      line-height: 0;
+      vertical-align: -18px;
+      color: var(--red);
+      margin-right: 3px
+    }
+
+    /* data box */
+    .db {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--red);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .dbt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 14px
+    }
+
+    .dr {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px
+    }
+
+    .dr:last-child {
+      border-bottom: none
+    }
+
+    .dl {
+      color: var(--ink-light)
+    }
+
+    .dv {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink)
+    }
+
+    .dv.n {
+      color: var(--red)
+    }
+
+    .dv.p {
+      color: #1a6b3c
+    }
+
+    /* info box */
+    .ib {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--blue);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .ibt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px
+    }
+
+    .ib p {
+      font-size: 14px;
+      color: var(--ink-mid);
+      line-height: 1.65;
+      margin-bottom: 10px;
+      font-weight: 300
+    }
+
+    .ib p:last-child {
+      margin-bottom: 0
+    }
+
+    /* timeline */
+    .tl {
+      margin: 30px 0;
+      list-style: none
+    }
+
+    .tl li {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tl li:last-child {
+      border-bottom: none
+    }
+
+    .tday {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red);
+      padding-top: 2px
+    }
+
+    .tev {
+      font-size: 15px;
+      color: var(--ink-mid);
+      line-height: 1.55
+    }
+
+    .tev b {
+      color: var(--ink)
+    }
+
+    /* keyword strip */
+    .ks {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid var(--borderdk)
+    }
+
+    .ksl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 10px
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .pill {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      color: var(--ink-mid)
+    }
+
+    .pill.t {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink)
+    }
+
+    /* footer */
+    .ft {
+      margin-top: 60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .fb {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--ink-faint);
+      text-transform: uppercase
+    }
+
+    .fd {
+      font-family: 'Source Serif 4', serif;
+      font-size: 11px;
+      color: var(--ink-faint);
+      font-style: italic;
+      max-width: 400px;
+      text-align: right
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mh">
+    <div class="mh-i"><span class="logo">MediaWatch Polska</span><span class="mhdate">27 KWIETNIA 2026 · ETYKA
+        MEDIALNA</span></div>
+  </div>
+  <div class="cb" style="background:#1a1a1a">
+    <div class="cb-i">NIEZALEŻNOŚĆ REDAKCYJNA &nbsp;/&nbsp; POLSAT NEWS &nbsp;/&nbsp; POLKOMTEL &amp; UOKIK</div>
+  </div>
+  <div class="aw">
+    <div class="ah">
+      <div class="tr"><span class="tag ts">Konflikt interesów</span><span class="tag to">Etyka medialna</span></div>
+      <h1>Polsat News milczy o aferze Plus: redakcja czy agencja PR właściciela?</h1>
+      <p class="deck">Gdy UOKiK wszczął postępowanie wobec Polkomtelu za niedozwolone klauzury abonamentowe, kanały
+        informacyjne Polsatu przez 72 godziny nie wyemitowały ani jednego materiału. Zbieżność z własnością nie jest
+        przypadkowa.</p>
+      <div class="meta"><span><b>Autor:</b> Dział etyki mediów</span><span><b>Data:</b> 27 kwietnia
+          2026</span><span><b>Czas czytania:</b> 5 min</span></div>
+    </div>
+    <div class="ab">
+      <p>W lutym 2026 r. <span class="kw">Urząd Ochrony Konkurencji i Konsumentów (UOKiK)</span> ogłosił wszczęcie
+        formalnego postępowania wobec <span class="kw">Polkomtel sp. z o.o.</span> — operatora sieci <span
+          class="kw">Plus</span> — w sprawie niedozwolonych klauzul w umowach abonamentowych. Potencjalna kara: od <span
+          class="kr">180 do 220 mln zł</span>, czyli nawet <span class="kr">10% rocznego obrotu</span>. Przez pierwsze
+        72 godziny od ogłoszenia decyzji <span class="kw">Polsat News</span> i <span class="kw">Polsat News 2</span> nie
+        wyemitowały ani jednego materiału.</p>
+      <ul class="tl">
+        <li><span class="tday">Dzień 1</span><span class="tev"><b>UOKiK ogłasza postępowanie.</b> TVN24 i Radio Zet
+            otwierają serwisy tym tematem. Polsat News — kompletna cisza przez całą dobę.</span></li>
+        <li><span class="tday">Dzień 2</span><span class="tev">TVP Info, Gazeta Wyborcza i Rzeczpospolita publikują
+            szczegółowe analizy. <b>Polsat News 2 nadal bez żadnego materiału.</b></span></li>
+        <li><span class="tday">Dzień 3</span><span class="tev">Po 72 godzinach Polsat News emituje <b>45-sekundową
+              wzmiankę</b> w paśmie popołudniowym — bez eksperta, bez danych finansowych, bez stanowiska UOKiK.</span>
+        </li>
+        <li><span class="tday">Tydzień 2</span><span class="tev">SDP wydaje oświadczenie. KRRiT potwierdza trzy formalne
+            skargi i ogłasza, że <b>„monitoruje sytuację"</b>.</span></li>
+      </ul>
+      <p>Milczenie Polsatu jest tym bardziej wymowne, że <span class="kw">Polkomtel</span> to spółka córka <span
+          class="kw">Cyfrowego Polsatu</span> <span class="tick">CPS</span>, kontrolowanego przez <span
+          class="kw">Zygmunta Solorza</span>. Kara w wysokości 180–220 mln zł byłaby <span class="kr">istotna dla
+          skonsolidowanych wyników grupy</span> — każda agencja prasowa uznałaby to za newsa pierwszej kategorii. Polsat
+        uznał, że nim nie jest.</p>
+      <div class="pq">Nie potrzeba dowodów na bezpośrednie polecenie. Wystarczy obserwować, czego nie ma w ramówce — i
+        zestawić z tym, kto podpisuje czeki.</div>
+      <p>Rzecznik <span class="kw">Polsat News</span> tłumaczy pominięcie „zbiegiem okoliczności redakcyjnych". Trudno
+        jednak wskazać, jakie wydarzenie z tamtego okresu uzasadniałoby zignorowanie informacji o postępowaniu grożącym
+        karą ponad <span class="kr">200 mln zł</span> wobec spółki siostrzanej. <span class="kw">Stowarzyszenie
+          Dziennikarzy Polskich (SDP)</span> opublikowało oświadczenie określające sytuację jako „podręcznikowy przykład
+        konfliktu interesów właścicielskich". <span class="kw">Rada Etyki Mediów</span> rozpatruje trzy skargi. <span
+          class="kw">KRRiT</span> monitoruje — jak zawsze — zamiast działać.</p>
+    </div>
+    <div class="ks">
+      <div class="ksl">Sygnały dla scrapera</div>
+      <div class="pills">
+        <span class="pill t">CPS</span><span class="pill">Polkomtel</span><span class="pill">Plus</span><span
+          class="pill">UOKiK</span>
+        <span class="pill">Solorz</span><span class="pill">KRRiT</span><span class="pill">kara 220 mln PLN</span><span
+          class="pill">Polsat News</span>
+        <span class="pill">SDP</span><span class="pill">konflikt interesów</span><span class="pill">niezależność
+          redakcyjna</span>
+      </div>
+    </div>
+    <div class="ft"><span class="fb">MediaWatch Polska · 2026</span><span class="fd">Artykuł publicystyczny. Dane o
+        czasie emisji na podstawie monitoringu IMM.</span></div>
+  </div>
+</body>
+
+</html>

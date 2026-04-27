@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import type { Company, Article } from '@/lib/data';
+import { COMPANY_RELATIONS } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { ArticleRow } from './article-row';
+import { CompanyGraph } from './company-graph';
 import { riskColor, riskLabel } from './sidebar';
 
 function relativeTime(iso: string): string {
@@ -15,32 +17,33 @@ function relativeTime(iso: string): string {
 }
 
 type FilterKey = 'all' | 'neg' | 'pos' | 'high';
+type MainPanelView = 'overview' | 'graph';
 
 interface MainPanelProps {
   company: Company;
+  companies: Company[];
   articles: Article[];
+  onSelectCompany: (id: string) => void;
 }
 
-export function MainPanel({ company, articles }: MainPanelProps) {
+interface OverviewPanelProps {
+  company: Company;
+  articles: Article[];
+  accentColor: string;
+}
+
+function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
   const [openId, setOpenId] = useState<string | null>(articles[0]?.id ?? null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [activeTab, setActiveTab] = useState('12M');
 
-  // Reset open article on company change
-  useEffect(() => {
-    setOpenId(articles[0]?.id ?? null);
-    setFilter('all');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articles]);
-
   const filtered = useMemo(() => {
-    if (filter === 'neg') return articles.filter((a) => a.sentiment <= -0.2);
-    if (filter === 'pos') return articles.filter((a) => a.sentiment >= 0.2);
-    if (filter === 'high') return articles.filter((a) => Math.abs(a.impact) >= 3);
+    if (filter === 'neg') return articles.filter((article) => article.sentiment <= -0.2);
+    if (filter === 'pos') return articles.filter((article) => article.sentiment >= 0.2);
+    if (filter === 'high') return articles.filter((article) => Math.abs(article.impact) >= 3);
     return articles;
   }, [articles, filter]);
 
-  const rc = riskColor(company.risk);
   const timeTabs = ['12M', '6M', '3M', '30D'];
   const filterTabs: [FilterKey, string][] = [
     ['all', 'Wszystkie'],
@@ -50,8 +53,87 @@ export function MainPanel({ company, articles }: MainPanelProps) {
   ];
 
   return (
-    <main className="tt-main" key={company.id}>
-      {/* Company header */}
+    <>
+      <section className="tt-chart-section">
+        <div className="tt-section-head">
+          <div>
+            <div className="tt-section-title">Historia scoringu</div>
+            <div className="tt-section-sub">Ostatnich 12 miesięcy · agregat dzienny</div>
+          </div>
+          <div className="tt-chart-tabs">
+            {timeTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={'tt-tab' + (activeTab === tab ? ' is-active' : '')}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ScoreChart history={company.history} color={accentColor} />
+      </section>
+
+      <section className="tt-articles">
+        <div className="tt-section-head">
+          <div>
+            <div className="tt-section-title">Publikacje medialne</div>
+            <div className="tt-section-sub">
+              Algorytm sentymentu · {filtered.length} z {articles.length}
+            </div>
+          </div>
+          <div className="tt-chart-tabs">
+            {filterTabs.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={'tt-tab' + (filter === key ? ' is-active' : '')}
+                onClick={() => setFilter(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="tt-art-table-head">
+          <div />
+          <div>NAGŁÓWEK</div>
+          <div>ŹRÓDŁO</div>
+          <div>DATA</div>
+          <div>SENTYMENT</div>
+          <div>WPŁYW</div>
+        </div>
+
+        <div className="tt-art-list">
+          {filtered.map((article, idx) => (
+            <ArticleRow
+              key={article.id}
+              article={article}
+              expanded={openId === article.id}
+              onToggle={() => setOpenId(openId === article.id ? null : article.id)}
+              idx={idx}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <div className="tt-empty" style={{ padding: 40 }}>
+              Brak artykułów spełniających kryteria.
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+export function MainPanel({ company, companies, articles, onSelectCompany }: MainPanelProps) {
+  const [activeView, setActiveView] = useState<MainPanelView>('overview');
+  const accentColor = riskColor(company.risk);
+
+  return (
+    <main className="tt-main">
       <header className="tt-mhead">
         <div className="tt-mhead-left">
           <div className="tt-bread tt-mono">
@@ -85,7 +167,7 @@ export function MainPanel({ company, articles }: MainPanelProps) {
         <div className="tt-mhead-right">
           <div className="tt-score-card">
             <div className="tt-score-label">Trust score</div>
-            <div className="tt-score-value" style={{ color: rc }}>
+            <div className="tt-score-value" style={{ color: accentColor }}>
               {company.score}
               <span className="tt-score-of">/100</span>
             </div>
@@ -99,84 +181,56 @@ export function MainPanel({ company, articles }: MainPanelProps) {
             </div>
           </div>
           <div className={'tt-risk-pill tt-risk-' + company.risk}>
-            <span className="tt-risk-dot" style={{ background: rc }} />
+            <span className="tt-risk-dot" style={{ background: accentColor }} />
             Ryzyko: {riskLabel(company.risk)}
           </div>
         </div>
       </header>
 
-      {/* Score history chart */}
-      <section className="tt-chart-section">
-        <div className="tt-section-head">
-          <div>
-            <div className="tt-section-title">Historia scoringu</div>
-            <div className="tt-section-sub">Ostatnich 12 miesięcy · agregat dzienny</div>
-          </div>
-          <div className="tt-chart-tabs">
-            {timeTabs.map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={'tt-tab' + (activeTab === t ? ' is-active' : '')}
-                onClick={() => setActiveTab(t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <ScoreChart history={company.history} color={rc} />
-      </section>
-
-      {/* Articles */}
-      <section className="tt-articles">
-        <div className="tt-section-head">
-          <div>
-            <div className="tt-section-title">Publikacje medialne</div>
-            <div className="tt-section-sub">
-              Algorytm sentymentu · {filtered.length} z {articles.length}
-            </div>
-          </div>
-          <div className="tt-chart-tabs">
-            {filterTabs.map(([k, l]) => (
-              <button
-                key={k}
-                type="button"
-                className={'tt-tab' + (filter === k ? ' is-active' : '')}
-                onClick={() => setFilter(k)}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="tt-art-table-head">
-          <div />
-          <div>NAGŁÓWEK</div>
-          <div>ŹRÓDŁO</div>
-          <div>DATA</div>
-          <div>SENTYMENT</div>
-          <div>WPŁYW</div>
-        </div>
-
-        <div className="tt-art-list">
-          {filtered.map((a, i) => (
-            <ArticleRow
-              key={a.id}
-              article={a}
-              expanded={openId === a.id}
-              onToggle={() => setOpenId(openId === a.id ? null : a.id)}
-              idx={i}
-            />
-          ))}
-          {filtered.length === 0 && (
-            <div className="tt-empty" style={{ padding: 40 }}>
-              Brak artykułów spełniających kryteria.
-            </div>
-          )}
+      <section className="tt-main-switcher">
+        <div className="tt-chart-tabs" role="tablist" aria-label="Przełącznik widoku panelu firmy">
+          <button
+            type="button"
+            className={'tt-tab' + (activeView === 'overview' ? ' is-active' : '')}
+            onClick={() => setActiveView('overview')}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className={'tt-tab' + (activeView === 'graph' ? ' is-active' : '')}
+            onClick={() => setActiveView('graph')}
+          >
+            Graph
+          </button>
         </div>
       </section>
+
+      {activeView === 'overview' ? (
+        <OverviewPanel
+          key={company.id}
+          company={company}
+          articles={articles}
+          accentColor={accentColor}
+        />
+      ) : (
+        <section className="tt-graph-view">
+          <div className="tt-section-head">
+            <div>
+              <div className="tt-section-title">Mapa relacji firmowych</div>
+              <div className="tt-section-sub">
+                Węzły reprezentują spółki, a połączenia wynikają z osób, współpracy i relacji biznesowych do głębokości 2.
+              </div>
+            </div>
+          </div>
+          <CompanyGraph
+            company={company}
+            companies={companies}
+            relations={COMPANY_RELATIONS}
+            onSelectCompany={onSelectCompany}
+          />
+        </section>
+      )}
     </main>
   );
 }

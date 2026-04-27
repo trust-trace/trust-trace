@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import type { Article } from '@/lib/data';
 import { SentimentBar, sentimentColor, sentimentLabel } from './sentiment-bar';
 
@@ -23,17 +22,6 @@ function calcRelativeTime(iso: string): string {
   return `${days} dni temu`;
 }
 
-function useRelativeTime(iso: string): string {
-  // Render empty on server to avoid hydration mismatch, fill in on client.
-  const [label, setLabel] = useState('');
-  useEffect(() => {
-    setLabel(calcRelativeTime(iso));
-    const id = setInterval(() => setLabel(calcRelativeTime(iso)), 60_000);
-    return () => clearInterval(id);
-  }, [iso]);
-  return label;
-}
-
 interface ArticleRowProps {
   article: Article;
   expanded: boolean;
@@ -43,23 +31,19 @@ interface ArticleRowProps {
 
 export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps) {
   const sc = sentimentColor(article.sentiment);
-  const relTime = useRelativeTime(article.date);
+  const relTime = calcRelativeTime(article.date);
 
   return (
     <div
       className={'tt-art' + (expanded ? ' is-open' : '')}
       style={{ animationDelay: `${idx * 35}ms` }}
     >
-      {/*
-        tt-art-head is a CSS grid row. To avoid invalid HTML (button > div),
-        we use a div with onClick + onKeyDown for keyboard accessibility.
-      */}
-      <div
+      <button
+        type="button"
         className="tt-art-head"
+        aria-expanded={expanded}
         onClick={onToggle}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
         style={{ cursor: 'pointer' }}
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
       >
         <div className="tt-art-chev">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -80,7 +64,7 @@ export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps
           {article.impact > 0 ? '+' : ''}
           {article.impact.toFixed(1)}
         </div>
-      </div>
+      </button>
 
       <div className="tt-art-body">
         <div className="tt-art-body-inner">

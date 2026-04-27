@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>„Wydarzenie": reklama polityczna w prime time — MediaWatch</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=Space+Mono:wght@400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --ink: #0f0e0e;
+      --ink-mid: #2c2a2a;
+      --ink-light: #585454;
+      --ink-faint: #989494;
+      --paper: #f6f3ee;
+      --warm: #ebe7df;
+      --red: #bf3325;
+      --redd: #8b2419;
+      --border: #cfc9c0;
+      --borderdk: #a89f94;
+      --gold: #a67c00;
+      --blue: #1b4f8a;
+      --col: 720px
+    }
+
+    html {
+      font-size: 16px
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Source Serif 4', Georgia, serif;
+      line-height: 1.7;
+      min-height: 100vh
+    }
+
+    /* masthead */
+    .mh {
+      background: var(--ink);
+      border-bottom: 4px solid var(--red)
+    }
+
+    .mh-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 16px 24px 13px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--red);
+      text-transform: uppercase
+    }
+
+    .mhdate {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #6a6a6a;
+      letter-spacing: .06em
+    }
+
+    /* cat bar */
+    .cb {
+      padding: 7px 0
+    }
+
+    .cb-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .85)
+    }
+
+    /* article */
+    .aw {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px 80px
+    }
+
+    /* header */
+    .ah {
+      padding: 42px 0 28px;
+      border-bottom: 2px solid var(--ink)
+    }
+
+    .tr {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px
+    }
+
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      padding: 4px 11px;
+      border: 1px solid;
+      display: inline-block
+    }
+
+    .ts {
+      color: var(--red);
+      border-color: var(--red)
+    }
+
+    .tf {
+      color: var(--gold);
+      border-color: var(--gold)
+    }
+
+    .to {
+      color: var(--blue);
+      border-color: var(--blue)
+    }
+
+    .tg {
+      color: #1a6b3c;
+      border-color: #1a6b3c
+    }
+
+    .tk {
+      color: var(--ink-light);
+      border-color: var(--ink-light)
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(26px, 4.2vw, 38px);
+      font-weight: 700;
+      line-height: 1.17;
+      margin-bottom: 18px;
+      letter-spacing: -.015em
+    }
+
+    .deck {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--ink-mid);
+      font-style: italic;
+      border-left: 3px solid var(--red);
+      padding-left: 16px;
+      margin-bottom: 24px;
+      line-height: 1.56
+    }
+
+    .meta {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-faint);
+      letter-spacing: .05em
+    }
+
+    .meta b {
+      color: var(--ink-mid);
+      font-weight: 700
+    }
+
+    /* body */
+    .ab {
+      padding: 32px 0 0
+    }
+
+    .ab p {
+      font-size: 17px;
+      line-height: 1.8;
+      color: var(--ink-mid);
+      margin-bottom: 22px;
+      font-weight: 300
+    }
+
+    .ab p:first-of-type::first-letter {
+      font-family: 'Playfair Display', serif;
+      font-size: 66px;
+      font-weight: 900;
+      float: left;
+      line-height: .8;
+      padding-right: 10px;
+      padding-top: 6px;
+      color: var(--ink)
+    }
+
+    .kw {
+      color: var(--ink);
+      font-weight: 600
+    }
+
+    .kr {
+      color: var(--redd);
+      font-weight: 600
+    }
+
+    .tick {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 2px 7px;
+      border-radius: 2px;
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1.6
+    }
+
+    /* pull quote */
+    .pq {
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      margin: 38px 0;
+      padding: 24px 0;
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-style: italic;
+      line-height: 1.45;
+      color: var(--ink)
+    }
+
+    .pq::before {
+      content: '\201C';
+      font-size: 52px;
+      line-height: 0;
+      vertical-align: -18px;
+      color: var(--red);
+      margin-right: 3px
+    }
+
+    /* data box */
+    .db {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--red);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .dbt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 14px
+    }
+
+    .dr {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px
+    }
+
+    .dr:last-child {
+      border-bottom: none
+    }
+
+    .dl {
+      color: var(--ink-light)
+    }
+
+    .dv {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink)
+    }
+
+    .dv.n {
+      color: var(--red)
+    }
+
+    .dv.p {
+      color: #1a6b3c
+    }
+
+    /* info box */
+    .ib {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--blue);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .ibt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px
+    }
+
+    .ib p {
+      font-size: 14px;
+      color: var(--ink-mid);
+      line-height: 1.65;
+      margin-bottom: 10px;
+      font-weight: 300
+    }
+
+    .ib p:last-child {
+      margin-bottom: 0
+    }
+
+    /* timeline */
+    .tl {
+      margin: 30px 0;
+      list-style: none
+    }
+
+    .tl li {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tl li:last-child {
+      border-bottom: none
+    }
+
+    .tday {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red);
+      padding-top: 2px
+    }
+
+    .tev {
+      font-size: 15px;
+      color: var(--ink-mid);
+      line-height: 1.55
+    }
+
+    .tev b {
+      color: var(--ink)
+    }
+
+    /* keyword strip */
+    .ks {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid var(--borderdk)
+    }
+
+    .ksl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 10px
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .pill {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      color: var(--ink-mid)
+    }
+
+    .pill.t {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink)
+    }
+
+    /* footer */
+    .ft {
+      margin-top: 60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .fb {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--ink-faint);
+      text-transform: uppercase
+    }
+
+    .fd {
+      font-family: 'Source Serif 4', serif;
+      font-size: 11px;
+      color: var(--ink-faint);
+      font-style: italic;
+      max-width: 400px;
+      text-align: right
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mh">
+    <div class="mh-i"><span class="logo">MediaWatch Polska</span><span class="mhdate">27 KWIETNIA 2026 · ANALIZA
+        MEDIOZNAWCZA</span></div>
+  </div>
+  <div class="cb" style="background:#0d2137">
+    <div class="cb-i">INFORMACJA I POLITYKA &nbsp;/&nbsp; WYDARZENIE &nbsp;/&nbsp; STRONNICZOŚĆ REDAKCYJNA</div>
+  </div>
+  <div class="aw">
+    <div class="ah">
+      <div class="tr"><span class="tag tk">Analiza</span><span class="tag tg">Badanie IMM</span></div>
+      <h1>„Wydarzenie": jak Polsat zamienił serwis informacyjny w narzędzie polityczne</h1>
+      <p class="deck">Badanie Instytutu Monitorowania Mediów z marca 2026 r. wykazało, że 78% materiałów Polsatu o
+        tematyce rządowej emitowanych w tygodniu przed wyborami nie zawierało głosu opozycji. Zbieżność z kontraktami
+        infrastrukturalnymi wartymi 2 mld zł jest intrygująca.</p>
+      <div class="meta"><span><b>Autor:</b> Dział medioznawstwa</span><span><b>Data:</b> 27 kwietnia
+          2026</span><span><b>Czas czytania:</b> 6 min</span></div>
+    </div>
+    <div class="ab">
+      <p>Badanie <span class="kw">Instytutu Monitorowania Mediów (IMM)</span> opublikowane w marcu 2026 r. objęło
+        tydzień poprzedzający wybory samorządowe i ujawniło niepokojący obraz emisji <span class="kw">„Wydarzeń"</span>
+        — flagowego serwisu informacyjnego <span class="kw">Polsatu</span>. Wyniki: <span class="kr">34% czasu
+          antenowego</span> poświęcono materiałom dotyczącym działalności rządu, z czego aż <span class="kr">78% tych
+          materiałów</span> nie zawierało żadnej wypowiedzi opozycji. Dla porównania <span class="kw">TVN24</span>
+        osiągnął w tym samym okresie 41% czasu dla komentarzy opozycyjnych.</p>
+      <div class="db">
+        <div class="dbt">Monitoring emisji — tydzień przed wyborami samorządowymi 2026</div>
+        <div class="dr"><span class="dl">Czas antenowy poświęcony rządowi (Polsat)</span><span class="dv n">34%</span>
+        </div>
+        <div class="dr"><span class="dl">Materiały bez głosu opozycji (Polsat)</span><span class="dv n">78%</span></div>
+        <div class="dr"><span class="dl">Czas dla opozycji (TVN24, benchmark)</span><span class="dv p">41%</span></div>
+        <div class="dr"><span class="dl">Wartość kontraktów infrastrukturalnych (spółki Solorza)</span><span
+            class="dv">&gt;2 mld zł</span></div>
+        <div class="dr"><span class="dl">Skargi do Rady Etyki Mediów (aktywne)</span><span class="dv n">3</span></div>
+      </div>
+      <p>Tło finansowe jest równie istotne jak redakcyjne. Spółki z otoczenia grupy <span class="kw">Solorz-Żak</span>
+        otrzymały w ostatnich dwóch latach kontrakty infrastrukturalne od podmiotów powiązanych z rządem <span
+          class="kw">Donalda Tuska</span> o łącznej wartości przekraczającej <span class="kr">2 mld zł</span>. Korelacja
+        między kalendarzem podpisywania umów a tonacją materiałów w <span class="kw">„Wydarzeniach"</span> jest —
+        delikatnie mówiąc — uderzająca.</p>
+      <div class="pq">Stronniczość medialna rzadko ma formę kłamstwa. Zazwyczaj przybiera postać selekcji: kogo się
+        zaprasza, kogo się nie zaprasza i jakie pytania się pomija.</div>
+      <p>Polsat zaprzecza, jakoby dobór tematów i rozmówców był motywowany interesami właściciela. Redakcja powołuje się
+        na swobodę redakcyjną i standardy dziennikarskie. Jednak <span class="kw">Rada Etyki Mediów</span> rozpatruje
+        aktualnie trzy skargi dotyczące konkretnych wydań „Wydarzeń" z okresu kampanii wyborczej. Postępowanie przed
+        Radą trwa — jak zwykle — dłużej niż cykl polityczny, którego dotyczy. <span class="kw">KRRiT</span> w odpowiedzi
+        na pytania medioznawców odpisała, że „analizuje dane dotyczące pluralizmu medialnego w stacjach komercyjnych".
+        To tyle.</p>
+      <div class="ib">
+        <div class="ibt">Reakcje instytucji i środowiska</div>
+        <p><b>Rada Etyki Mediów</b> — trzy aktywne postępowania dotyczące wydań z tygodnia wyborczego. Orzeczenie
+          spodziewane „przed końcem Q2 2026".</p>
+        <p><b>KRRiT</b> — zapowiedź analizy danych pluralizmu. Brak wiążących działań.</p>
+        <p><b>Instytut Medioznawstwa UW</b> — prof. Anna Zawadzka w wywiadzie dla Gazety Wyborczej: „Dane IMM wskazują
+          na systemowy, a nie incydentalny problem z balansem w wydaniach Wydarzeń".</p>
+      </div>
+    </div>
+    <div class="ks">
+      <div class="ksl">Sygnały dla scrapera</div>
+      <div class="pills">
+        <span class="pill">Polsat</span><span class="pill">Wydarzenie</span><span class="pill">IMM</span><span
+          class="pill">Donald Tusk</span>
+        <span class="pill">Solorz-Żak</span><span class="pill">KRRiT</span><span class="pill">wybory 2026</span><span
+          class="pill">stronniczość medialna</span>
+        <span class="pill">kontrakty 2 mld PLN</span><span class="pill">Rada Etyki Mediów</span>
+      </div>
+    </div>
+    <div class="ft"><span class="fb">MediaWatch Polska · 2026</span><span class="fd">Artykuł publicystyczny oparty na
+        danych IMM z marca 2026 r.</span></div>
+  </div>
+</body>
+
+</html>
