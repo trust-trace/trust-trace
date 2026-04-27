@@ -7,6 +7,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use crate::config::AppConfig;
+use crate::crawler::delivery::maybe_deliver_to_tarkov;
 use crate::crawler::discovery::discover_urls;
 use crate::crawler::fetch::{build_article_payload, build_http_client};
 use crate::domain::source::{CrawlSource, SourceInfo, load_sources};
@@ -77,6 +78,9 @@ pub async fn crawl_with_config(config: &AppConfig) -> anyhow::Result<CrawlSummar
         match result {
             Ok(Ok((source_name, canonical_url, payload))) => {
                 outbox.append(&payload)?;
+                if let Err(error) = maybe_deliver_to_tarkov(&payload).await {
+                    eprintln!("[PIPELINE] tarkov delivery failed for {canonical_url}: {error}");
+                }
                 let recorded =
                     seen_urls.record(&canonical_url, &source_name, &payload.article.scraped_at)?;
                 if recorded {

@@ -10,6 +10,7 @@ pub mod utils;
 use clap::Parser;
 use cli::{Cli, Command};
 use config::AppConfig;
+use crawler::delivery::maybe_deliver_to_tarkov;
 use crawler::company_pipeline::scrape_company_with_config;
 use crawler::fetch::fetch_article_payload;
 use crawler::pipeline::crawl_with_config;
@@ -72,6 +73,9 @@ where
             let payload = fetch_article_payload(&url).await?;
             let outbox = JsonlOutbox::new(&config.outbox_path);
             outbox.append(&payload)?;
+            if let Err(error) = maybe_deliver_to_tarkov(&payload).await {
+                eprintln!("[FETCH_URL] tarkov delivery failed for {url}: {error}");
+            }
 
             let text_preview = payload.article.text.0.chars().take(200).collect::<String>();
 
