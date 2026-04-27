@@ -1,4 +1,4 @@
-"""Person repository."""
+"""Person repository (Postgres-backed with standalone Neo4j node sync)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from tarkov.database.models import Person, PersonEvent
+from tarkov.database.session import get_neo4j_session
 
 
 class PersonRepository:
@@ -22,6 +23,18 @@ class PersonRepository:
         obj = Person(name=name, role=role, firm_id=firm_id, description=description)
         self.db.add(obj)
         self.db.flush()
+
+        try:
+            with get_neo4j_session() as g:
+                props = {"person_id": obj.id, "name": obj.name}
+                if obj.role:
+                    props["role"] = obj.role
+                if firm_id:
+                    props["firm_id"] = firm_id
+                g.create_node("Person", props)
+        except Exception:
+            pass
+
         return obj
 
     def get_or_create_person(self, name: str, firm_id: int | None = None, role: str | None = None) -> Person:

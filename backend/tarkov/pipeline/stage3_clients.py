@@ -55,16 +55,3 @@ class NSAClient(BaseScoringClient):
         return await to_thread(self._post, payload)
 
 
-class TrustWebClient(BaseScoringClient):
-    def __init__(self, base_url: str):
-        super().__init__(base_url=base_url, route="/score/network")
-
-    async def score_network(self, company_matches, connections, correlation_id):
-        from asyncio import to_thread
-
-        payload = {
-            "correlation_id": correlation_id,
-            "company_matches": company_matches,
-            "connections": [conn.model_dump(mode="json") for conn in connections],
-        }
-        return await to_thread(self._post, payload)

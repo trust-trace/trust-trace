@@ -36,6 +36,10 @@ class Config:
     nsa_url: str
     trustweb_url: str
 
+    enable_ingest_contract_headers: bool = False
+    enforce_payload_version_header: bool = False
+    expected_payload_version: str = "1"
+
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
@@ -55,4 +59,7 @@ class Config:
             event_classifier_url=os.getenv("EVENT_CLASSIFIER_URL", ""),
             nsa_url=os.getenv("NSA_URL", ""),
             trustweb_url=os.getenv("TRUSTWEB_URL", ""),
+            enable_ingest_contract_headers=env_bool("ENABLE_INGEST_CONTRACT_HEADERS", False),
+            enforce_payload_version_header=env_bool("ENFORCE_PAYLOAD_VERSION_HEADER", False),
+            expected_payload_version=os.getenv("EXPECTED_PAYLOAD_VERSION", "1"),
         )

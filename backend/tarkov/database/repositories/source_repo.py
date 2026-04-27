@@ -1,4 +1,4 @@
-"""Source repository."""
+"""Source repository: Postgres records + standalone Neo4j node creation."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from tarkov.database.models import Source
 from tarkov.schemas.article import ArticleIn
 from tarkov.schemas.parsed_result import EventExtraction, LLMSummary
+from tarkov.database.session import get_neo4j_session
 
 
 class SourceRepository:
@@ -37,6 +38,15 @@ class SourceRepository:
             credibility=article.source.credibility_score,
         )
         self.db.add(original)
+
+        try:
+            with get_neo4j_session() as g:
+                g.create_node("Article", {
+                    "source_url": article.source.url,
+                    "event_id": event_id,
+                })
+        except Exception:
+            pass
 
         if llm_summary is not None:
             self.db.add(

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import type { Company, Risk } from '@/lib/data';
 import { Sparkline } from './sparkline';
+import { ToggleGroup, type ToggleOption } from './toggle-group';
 
 function riskColor(risk: Risk): string {
   if (risk === 'high') return 'oklch(0.55 0.18 25)';
@@ -58,10 +59,10 @@ export function Sidebar({ companies, selectedId, onSelect }: SidebarProps) {
     [companies]
   );
 
-  const sortOptions: [SortKey, string][] = [
-    ['risk', 'Ryzyko'],
-    ['name', 'Nazwa'],
-    ['recent', 'Ostatnie'],
+  const sortOptions: ToggleOption<SortKey>[] = [
+    { value: 'risk', label: 'Ryzyko' },
+    { value: 'name', label: 'Nazwa' },
+    { value: 'recent', label: 'Ostatnie' },
   ];
 
   return (
@@ -106,18 +107,7 @@ export function Sidebar({ companies, selectedId, onSelect }: SidebarProps) {
           ))}
         </div>
 
-        <div className="tt-sort">
-          {sortOptions.map(([k, l]) => (
-            <button
-              key={k}
-              type="button"
-              className={'tt-sort-btn' + (sortBy === k ? ' is-active' : '')}
-              onClick={() => setSortBy(k)}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
+        <ToggleGroup options={sortOptions} value={sortBy} onChange={setSortBy} size="sm" />
       </div>
 
       <div className="tt-list">

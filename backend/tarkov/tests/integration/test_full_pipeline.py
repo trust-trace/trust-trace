@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from tarkov.config import Config
-from tarkov.database.models import Event, Firm, Source
+from tarkov.database.models import ArticleMetadata, Event, Firm, Source
 from tarkov.database.session import Base, init_engine
 from tarkov.pipeline.processor import ArticleProcessor
 from tarkov.tests.fixtures.sample_articles import SAMPLE_ARTICLE_1
@@ -39,6 +39,9 @@ def test_full_pipeline_with_sample_article(tmp_path):
         event_classifier_url="",
         nsa_url="",
         trustweb_url="",
+        enable_ingest_contract_headers=False,
+        enforce_payload_version_header=False,
+        expected_payload_version="1",
     )
 
     processor = ArticleProcessor(db, config)
@@ -48,3 +51,4 @@ def test_full_pipeline_with_sample_article(tmp_path):
     assert db.query(Firm).count() >= 1
     assert db.query(Event).count() >= 1
     assert db.query(Source).count() >= 1
+    assert db.query(ArticleMetadata).filter_by(article_id=result.article_id).count() == 1

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMPANY_RELATIONS, COMPANIES } from '@/lib/data';
+import { COMPANY_RELATIONS, COMPANIES } from '@/mocks/data';
 import { buildCompanyGraph } from '@/lib/company-graph';
 
 describe('buildCompanyGraph', () => {

@@ -1,30 +1,47 @@
 version: '3.8'
 
 services:
-  postgres:
+  neo4j:
     build:
-      context: .
-      dockerfile: db/Dockerfile
+      context: db/neo4j
+      dockerfile: Dockerfile
     container_name: trust-trace-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: trusttrace
+      NEO4J_AUTH: neo4j/trusttrace
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_dbms_memory_pagecache_size: 512m
     ports:
-      - "5432:5432"
+      - '7474:7474'
+      - '7687:7687'
     volumes:
-      # Persist data between container restarts
-      - postgres_data:/var/lib/postgresql/data
+      - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:7474 || exit 1']
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
+    networks:
+      - trust-trace-network
+
+  postgres:
+    image: postgres:15
+    container_name: trust-trace-postgres
+    environment:
+      POSTGRES_USER: trusttrace
+      POSTGRES_PASSWORD: trusttrace
+      POSTGRES_DB: trusttrace_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     networks:
       - trust-trace-network
 
 volumes:
-  postgres_data:
+  neo4j_data:
+  pgdata:
 
 networks:
   trust-trace-network:
