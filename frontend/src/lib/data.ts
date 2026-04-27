@@ -1,5 +1,6 @@
 export type Risk = 'high' | 'medium' | 'low';
 export type SourceTier = 'tier-1' | 'tier-2' | 'tier-3';
+export type GraphRelationType = 'person' | 'partnership' | 'business';
 
 export interface Company {
   id: string;
@@ -27,6 +28,13 @@ export interface Article {
   keywords: string[];
   excerpt: string;
   entities: string[];
+}
+
+export interface CompanyRelation {
+  sourceCompanyId: string;
+  targetCompanyId: string;
+  type: GraphRelationType;
+  label?: string;
 }
 
 export const COMPANIES: Company[] = [
@@ -383,6 +391,57 @@ const SOURCE_TIERS: Record<string, SourceTier> = {
   'TVN24 BiS': 'tier-2',
   'Money.pl': 'tier-3',
 };
+
+export const COMPANY_RELATIONS: CompanyRelation[] = [
+  {
+    sourceCompanyId: 'allegro',
+    targetCompanyId: 'cyfrowy',
+    type: 'business',
+    label: 'Cross-channel distribution',
+  },
+  {
+    sourceCompanyId: 'allegro',
+    targetCompanyId: 'dino',
+    type: 'partnership',
+    label: 'Marketplace expansion partnership',
+  },
+  {
+    sourceCompanyId: 'allegro',
+    targetCompanyId: 'lpp',
+    type: 'person',
+    label: 'Shared supervisory board adviser',
+  },
+  {
+    sourceCompanyId: 'cyfrowy',
+    targetCompanyId: 'pko',
+    type: 'business',
+    label: 'Payments and settlement integration',
+  },
+  {
+    sourceCompanyId: 'dino',
+    targetCompanyId: 'asseco',
+    type: 'business',
+    label: 'Retail systems rollout',
+  },
+  {
+    sourceCompanyId: 'lpp',
+    targetCompanyId: 'orlen',
+    type: 'partnership',
+    label: 'Logistics fuel agreement',
+  },
+  {
+    sourceCompanyId: 'orlen',
+    targetCompanyId: 'tauron',
+    type: 'business',
+    label: 'Energy balancing agreement',
+  },
+  {
+    sourceCompanyId: 'pko',
+    targetCompanyId: 'mbank',
+    type: 'person',
+    label: 'Former executive overlap',
+  },
+];
 
 // Deterministic "jitter" based on company id and article index — no Math.random()
 // so SSR and client produce identical output (no hydration mismatch).

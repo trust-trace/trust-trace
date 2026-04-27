@@ -1,6 +1,6 @@
 # scuttle_crab
 
-Rust miniapp for collecting news and financial articles for downstream company scoring.
+Rust miniapp for collecting news and financial articles for downstream processing.
 
 ## Status
 
@@ -9,7 +9,7 @@ Current crate state:
 - CLI scaffolding exists for `crawl`, `fetch-url`, and `test-source`
 - outbound payload structs are implemented in `src/domain/`
 - local JSONL writing and seen-URL persistence are implemented in `src/storage/`
-- company reference loading and basic deterministic matching are implemented
+- collection, normalization, deduplication, and payload emission are the main data-flow concerns
 - the full crawler pipeline is still in progress
 
 The architecture and longer-term MVP decisions are documented in `../SCUTTLE_CRAB.md`. A crate-specific architecture guide now lives in `docs/ARCHITECTURE.md`. This README describes the code that exists today and how to use it.
@@ -19,7 +19,7 @@ The architecture and longer-term MVP decisions are documented in `../SCUTTLE_CRA
 Build a Rust crawler that:
 - discovers articles from curated finance/news sources
 - extracts normalized article text and metadata
-- matches articles against a fixed company/ticker list
+- normalizes and deduplicates article records
 - avoids re-scraping the same article twice
 - writes one outbound JSON payload per article for a future endpoint
 
@@ -28,12 +28,12 @@ Build a Rust crawler that:
 Implemented pieces:
 - `src/cli.rs`: command-line interface and subcommands
 - `src/config.rs`: default file locations for local data
-- `src/domain/`: outbound payload, source, and company data models
+- `src/domain/company.rs`: company reference records and loader used by the scaffold/config path
+- `src/domain/`: outbound payload and source data models
 - `src/storage/jsonl.rs`: append one payload per line to a JSONL outbox
 - `src/storage/seen_urls.rs`: persist normalized URL hashes to skip duplicates across runs
-- `src/crawler/matcher.rs`: exact ticker and alias matching over article text
 - `src/utils/`: URL normalization and SHA-256 hashing helpers
-- `tests/`: integration tests for CLI parsing, payload contract, JSONL output, matching, and seen-URL storage
+- `tests/`: integration tests for CLI parsing, payload contract, JSONL output, company loading, and seen-URL storage
 
 Not implemented yet:
 - HTTP fetching
@@ -52,10 +52,8 @@ src/
   config.rs              # default data paths
   crawler/
     mod.rs               # crawler namespace
-    matcher.rs           # company/ticker matching
   domain/
     article.rs           # outbound payload schema
-    company.rs           # company reference records + loader
     source.rs            # source metadata in outbound payloads
   storage/
     jsonl.rs             # JSONL outbox writer
@@ -66,7 +64,6 @@ src/
 tests/
   cli.rs
   jsonl_outbox.rs
-  matcher.rs
   payload_contract.rs
   seen_urls.rs
 ```
@@ -96,7 +93,7 @@ cargo test
 Run one test file:
 
 ```bash
-cargo test --test matcher
+cargo test --test seen_urls
 ```
 
 Run tests matching a name:
@@ -153,12 +150,12 @@ Current flow:
 3. The selected command returns a scaffold response.
 4. Supporting modules already implement the data structures and persistence helpers that the future crawler pipeline will use.
 
-Today, the most reusable parts are the payload contract, the JSONL outbox, the seen-URL store, and the matcher.
+Today, the most reusable parts are the payload contract, the JSONL outbox, the seen-URL store, and the article emission path.
 
 ## Core Data Files
 
 Default local files:
-- `data/companies.json`: company reference list used for deterministic matching
+- `data/companies.json`: company reference list used as a local input/config path
 - `data/seen_urls.jsonl`: persistent dedup store of normalized URL hashes
 - `data/outbox.jsonl`: one outbound payload per line
 
@@ -176,16 +173,6 @@ The serialization contract is tested in `tests/payload_contract.rs`.
 Explicitly excluded from the payload:
 - `summary`
 - `content_hash`
-
-## Company Matching
-
-The current matcher is intentionally simple and deterministic:
-- exact ticker matching
-- exact alias matching
-- case-insensitive matching
-- whole-word or whole-phrase matching
-
-This keeps false positives lower than broad fuzzy matching while the crawler is still early.
 
 ## Dedup Behavior
 
@@ -249,7 +236,7 @@ Do not start with an open web crawler.
 1. Add feed or page discovery
 2. Add HTTP fetching with retries, timeouts, and politeness controls
 3. Add HTML extraction into the existing payload contract
-4. Wire matching and dedup into an end-to-end pipeline
+4. Wire collection, normalization, and dedup into an end-to-end pipeline
 5. Add fixture-based extraction tests
 6. Extend the CLI from scaffold behavior to real crawl behavior
 
