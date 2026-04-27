@@ -1,8 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { Company, Article } from '@/lib/data';
-import { COMPANY_RELATIONS } from '@/lib/data';
+import type { Article, Company, CompanyRelation } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { ArticleRow } from './article-row';
 import { CompanyGraph } from './company-graph';
@@ -23,6 +22,7 @@ interface MainPanelProps {
   company: Company;
   companies: Company[];
   articles: Article[];
+  relations: CompanyRelation[];
   onSelectCompany: (id: string) => void;
 }
 
@@ -128,7 +128,7 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
   );
 }
 
-export function MainPanel({ company, companies, articles, onSelectCompany }: MainPanelProps) {
+export function MainPanel({ company, companies, articles, relations, onSelectCompany }: MainPanelProps) {
   const [activeView, setActiveView] = useState<MainPanelView>('overview');
   const accentColor = riskColor(company.risk);
 
@@ -226,7 +226,7 @@ export function MainPanel({ company, companies, articles, onSelectCompany }: Mai
           <CompanyGraph
             company={company}
             companies={companies}
-            relations={COMPANY_RELATIONS}
+            relations={relations}
             onSelectCompany={onSelectCompany}
           />
         </section>
