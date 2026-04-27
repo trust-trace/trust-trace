@@ -37,9 +37,9 @@ else
     for f in $(find "$MIGRATIONS_DIR" -maxdepth 1 -name "*.cypher" | sort); do
         echo "[init] Running: $(basename "$f")"
         if cypher-shell -a "bolt://localhost:7687" -u "$_NEO4J_USER" -p "$_NEO4J_PASS" -f "$f"; then
-            echo "[init] ✓ $(basename "$f")"
+            echo "[init] âś“ $(basename "$f")"
         else
-            echo "[init] ✗ $(basename "$f") FAILED"
+            echo "[init] âś— $(basename "$f") FAILED"
             exit 1
         fi
     done

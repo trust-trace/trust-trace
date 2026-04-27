@@ -1,4 +1,4 @@
-version: '3.8'
+# version field deprecated in compose v2+
 
 services:
   neo4j:
@@ -32,10 +32,17 @@ services:
       POSTGRES_USER: trusttrace
       POSTGRES_PASSWORD: trusttrace
       POSTGRES_DB: trusttrace_db
+      POSTGRES_HOST_AUTH_METHOD: md5
+      PGPASSWORD: trusttrace
     ports:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U trusttrace -d trusttrace_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - trust-trace-network
 

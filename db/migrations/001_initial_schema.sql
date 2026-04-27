@@ -160,6 +160,21 @@ CREATE TABLE reputation_score (
 -- Sentiment & Keywords
 -- ─────────────────────────────────────────
 
+CREATE TABLE rkr_scoring (
+    id               BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    request_id       CHAR(36)        NOT NULL UNIQUE,
+    correlation_id   VARCHAR(50),
+    source_url       TEXT            NOT NULL,
+    title            TEXT,
+    language         VARCHAR(10),
+    threshold        DECIMAL(4,3)    NOT NULL CHECK (threshold BETWEEN 0 AND 1),
+    risk_score       DECIMAL(4,3)    NOT NULL CHECK (risk_score BETWEEN 0 AND 1),
+    passed_threshold BOOLEAN         NOT NULL,
+    categories_hit   TEXT            NOT NULL,
+    matched_keywords TEXT            NOT NULL,
+    created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- Used for events where event_category = 'classical'
 CREATE TABLE sentiment (
     id             BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -266,6 +281,10 @@ CREATE INDEX idx_reputation_score_trigger_event   ON reputation_score(trigger_ev
 
 CREATE INDEX idx_sentiment_event_id               ON sentiment(event_id);
 CREATE INDEX idx_sentiment_firm_id                ON sentiment(firm_id);
+
+CREATE INDEX idx_rkr_scoring_request_id           ON rkr_scoring(request_id);
+CREATE INDEX idx_rkr_scoring_passed               ON rkr_scoring(passed_threshold);
+CREATE INDEX idx_rkr_scoring_created_at           ON rkr_scoring(created_at);
 
 CREATE INDEX idx_sentiment_keywords_sentiment_id  ON sentiment_keywords(sentiment_id);
 CREATE INDEX idx_sentiment_keywords_keywords_id   ON sentiment_keywords(keywords_id);

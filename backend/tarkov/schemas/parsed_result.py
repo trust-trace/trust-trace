@@ -24,6 +24,7 @@ class SourceReference(BaseModel):
 
 class EventExtraction(BaseModel):
     event_type: str
+    event_category: str = "classical"
     title: str
     description: str
     risk_level: int = Field(ge=1, le=10)

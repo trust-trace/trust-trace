@@ -38,10 +38,10 @@ AML_KEYWORDS: dict[str, list[str]] = {
 
 
 ROLE_KEYWORDS: dict[str, list[str]] = {
-    "ceo": ["chief executive officer", "ceo"],
-    "cfo": ["chief financial officer", "cfo"],
-    "director": ["director", "board member"],
-    "owner": ["owner", "beneficial owner", "shareholder"],
+    "ceo": ["chief executive officer", "chief executive", "ceo"],
+    "cfo": ["chief financial officer", "finance chief", "cfo"],
+    "director": ["board director", "non-executive director", "executive director"],
+    "owner": ["beneficial owner", "majority owner", "controlling shareholder"],
     "founder": ["founder", "co-founder"],
     "compliance_officer": ["compliance officer", "aml officer"],
 }

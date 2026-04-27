@@ -1,0 +1,5 @@
+# Ensure shell scripts always use Unix line endings (LF) when checked out
+*.sh text eol=lf
+
+# Cypher migration files — keep LF
+*.cypher text eol=lf

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tarkov.database.session import Base
@@ -13,6 +13,23 @@ from tarkov.database.session import Base
 
 def _uuid() -> str:
     return str(uuid.uuid4())
+
+
+class RkrScore(Base):
+    __tablename__ = "rkr_scoring"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    request_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(50))
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str | None] = mapped_column(Text)
+    language: Mapped[str | None] = mapped_column(String(10))
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False)
+    passed_threshold: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    categories_hit: Mapped[str] = mapped_column(Text, nullable=False)
+    matched_keywords: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Firm(Base):

@@ -7,7 +7,7 @@ import json
 import click
 
 from tarkov.config import Config
-from tarkov.database.session import SessionLocal, init_engine
+from tarkov.database.session import SessionLocal, init_engine, init_neo4j
 from tarkov.pipeline.processor import ArticleProcessor
 from tarkov.schemas.article import ArticleIn
 from tarkov.storage.article_reader import ArticleReader
@@ -30,6 +30,7 @@ def process_articles(input_source: str, input_path: str, batch_size: int) -> Non
     config = Config.from_env()
     setup_logging(config.log_level)
     init_engine(config.database_url)
+    init_neo4j(config.neo4j_uri, config.neo4j_user, config.neo4j_password)
     session = SessionLocal()
 
     try:
@@ -47,6 +48,7 @@ def process_single(article_path: str) -> None:
     config = Config.from_env()
     setup_logging(config.log_level)
     init_engine(config.database_url)
+    init_neo4j(config.neo4j_uri, config.neo4j_user, config.neo4j_password)
     session = SessionLocal()
 
     try:
@@ -68,6 +70,7 @@ def process_single(article_path: str) -> None:
 def serve(host: str | None, port: int | None) -> None:
     config = Config.from_env()
     setup_logging(config.log_level)
+    init_neo4j(config.neo4j_uri, config.neo4j_user, config.neo4j_password)
 
     import uvicorn
 

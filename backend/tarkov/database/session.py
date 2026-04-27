@@ -83,6 +83,15 @@ class Neo4jSession:
     def __init__(self, native_session: Neo4jNativeSession):
         self._session = native_session
 
+    # ── context manager support ──────────────────────────────────────────
+    def __enter__(self) -> "Neo4jSession":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self.close()
+        return False  # do not suppress exceptions
+
+    # ── query helpers ─────────────────────────────────────────────────────
     def run(self, cypher: str, **params: Any):
         return self._session.run(cypher, **params)
 
@@ -92,14 +101,12 @@ class Neo4jSession:
     def begin_transaction(self):
         return self._session.begin_transaction()
 
-    # convenience helpers
     def node_exists(self, label: str, key: str, value: Any) -> bool:
         q = f"MATCH (n:{label} {{{key}: $value}}) RETURN count(n) as c"
         rec = self.run(q, value=value).single()
         return rec["c"] > 0
 
     def create_node(self, label: str, props: dict) -> None:
-        keys = ", ".join(f"{k}: $props.{k}" for k in props.keys())
         q = f"CREATE (n:{label} {{ {', '.join([f'`{k}`: $props.{k}' for k in props.keys()])} }})"
         self.run(q, props=props)
 

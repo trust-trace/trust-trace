@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Acme Corp",
+    "ticker": "ACME",
+    "aliases": ["Acme Corp", "ACME"]
+  },
+  {
+    "name": "Beta Bank",
+    "ticker": "BETA",
+    "aliases": ["Beta Bank", "BETA"]
+  }
+]

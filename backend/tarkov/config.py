@@ -36,9 +36,17 @@ class Config:
     nsa_url: str
     trustweb_url: str
 
+    # Neo4j graph database
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "trusttrace"
+
     enable_ingest_contract_headers: bool = False
     enforce_payload_version_header: bool = False
     expected_payload_version: str = "1"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_http_referer: str = "https://github.com/trust-trace/trust-trace"
+    openrouter_x_title: str = "trust-trace"
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -48,6 +56,11 @@ class Config:
             llm_provider=os.getenv("LLM_PROVIDER", "none"),
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
+            openrouter_base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+            openrouter_http_referer=os.getenv(
+                "OPENROUTER_HTTP_REFERER", "https://github.com/trust-trace/trust-trace"
+            ),
+            openrouter_x_title=os.getenv("OPENROUTER_X_TITLE", "trust-trace"),
             article_input_source=os.getenv("ARTICLE_INPUT_SOURCE", "jsonl"),
             article_input_path=os.getenv("ARTICLE_INPUT_PATH", "articles.jsonl"),
             company_reference_path=os.getenv("COMPANY_REFERENCE_PATH", "backend/tarkov/data/companies.json"),
@@ -62,4 +75,7 @@ class Config:
             enable_ingest_contract_headers=env_bool("ENABLE_INGEST_CONTRACT_HEADERS", False),
             enforce_payload_version_header=env_bool("ENFORCE_PAYLOAD_VERSION_HEADER", False),
             expected_payload_version=os.getenv("EXPECTED_PAYLOAD_VERSION", "1"),
+            neo4j_uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+            neo4j_user=os.getenv("NEO4J_USER", "neo4j"),
+            neo4j_password=os.getenv("NEO4J_PASSWORD", "trusttrace"),
         )

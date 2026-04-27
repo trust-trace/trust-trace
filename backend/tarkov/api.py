@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import uuid
+
 from sqlalchemy import text
+from pydantic import ValidationError
 
 try:
     from fastapi import Request as FastAPIRequest
@@ -10,6 +14,7 @@ except ImportError:  # pragma: no cover - guarded again in create_app
     FastAPIRequest = object
 
 from tarkov.config import Config
+from tarkov.database.models import RkrScore
 from tarkov.database.session import SessionLocal, create_all, init_engine
 from tarkov.pipeline.event_handlers import AMLScoringEventHandler
 from tarkov.pipeline.processor import ArticleProcessor
@@ -17,9 +22,40 @@ from tarkov.pipeline.result_emitter import ResultEmitter
 from tarkov.pipeline.stage3_clients import EventClassifierClient, NSAClient
 from tarkov.schemas.article import ArticleIn
 from tarkov.utils.logger import get_logger, setup_logging
+from rkr.pipeline.processor import ArticleProcessor as RkrArticleProcessor
 
 
 logger = get_logger(__name__)
+
+
+def _store_rkr_score(
+    enriched,
+    *,
+    request_id: str,
+    correlation_id: str | None,
+    threshold: float,
+) -> None:
+    session = SessionLocal()
+    try:
+        score = RkrScore(
+            request_id=request_id,
+            correlation_id=correlation_id,
+            source_url=enriched.source["url"],
+            title=enriched.article.get("title"),
+            language=enriched.article.get("language"),
+            threshold=threshold,
+            risk_score=enriched.rkr.risk_score,
+            passed_threshold=enriched.rkr.passed_threshold,
+            categories_hit=json.dumps(enriched.rkr.categories_hit, ensure_ascii=False),
+            matched_keywords=json.dumps(
+                enriched.rkr.model_dump().get("matched_keywords", []),
+                ensure_ascii=False,
+            ),
+        )
+        session.add(score)
+        session.commit()
+    finally:
+        session.close()
 
 
 def _check_db_connection() -> None:
@@ -39,6 +75,7 @@ def create_app(config: Config | None = None):
     create_all()
 
     app = FastAPI(title="Tarkov API", version="0.1.0")
+    rkr_processor = RkrArticleProcessor()
 
     @app.get("/health")
     def health() -> dict:
@@ -49,21 +86,61 @@ def create_app(config: Config | None = None):
             raise HTTPException(status_code=503, detail=f"DB health check failed: {exc}") from exc
 
     @app.post("/v1/articles")
-    def receive_article(article: ArticleIn, request: FastAPIRequest):
+    async def receive_article(request: FastAPIRequest):
+        try:
+            raw_payload = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {exc}") from exc
+
+        if not isinstance(raw_payload, dict):
+            raise HTTPException(status_code=400, detail="Expected a JSON object payload")
+
+        correlation_id = None
+        if cfg.enable_ingest_contract_headers:
+            correlation_id = request.headers.get("X-Correlation-Id") or request.headers.get("x-correlation-id")
+            payload_version = request.headers.get("X-Payload-Version") or request.headers.get("x-payload-version")
+            if cfg.enforce_payload_version_header and payload_version != cfg.expected_payload_version:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Unsupported payload version. "
+                        f"Expected {cfg.expected_payload_version}, got {payload_version!r}"
+                    ),
+                )
+
+        request_id = str(uuid.uuid4())
+        enriched = rkr_processor.process_article(raw_payload)
+        logger.info(
+            "rkr completed risk_score=%s passed=%s categories=%s",
+            enriched.rkr.risk_score,
+            enriched.rkr.passed_threshold,
+            enriched.rkr.categories_hit,
+        )
+
+        _store_rkr_score(
+            enriched,
+            request_id=request_id,
+            correlation_id=correlation_id,
+            threshold=rkr_processor.threshold,
+        )
+
+        if not enriched.rkr.passed_threshold:
+            title = enriched.article.get("title", "")
+            return {
+                "status": "skipped",
+                "reason": "rkr_threshold",
+                "title": title,
+                "risk_score": enriched.rkr.risk_score,
+                "categories_hit": enriched.rkr.categories_hit,
+            }
+
         session = SessionLocal()
         try:
-            correlation_id = None
-            if cfg.enable_ingest_contract_headers:
-                correlation_id = request.headers.get("X-Correlation-Id") or request.headers.get("x-correlation-id")
-                payload_version = request.headers.get("X-Payload-Version") or request.headers.get("x-payload-version")
-                if cfg.enforce_payload_version_header and payload_version != cfg.expected_payload_version:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=(
-                            "Unsupported payload version. "
-                            f"Expected {cfg.expected_payload_version}, got {payload_version!r}"
-                        ),
-                    )
+            article_data = enriched.model_dump()
+            try:
+                article = ArticleIn.model_validate(article_data)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail=exc.errors()) from exc
 
             emitter = ResultEmitter()
             if cfg.enable_stage3_dispatch:
@@ -96,6 +173,3 @@ def create_app(config: Config | None = None):
             session.close()
 
     return app
-
-
-app = create_app()

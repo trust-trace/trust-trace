@@ -42,6 +42,107 @@ Each object must include:
 
 Text:
 {text}
+
+Rules:
+- Only return explicitly named human people.
+- Exclude companies, departments, titles by themselves, and role fragments like "Director Jane" unless a full name is present.
+- Prefer full names tied to a title or surrounding evidence.
+""".strip()
+
+
+CONNECTION_EXTRACTION_PROMPT = """
+Extract relationships between entities (companies and people) and return ONLY JSON array.
+Each object must include:
+- entity_a
+- entity_b
+- relationship_type
+- description
+- confidence
+
+Entities:
+{companies}
+{people}
+
+Text:
+{text}
+""".strip()
+
+
+COMPANY_MATCH_PROMPT = """
+You are resolving company mentions in a news article.
+Return ONLY a JSON array of the companies that best match the article.
+
+Each object must include:
+- company_name
+- ticker
+- matched_text
+- confidence
+- reason
+
+Candidate companies:
+{candidates}
+
+Article:
+{text}
+""".strip()
+
+
+PERSON_EXTRACTION_HYBRID_PROMPT = """
+You are extracting people from a news article.
+Return ONLY a JSON array.
+
+Each object must include:
+- name
+- role
+- description
+- confidence
+- source_text
+
+Candidate snippets:
+{candidates}
+
+Article:
+{text}
+
+Event context:
+{context}
+
+Rules:
+- Only return explicitly named human people.
+- Exclude company names and bare roles.
+- Do not return fragments like "Director Jane" or "Acme Corp".
+- Prefer full names with surrounding role evidence.
+""".strip()
+
+
+CONNECTION_EXTRACTION_HYBRID_PROMPT = """
+You are extracting connection events from a news article.
+Infer direct relationships and multihop relationships when the article supports them.
+Return ONLY a JSON array.
+
+Each object must include:
+- connection_type
+- entity_1_type
+- entity_1_id
+- entity_1_name
+- entity_2_type
+- entity_2_id
+- entity_2_name
+- relationship_description
+- confidence
+- intensity
+
+Known companies:
+{companies}
+
+Known people:
+{people}
+
+Known event context:
+{events}
+
+Article:
+{text}
 """.strip()
 
 
