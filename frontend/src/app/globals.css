@@ -774,18 +774,82 @@
 }
 
 .tt-graph-node-hit {
-  cursor: pointer;
-  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+  cursor: grab;
+  transition: stroke-width 0.18s ease, filter 0.18s ease;
 }
 
 .tt-graph-node-hit:hover {
   stroke-width: 4;
+  filter: brightness(1.1);
+}
+
+.tt-graph-node-hit:active {
+  cursor: grabbing;
 }
 
 .tt-graph-node-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tt-graph-node-sub {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tt-graph-score-badge {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.tt-graph-glow {
+  animation: tt-glow-pulse 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes tt-glow-pulse {
+  from { stroke-opacity: 0.15; }
+  to { stroke-opacity: 0.4; }
+}
+
+.tt-graph-edge {
+  transition: stroke-width 0.18s ease, stroke-opacity 0.22s ease;
+}
+
+.tt-graph-edge.tt-entered {
+  animation: tt-edge-draw 0.6s ease-out backwards;
+}
+
+@keyframes tt-edge-draw {
+  from { stroke-opacity: 0; }
+  to { stroke-opacity: 0.5; }
+}
+
+.tt-graph-node {
+  transition: opacity 0.22s ease;
+}
+
+.tt-graph-node.tt-entered {
+  animation: tt-node-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes tt-node-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .tt-graph-empty-state {
