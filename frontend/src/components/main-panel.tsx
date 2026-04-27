@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { Article, Company, CompanyRelation } from '@/lib/data';
 import { ScoreChart } from './score-chart';
+import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
 import { CompanyGraph } from './company-graph';
 import { riskColor, riskLabel } from './sidebar';
@@ -37,6 +38,7 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
   const [openId, setOpenId] = useState<string | null>(articles[0]?.id ?? null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [activeTab, setActiveTab] = useState('12M');
+  const [showTVChart, setShowTVChart] = useState(false);
 
   const filtered = useMemo(() => {
     if (filter === 'neg') return articles.filter((article) => article.sentiment <= -0.2);
@@ -66,9 +68,23 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
             <div className="tt-section-title">Historia scoringu</div>
             <div className="tt-section-sub">Ostatnich 12 miesięcy · agregat dzienny</div>
           </div>
-          <ToggleGroup options={timeTabs} value={activeTab} onChange={setActiveTab} size="sm" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'oklch(0.55 0.01 260)', fontFamily: 'var(--font-jetbrains-mono), monospace', letterSpacing: '0.04em' }}>
+              <input
+                type="checkbox"
+                checked={showTVChart}
+                onChange={(e) => setShowTVChart(e.target.checked)}
+                style={{ accentColor: '#2962ff', cursor: 'pointer' }}
+              />
+              TRADINGVIEW
+            </label>
+            <ToggleGroup options={timeTabs} value={activeTab} onChange={setActiveTab} size="sm" />
+          </div>
         </div>
-        <ScoreChart history={company.history} color={accentColor} />
+        <div style={{ position: 'relative' }}>
+          <ScoreChart history={company.history} color={accentColor} />
+          {showTVChart && <TradingViewWidget symbol="GPW:CDR" />}
+        </div>
       </section>
 
       <section className="tt-articles">
