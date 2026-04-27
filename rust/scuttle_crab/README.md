@@ -33,7 +33,7 @@ Implemented pieces:
 - `src/storage/jsonl.rs`: append one payload per line to a JSONL outbox
 - `src/storage/seen_urls.rs`: persist normalized URL hashes to skip duplicates across runs
 - `src/utils/`: URL normalization and SHA-256 hashing helpers
-- `tests/`: integration tests for CLI parsing, payload contract, JSONL output, and seen-URL storage
+- `tests/`: integration tests for CLI parsing, payload contract, JSONL output, company loading, and seen-URL storage
 
 Not implemented yet:
 - HTTP fetching

@@ -201,7 +201,6 @@ Rationale:
 - enough for MVP validation
 
 Current local files:
-- `data/companies.json`: reference data for fixed company/ticker matching
 - `data/companies.json`: reference data for local company lookups and future pipeline use
 - `data/seen_urls.jsonl`: persistent dedup store across runs
 - `data/outbox.jsonl`: outbound payload outbox
