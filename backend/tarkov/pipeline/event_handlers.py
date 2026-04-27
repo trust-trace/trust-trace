@@ -33,5 +33,8 @@ class AMLScoringEventHandler:
             return []
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.exception("stage3 scoring task failed idx=%s correlation_id=%s: %s", idx, cid, result)
         logger.info("stage3 scoring completed correlation_id=%s", cid)
         return results

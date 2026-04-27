@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from tarkov.config import Config
 from tarkov.database.models import ConnectionEntity
+from tarkov.database.repositories.article_metadata_repo import ArticleMetadataRepository
 from tarkov.database.repositories.event_repo import EventRepository
 from tarkov.database.repositories.firm_repo import FirmRepository
 from tarkov.database.repositories.person_repo import PersonRepository
@@ -38,6 +39,7 @@ class ArticleProcessor:
         self.event_repo = EventRepository(db_session)
         self.person_repo = PersonRepository(db_session)
         self.source_repo = SourceRepository(db_session)
+        self.article_metadata_repo = ArticleMetadataRepository(db_session)
 
         self.llm_client = LLMClient(config.llm_provider, config.llm_model, config.llm_api_key)
         self.summary_generator = SummaryGenerator(self.llm_client)
@@ -49,12 +51,16 @@ class ArticleProcessor:
 
     def process_article(self, article: ArticleIn, correlation_id: str | None = None) -> ParsedResult | None:
         correlation_id = correlation_id or str(uuid.uuid4())
+        article_id = str(uuid.uuid4())
         try:
+            self.article_metadata_repo.create_ingestion_record(article_id, correlation_id, article)
             summary = self.summary_generator.generate_article_summary(article.article.text)
 
             company_matches = self.company_matcher.match_companies(article.article.text)
             if not company_matches:
                 logger.warning("No companies found in article: %s", article.article.title)
+                self.article_metadata_repo.mark_processed(article_id=article_id, companies_found=0)
+                self.db_session.commit()
                 return None
 
             firms = [self.company_matcher.get_or_create_firm(m.company_name, m.ticker) for m in company_matches]
@@ -93,7 +99,7 @@ class ArticleProcessor:
                         )
 
             parsed = ParsedResult(
-                article_id=str(uuid.uuid4()),
+                article_id=article_id,
                 processed_at=datetime.utcnow(),
                 llm_summary=summary,
                 events=events,
@@ -104,14 +110,15 @@ class ArticleProcessor:
                 total_risk_score=(sum(e.risk_level for e in events) / len(events)) if events else 0.0,
             )
 
-            self.result_emitter.emit(parsed, correlation_id)
+            self.article_metadata_repo.mark_processed(article_id=article_id, companies_found=len(firms))
             self.db_session.commit()
+            self.result_emitter.emit(parsed, correlation_id)
             logger.info("Processed article: %s", article.article.title)
             return parsed
         except Exception as exc:
             logger.exception("Error processing article: %s", exc)
             self.db_session.rollback()
-            self._write_dead_letter(article, correlation_id, str(exc))
+            self._write_dead_letter(article, correlation_id, article_id, str(exc))
             raise
 
     def process_articles_batch(self, articles: list[ArticleIn]) -> list[ParsedResult]:
@@ -126,9 +133,10 @@ class ArticleProcessor:
         for article in article_iterator:
             self.process_article(article)
 
-    def _write_dead_letter(self, article: ArticleIn, correlation_id: str, error_message: str) -> None:
+    def _write_dead_letter(self, article: ArticleIn, correlation_id: str, article_id: str, error_message: str) -> None:
         payload = {
             "correlation_id": correlation_id,
+            "article_id": article_id,
             "error": error_message,
             "source_url": article.source.url,
             "title": article.article.title,

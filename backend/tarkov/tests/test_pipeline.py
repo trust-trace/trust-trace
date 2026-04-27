@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tarkov.config import Config
+from tarkov.database.models import ArticleMetadata
 from tarkov.database.session import Base, init_engine
 from tarkov.pipeline.processor import ArticleProcessor
 from tarkov.tests.fixtures.sample_articles import SAMPLE_ARTICLE_1
@@ -38,8 +39,18 @@ def test_process_article_full_flow(tmp_path):
         event_classifier_url="",
         nsa_url="",
         trustweb_url="",
+        enable_ingest_contract_headers=False,
+        enforce_payload_version_header=False,
+        expected_payload_version="1",
     )
     processor = ArticleProcessor(db, config)
     result = processor.process_article(SAMPLE_ARTICLE_1)
     assert result is not None
     assert len(result.company_matches) >= 1
+    metadata = db.query(ArticleMetadata).filter_by(article_id=result.article_id).one_or_none()
+    assert metadata is not None
+    assert metadata.correlation_id
+    assert metadata.source_url == SAMPLE_ARTICLE_1.source.url
+    assert metadata.title == SAMPLE_ARTICLE_1.article.title
+    assert metadata.processed_at is not None
+    assert metadata.companies_found >= 1
