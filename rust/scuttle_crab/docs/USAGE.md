@@ -5,6 +5,7 @@
 ## Commands
 
 ```bash
+cd rust/scuttle_crab
 cargo run -- --help
 cargo run -- crawl
 cargo run -- crawl --sources-file data/custom-sources.json
@@ -42,4 +43,10 @@ From the repository root:
 ```bash
 docker compose up scuttle-crab
 docker compose run --rm scuttle-crab crawl --sources-file data/custom-sources.json
+docker compose run --rm scuttle-crab fetch-url https://example.com/article
+docker compose run --rm scuttle-crab test-source reuters
 ```
+
+`docker compose up scuttle-crab` runs the default `crawl` command.
+
+`docker compose run --rm scuttle-crab ...` lets you use the same CLI inside Docker with explicit subcommands and arguments.
