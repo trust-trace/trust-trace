@@ -18,6 +18,8 @@ pub enum Command {
     Crawl,
     /// Fetch a single URL for debugging.
     FetchUrl { url: String },
+    /// Scrape official company registry data for one company.
+    ScrapeCompany { query: String },
     /// Validate one configured source.
     TestSource { source: String },
 }

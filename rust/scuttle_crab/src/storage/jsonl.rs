@@ -4,9 +4,9 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::domain::article::ArticlePayload;
+use serde::Serialize;
 
-/// Appends serialized article payloads to a JSONL file.
+/// Appends serialized payloads to a JSONL file.
 #[derive(Debug, Clone)]
 pub struct JsonlOutbox {
     path: PathBuf,
@@ -21,7 +21,7 @@ impl JsonlOutbox {
     }
 
     /// Append one payload as a single JSON line.
-    pub fn append(&self, payload: &ArticlePayload) -> anyhow::Result<()> {
+    pub fn append<T: Serialize>(&self, payload: &T) -> anyhow::Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }

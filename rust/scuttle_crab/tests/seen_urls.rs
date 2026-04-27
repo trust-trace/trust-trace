@@ -30,20 +30,24 @@ fn persists_seen_urls_across_reloads() {
     let path = temp_file_path("seen_urls_persist");
 
     let mut store = SeenUrlStore::load(&path).expect("store should load");
-    assert!(store
-        .record(
-            "https://example.com/article",
-            "Example",
-            "2026-04-27T08:16:12Z"
-        )
-        .expect("record should be written"));
+    assert!(
+        store
+            .record(
+                "https://example.com/article",
+                "Example",
+                "2026-04-27T08:16:12Z"
+            )
+            .expect("record should be written")
+    );
 
     let reloaded = SeenUrlStore::load(&path).expect("store should reload");
     fs::remove_file(&path).ok();
 
-    assert!(reloaded
-        .contains("https://example.com/article")
-        .expect("contains should work"));
+    assert!(
+        reloaded
+            .contains("https://example.com/article")
+            .expect("contains should work")
+    );
 }
 
 #[test]
@@ -52,20 +56,24 @@ fn skips_duplicate_urls_after_normalization() {
 
     let mut store = SeenUrlStore::load(&path).expect("store should load");
 
-    assert!(store
-        .record(
-            "https://example.com/article/",
-            "Example",
-            "2026-04-27T08:16:12Z"
-        )
-        .expect("first insert should succeed"));
-    assert!(!store
-        .record(
-            "https://example.com/article#top",
-            "Example",
-            "2026-04-27T08:20:12Z"
-        )
-        .expect("duplicate insert should be skipped"));
+    assert!(
+        store
+            .record(
+                "https://example.com/article/",
+                "Example",
+                "2026-04-27T08:16:12Z"
+            )
+            .expect("first insert should succeed")
+    );
+    assert!(
+        !store
+            .record(
+                "https://example.com/article#top",
+                "Example",
+                "2026-04-27T08:20:12Z"
+            )
+            .expect("duplicate insert should be skipped")
+    );
 
     fs::remove_file(&path).ok();
 }

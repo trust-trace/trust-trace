@@ -1,1 +1,3 @@
 /target/
+/data/outbox.jsonl
+/data/seen_urls.jsonl
