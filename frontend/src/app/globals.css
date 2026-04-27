@@ -399,29 +399,41 @@
 }
 
 .tt-sort {
-  display: flex;
-  gap: 2px;
+  display: inline-flex;
+  gap: 6px;
   margin-bottom: 12px;
-  font-size: 11.5px;
+  font-size: 13px;
   background: var(--tt-bg-soft);
   border: 1px solid var(--tt-line);
-  border-radius: var(--tt-radius);
-  padding: 2px;
+  border-radius: 999px;
+  padding: 5px 6px;
 }
 
 .tt-sort-btn {
-  padding: 5px 10px;
-  border-radius: 4px;
+  padding: 7px 18px;
+  border-radius: 999px;
   color: var(--tt-fg-mute);
+  font-weight: 500;
   letter-spacing: 0.01em;
-  transition: all 0.15s;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.tt-sort-btn:hover { color: var(--tt-fg); }
+.tt-sort-btn:hover {
+  color: var(--tt-fg);
+  background: color-mix(in srgb, var(--tt-fg-mute) 8%, transparent);
+}
 .tt-sort-btn.is-active {
   background: var(--tt-bg-card);
   color: var(--tt-fg);
-  box-shadow: var(--tt-shadow-sm);
+  box-shadow: var(--tt-shadow-sm), 0 1px 3px rgba(0, 0, 0, 0.06);
+  font-weight: 500;
 }
 
 .tt-list {
@@ -803,26 +815,39 @@
 }
 
 .tt-chart-tabs {
-  display: flex;
+  display: inline-flex;
+  gap: 6px;
   background: var(--tt-bg-soft);
   border: 1px solid var(--tt-line);
-  border-radius: var(--tt-radius);
-  padding: 2px;
-  font-size: 11.5px;
+  border-radius: 999px;
+  padding: 5px 6px;
+  font-size: 13px;
 }
 
 .tt-tab {
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 7px 18px;
+  border-radius: 999px;
   color: var(--tt-fg-mute);
-  letter-spacing: 0.02em;
-  transition: all 0.15s;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
 }
-.tt-tab:hover { color: var(--tt-fg); }
+.tt-tab:hover {
+  color: var(--tt-fg);
+  background: color-mix(in srgb, var(--tt-fg-mute) 8%, transparent);
+}
 .tt-tab.is-active {
   background: var(--tt-bg-card);
   color: var(--tt-fg);
-  box-shadow: var(--tt-shadow-sm);
+  box-shadow: var(--tt-shadow-sm), 0 1px 3px rgba(0, 0, 0, 0.06);
+  font-weight: 500;
 }
 
 .tt-chart {
