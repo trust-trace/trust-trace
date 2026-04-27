@@ -30,12 +30,6 @@ pub struct ArticleSection {
 pub struct MetadataSection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tickers: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub companies: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

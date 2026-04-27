@@ -23,9 +23,6 @@ fn serializes_outbound_article_payload_without_summary_or_content_hash() {
         },
         metadata: MetadataSection {
             section: Some("markets".to_string()),
-            tags: vec!["earnings".to_string(), "stocks".to_string()],
-            tickers: vec!["AAPL".to_string()],
-            companies: vec!["Apple".to_string()],
             region: Some("us".to_string()),
             discovery_method: Some("rss".to_string()),
             http_status: Some(200),
@@ -39,7 +36,9 @@ fn serializes_outbound_article_payload_without_summary_or_content_hash() {
         value["article"]["title"],
         "Company X beats earnings expectations"
     );
-    assert_eq!(value["metadata"]["tickers"][0], "AAPL");
+    assert!(value["metadata"].get("tags").is_none());
+    assert!(value["metadata"].get("tickers").is_none());
+    assert!(value["metadata"].get("companies").is_none());
     assert!(value["article"].get("summary").is_none());
     assert!(value["article"].get("content_hash").is_none());
 }
