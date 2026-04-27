@@ -6,6 +6,8 @@ This document explains how the current crate is organized, what has already been
 
 `scuttle_crab` is a Rust miniapp for collecting news and financial articles that can later feed a downstream company-scoring pipeline.
 
+The crate still keeps company reference loading as a local building block/config path, but it no longer performs deterministic local tagging or scoring.
+
 The intended crawler architecture is intentionally narrow:
 - discover articles from curated sources
 - fetch and normalize article content
@@ -105,6 +107,10 @@ supporting modules already provide:
 
 - `src/domain/source.rs`
   - Defines `SourceInfo` for publisher metadata in each payload.
+
+- `src/domain/company.rs`
+  - Defines `CompanyRecord`.
+  - Provides `load_companies()` for loading the local company reference file.
 
 ### Storage
 
@@ -271,7 +277,7 @@ Next target:
 
 Status: not implemented locally.
 
-Downstream systems own entity extraction, event classification, and scoring.
+Company reference loading remains available as a local input/config path, but downstream systems own entity extraction, event classification, and scoring.
 
 ### Phase 7: CLI, Persistence, And Operability
 

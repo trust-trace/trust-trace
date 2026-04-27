@@ -28,6 +28,7 @@ Build a Rust crawler that:
 Implemented pieces:
 - `src/cli.rs`: command-line interface and subcommands
 - `src/config.rs`: default file locations for local data
+- `src/domain/company.rs`: company reference records and loader used by the scaffold/config path
 - `src/domain/`: outbound payload and source data models
 - `src/storage/jsonl.rs`: append one payload per line to a JSONL outbox
 - `src/storage/seen_urls.rs`: persist normalized URL hashes to skip duplicates across runs
@@ -154,6 +155,7 @@ Today, the most reusable parts are the payload contract, the JSONL outbox, the s
 ## Core Data Files
 
 Default local files:
+- `data/companies.json`: company reference list used as a local input/config path
 - `data/seen_urls.jsonl`: persistent dedup store of normalized URL hashes
 - `data/outbox.jsonl`: one outbound payload per line
 
