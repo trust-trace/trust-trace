@@ -7,6 +7,7 @@ This document explains how the current crate is organized, what has already been
 `scuttle_crab` is a Rust miniapp for collecting news and financial articles that can later feed a downstream company-scoring pipeline.
 
 The crate still keeps company reference loading as a local building block/config path, but it no longer performs deterministic local tagging or scoring.
+That helper is test-covered, but it is not yet wired into the executable path.
 
 The intended crawler architecture is intentionally narrow:
 - discover articles from curated sources
@@ -111,6 +112,7 @@ supporting modules already provide:
 - `src/domain/company.rs`
   - Defines `CompanyRecord`.
   - Provides `load_companies()` for loading the local company reference file.
+  - Used by tests and scaffold/config plumbing, not the main runtime flow yet.
 
 ### Storage
 
@@ -200,6 +202,7 @@ Rationale:
 
 Current local files:
 - `data/companies.json`: reference data for fixed company/ticker matching
+- `data/companies.json`: reference data for local company lookups and future pipeline use
 - `data/seen_urls.jsonl`: persistent dedup store across runs
 - `data/outbox.jsonl`: outbound payload outbox
 
@@ -208,6 +211,7 @@ Current local files:
 Current tests cover the implemented foundation:
 - `tests/cli.rs`: CLI parsing and default output paths
 - `tests/jsonl_outbox.rs`: JSONL append behavior and parent directory creation
+- `tests/company_loader.rs`: company reference loading helper
 - `tests/payload_contract.rs`: payload serialization contract
 - `tests/seen_urls.rs`: URL normalization and dedup persistence
 
@@ -312,7 +316,7 @@ Recommended implementation order from here:
 1. Add source definitions and discovery mode abstractions.
 2. Add a shared HTTP client module.
 3. Add extraction helpers that produce `ArticlePayload` inputs.
-4. Add a pipeline module that composes dedup, fetch, extract, match, and outbox write.
+4. Add a pipeline module that composes collection, normalization, deduplication, and payload emission.
 5. Upgrade the CLI from scaffold outputs to real execution.
 6. Add fixture-based and pipeline integration tests.
 
