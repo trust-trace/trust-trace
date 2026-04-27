@@ -8,12 +8,11 @@ This document explains how the current crate is organized, what has already been
 
 The intended crawler architecture is intentionally narrow:
 - discover articles from curated sources
-- fetch and extract normalized article content
-- tag likely company relevance using a fixed company list
-- deduplicate by canonical URL across runs
+- fetch and normalize article content
+- deduplicate article records across runs
 - emit one outbound JSON payload per article
 
-The crate is still in the foundation stage. The payload contract, persistence helpers, and deterministic matching rules already exist. Discovery, fetching, extraction, and pipeline orchestration are the next layers to implement.
+The crate is still in the foundation stage. The payload contract, persistence helpers, and emission path already exist. Discovery, fetching, extraction, and pipeline orchestration are the next layers to implement.
 
 ## Current State
 
@@ -23,8 +22,6 @@ Implemented now:
 - outbound payload domain models
 - local JSONL outbox writer
 - persistent seen-URL hash store
-- local company reference loader
-- deterministic company and ticker matching
 - integration tests for the current building blocks
 
 Not implemented yet:
@@ -47,7 +44,6 @@ source definitions
     -> fetch article
     -> extract article fields
     -> normalize into outbound payload
-    -> company/ticker matching
     -> append payload to JSONL outbox
     -> record canonical URL in seen-URL store
 ```
@@ -63,8 +59,6 @@ main.rs
 
 supporting modules already provide:
     - payload schema
-    - company loader
-    - matcher
     - JSONL output writer
     - seen-URL persistence
 ```
@@ -112,10 +106,6 @@ supporting modules already provide:
 - `src/domain/source.rs`
   - Defines `SourceInfo` for publisher metadata in each payload.
 
-- `src/domain/company.rs`
-  - Defines `CompanyRecord`.
-  - Provides `load_companies()` for loading the local company reference file.
-
 ### Storage
 
 - `src/storage/jsonl.rs`
@@ -131,21 +121,8 @@ supporting modules already provide:
 
 ### Crawler Logic
 
-- `src/crawler/matcher.rs`
-  - Implements deterministic company relevance matching.
-  - Current behavior:
-    - exact ticker matching
-    - exact alias matching
-    - case-insensitive matching
-    - whole-word or whole-phrase matching
-  - Output types:
-    - `MatchResult`
-    - `CompanyMention`
-    - `MatchType`
-
 - `src/crawler/mod.rs`
-  - Currently exposes only the matcher.
-  - This namespace is where discovery, fetching, extraction, and pipeline modules should be added next.
+  - Namespace for discovery, fetching, extraction, normalization, deduplication, and emission modules.
 
 ### Utilities
 
@@ -186,9 +163,6 @@ The payload shape is already implemented and tested.
   },
   "metadata": {
     "section": "markets",
-    "tags": ["earnings", "stocks"],
-    "tickers": ["AAPL"],
-    "companies": ["Apple"],
     "region": "us",
     "discovery_method": "rss",
     "http_status": 200
@@ -228,7 +202,6 @@ Current local files:
 Current tests cover the implemented foundation:
 - `tests/cli.rs`: CLI parsing and default output paths
 - `tests/jsonl_outbox.rs`: JSONL append behavior and parent directory creation
-- `tests/matcher.rs`: company file loading and deterministic matching
 - `tests/payload_contract.rs`: payload serialization contract
 - `tests/seen_urls.rs`: URL normalization and dedup persistence
 
@@ -245,10 +218,9 @@ Status: partially implemented.
 Implemented:
 - outbound payload contract is defined in `src/domain/article.rs`
 - source metadata contract is defined in `src/domain/source.rs`
-- company reference schema exists in `src/domain/company.rs`
 - seen-URL store exists in `src/storage/seen_urls.rs`
 - module layout is partially established
-- baseline tests exist for payloads, matcher, and dedup
+- baseline tests exist for payloads and dedup
 
 Still missing:
 - `crawler/http.rs`
@@ -297,16 +269,9 @@ Next target:
 
 ### Phase 6: Company Relevance And Scoring Handoff
 
-Status: partially implemented.
+Status: not implemented locally.
 
-Implemented:
-- fixed company list model
-- local company loader
-- deterministic ticker and alias matching
-
-Still missing:
-- attach match results into payload metadata during pipeline execution
-- richer relevance reasoning
+Downstream systems own entity extraction, event classification, and scoring.
 
 ### Phase 7: CLI, Persistence, And Operability
 
@@ -357,4 +322,4 @@ cargo run -- --help
 cargo run -- crawl
 ```
 
-When adding new functionality, prefer extending the existing narrow contracts instead of introducing broader abstractions early. The current crate is easiest to evolve if discovery, fetch, extraction, matching, and persistence stay separate.
+When adding new functionality, prefer extending the existing narrow contracts instead of introducing broader abstractions early. The current crate is easiest to evolve if discovery, fetch, extraction, normalization, deduplication, and persistence stay separate.
