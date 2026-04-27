@@ -21,7 +21,12 @@ export default function Home() {
           selectedId={selectedId}
           onSelect={setSelectedId}
         />
-        <MainPanel company={company} articles={articles} />
+        <MainPanel
+          company={company}
+          companies={COMPANIES}
+          articles={articles}
+          onSelectCompany={setSelectedId}
+        />
       </div>
     </div>
   );
