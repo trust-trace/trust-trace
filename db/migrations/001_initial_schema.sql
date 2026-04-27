@@ -1,0 +1,2 @@
+-- Migration: 001_initial_schema.sql
+-- Description: Create initial schema and tables
