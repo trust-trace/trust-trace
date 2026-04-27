@@ -124,6 +124,14 @@ Run the crawl scaffold:
 cargo run -- crawl
 ```
 
+Run crawl with an explicit JSON file of source links:
+
+```bash
+cargo run -- crawl --sources-file data/custom-sources.json
+```
+
+The file passed to `--sources-file` must already exist.
+
 Example output:
 
 ```text
@@ -140,6 +148,15 @@ Test a named source command shape:
 
 ```bash
 cargo run -- test-source reuters
+```
+
+## Docker Compose
+
+From the repo root:
+
+```bash
+docker compose up scuttle-crab
+docker compose run --rm scuttle-crab crawl --sources-file data/custom-sources.json
 ```
 
 ## How The Current Code Fits Together

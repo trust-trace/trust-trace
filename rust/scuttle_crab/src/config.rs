@@ -1,5 +1,7 @@
 //! Runtime configuration defaults.
 
+use std::path::Path;
+
 /// Local file paths used by the current scaffold and storage helpers.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -10,6 +12,21 @@ pub struct AppConfig {
     pub krs_api_base_url: String,
     pub msig_api_base_url: String,
     pub concurrency: usize,
+}
+
+impl AppConfig {
+    /// Override the crawl sources file when the caller explicitly provides one.
+    pub fn with_sources_path(mut self, sources_path: Option<String>) -> anyhow::Result<Self> {
+        if let Some(sources_path) = sources_path {
+            if !Path::new(&sources_path).exists() {
+                anyhow::bail!("sources file not found: {sources_path}");
+            }
+
+            self.sources_path = sources_path;
+        }
+
+        Ok(self)
+    }
 }
 
 impl Default for AppConfig {
