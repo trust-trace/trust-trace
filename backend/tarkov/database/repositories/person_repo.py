@@ -1,4 +1,4 @@
-"""Person repository."""
+"""Person repository (Postgres-backed with Neo4j node sync)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from tarkov.database.models import Person, PersonEvent
+from tarkov.database.session import get_neo4j_session
 
 
 class PersonRepository:
@@ -22,6 +23,24 @@ class PersonRepository:
         obj = Person(name=name, role=role, firm_id=firm_id, description=description)
         self.db.add(obj)
         self.db.flush()
+
+        # create person node in Neo4j
+        try:
+            with get_neo4j_session() as g:
+                props = {"person_id": obj.id, "name": obj.name}
+                if obj.role:
+                    props["role"] = obj.role
+                g.create_node("Person", props)
+                if firm_id:
+                    g.run(
+                        "MATCH (p:Person {person_id: $pid}), (c:Company {company_id: $cid}) CREATE (p)-[:AFFILIATED_WITH {role: $role}]->(c)",
+                        pid=obj.id,
+                        cid=firm_id,
+                        role=role,
+                    )
+        except Exception:
+            pass
+
         return obj
 
     def get_or_create_person(self, name: str, firm_id: int | None = None, role: str | None = None) -> Person:
@@ -56,4 +75,13 @@ class PersonRepository:
         )
         self.db.add(obj)
         self.db.flush()
+
+        # create relationship in Neo4j
+        try:
+            with get_neo4j_session() as g:
+                q = "MATCH (p:Person {person_id: $pid}), (e:Event {event_id: $eid}) CREATE (p)-[:INVOLVED_IN {role_in_event: $role, confidence: $conf}]->(e)"
+                g.run(q, pid=person_id, eid=event_id, role=role, conf=confidence)
+        except Exception:
+            pass
+
         return obj

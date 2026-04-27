@@ -1,4 +1,4 @@
-"""Event repository."""
+"""Event repository with Neo4j sync for Event nodes."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from tarkov.database.models import Event
 from tarkov.schemas.event import EventOut
+from tarkov.database.session import get_neo4j_session
 
 
 class EventRepository:
@@ -28,6 +29,17 @@ class EventRepository:
         )
         self.db.add(obj)
         self.db.flush()
+
+        # create Event node in Neo4j
+        try:
+            with get_neo4j_session() as g:
+                props = {"event_id": obj.unique_id, "title": obj.title, "event_type": obj.event_type}
+                g.create_node("Event", props)
+                # link Event to Company node
+                g.run("MATCH (e:Event {event_id: $eid}), (c:Company {company_id: $cid}) CREATE (c)-[:ABOUT]->(e)", eid=obj.unique_id, cid=firm_id)
+        except Exception:
+            pass
+
         return obj
 
     def get_event(self, event_id: str) -> Event | None:
