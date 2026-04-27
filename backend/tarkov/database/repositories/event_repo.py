@@ -1,4 +1,4 @@
-"""Event repository with Neo4j sync for Event nodes."""
+"""Event repository with standalone Neo4j node sync."""
 
 from __future__ import annotations
 
@@ -30,13 +30,15 @@ class EventRepository:
         self.db.add(obj)
         self.db.flush()
 
-        # create Event node in Neo4j
         try:
             with get_neo4j_session() as g:
-                props = {"event_id": obj.unique_id, "title": obj.title, "event_type": obj.event_type}
+                props = {
+                    "event_id": obj.unique_id,
+                    "title": obj.title,
+                    "event_type": obj.event_type,
+                    "firm_id": firm_id,
+                }
                 g.create_node("Event", props)
-                # link Event to Company node
-                g.run("MATCH (e:Event {event_id: $eid}), (c:Company {company_id: $cid}) CREATE (c)-[:ABOUT]->(e)", eid=obj.unique_id, cid=firm_id)
         except Exception:
             pass
 

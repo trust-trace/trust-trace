@@ -42,27 +42,12 @@ class PersonExtraction(BaseModel):
     source_reference: SourceReference
 
 
-class ConnectionExtraction(BaseModel):
-    connection_type: str
-    entity_1_type: str
-    entity_1_id: str
-    entity_1_name: str
-    entity_2_type: str
-    entity_2_id: str
-    entity_2_name: str
-    relationship_description: str
-    confidence: float = Field(ge=0.0, le=1.0)
-    source_text: str
-    source_reference: SourceReference
-
-
 class ParsedResult(BaseModel):
     article_id: str
     processed_at: datetime
     llm_summary: LLMSummary
     events: list[EventExtraction] = Field(default_factory=list)
     people: list[PersonExtraction] = Field(default_factory=list)
-    connections: list[ConnectionExtraction] = Field(default_factory=list)
     company_matches: list[str] = Field(default_factory=list)
     language: str = "en"
     total_risk_score: float = 0.0
@@ -74,4 +59,4 @@ class ParsingEvent(BaseModel):
     source_system: str = "tarkov"
     parsed_result: ParsedResult
     correlation_id: str
-    target_modules: list[str] = Field(default_factory=lambda: ["event_classifier", "nsa", "trustweb"])
+    target_modules: list[str] = Field(default_factory=lambda: ["event_classifier", "nsa"])

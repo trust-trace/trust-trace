@@ -1,8 +1,4 @@
-"""Firm repository (dual-mode):
-
-This repository still accepts a SQLAlchemy session for Postgres operations but also
-provides helper methods to create/update Company nodes in Neo4j graph.
-"""
+"""Firm repository: Postgres records + standalone Neo4j node creation."""
 
 from __future__ import annotations
 
@@ -75,11 +71,15 @@ class FirmRepository:
         self.db.add(obj)
         self.db.flush()
 
-        # Also add alias property in Neo4j if company node exists
         try:
             with get_neo4j_session() as g:
-                q = "MATCH (c:Company {company_id: $company_id}) CREATE (a:Alias {alias: $alias, alias_type: $alias_type, confidence: $confidence, is_primary: $is_primary})-[:ALIAS_OF]->(c)"
-                g.run(q, company_id=firm_id, alias=alias, alias_type=alias_type, confidence=confidence, is_primary=is_primary)
+                g.create_node("Alias", {
+                    "alias": alias,
+                    "alias_type": alias_type,
+                    "confidence": confidence,
+                    "is_primary": is_primary,
+                    "firm_id": firm_id,
+                })
         except Exception:
             pass
 

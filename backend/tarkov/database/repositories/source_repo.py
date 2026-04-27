@@ -1,4 +1,4 @@
-"""Source repository with optional Neo4j sync for article/event references."""
+"""Source repository: Postgres records + standalone Neo4j node creation."""
 
 from __future__ import annotations
 
@@ -39,11 +39,12 @@ class SourceRepository:
         )
         self.db.add(original)
 
-        # Optional: create light Article node in Neo4j for reference
         try:
             with get_neo4j_session() as g:
-                g.create_node("Article", {"source_url": article.source.url, "article_id": original.article_id})
-                g.run("MATCH (e:Event {event_id: $eid}), (a:Article {article_id: $aid}) CREATE (a)-[:SOURCED_FOR]->(e)", eid=event_id, aid=original.article_id)
+                g.create_node("Article", {
+                    "source_url": article.source.url,
+                    "event_id": event_id,
+                })
         except Exception:
             pass
 

@@ -1,4 +1,4 @@
-"""Person repository (Postgres-backed with Neo4j node sync)."""
+"""Person repository (Postgres-backed with standalone Neo4j node sync)."""
 
 from __future__ import annotations
 
@@ -24,20 +24,14 @@ class PersonRepository:
         self.db.add(obj)
         self.db.flush()
 
-        # create person node in Neo4j
         try:
             with get_neo4j_session() as g:
                 props = {"person_id": obj.id, "name": obj.name}
                 if obj.role:
                     props["role"] = obj.role
-                g.create_node("Person", props)
                 if firm_id:
-                    g.run(
-                        "MATCH (p:Person {person_id: $pid}), (c:Company {company_id: $cid}) CREATE (p)-[:AFFILIATED_WITH {role: $role}]->(c)",
-                        pid=obj.id,
-                        cid=firm_id,
-                        role=role,
-                    )
+                    props["firm_id"] = firm_id
+                g.create_node("Person", props)
         except Exception:
             pass
 
@@ -75,13 +69,4 @@ class PersonRepository:
         )
         self.db.add(obj)
         self.db.flush()
-
-        # create relationship in Neo4j
-        try:
-            with get_neo4j_session() as g:
-                q = "MATCH (p:Person {person_id: $pid}), (e:Event {event_id: $eid}) CREATE (p)-[:INVOLVED_IN {role_in_event: $role, confidence: $conf}]->(e)"
-                g.run(q, pid=person_id, eid=event_id, role=role, conf=confidence)
-        except Exception:
-            pass
-
         return obj
