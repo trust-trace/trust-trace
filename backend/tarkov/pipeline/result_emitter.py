@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime
 from typing import Awaitable, Callable
 
@@ -35,9 +36,17 @@ class ResultEmitter:
 
         for handler in self.async_handlers:
             try:
-                asyncio.create_task(handler(event))
+                loop = asyncio.get_running_loop()
+                loop.create_task(handler(event))
             except RuntimeError:
-                asyncio.run(handler(event))
+                threading.Thread(target=self._run_async_handler, args=(handler, event), daemon=True).start()
             except Exception as exc:
                 logger.exception("async handler failed: %s", exc)
         return event
+
+    @staticmethod
+    def _run_async_handler(handler: Callable[[ParsingEvent], Awaitable[None]], event: ParsingEvent) -> None:
+        try:
+            asyncio.run(handler(event))
+        except Exception as exc:
+            logger.exception("background async handler failed: %s", exc)
