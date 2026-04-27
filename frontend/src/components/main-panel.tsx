@@ -5,7 +5,7 @@ import type { Article, Company, CompanyRelation } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
-import { CompanyGraph } from './company-graph';
+import { Neo4jGraph } from './neo4j-graph';
 import { riskColor, riskLabel } from './sidebar';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
 
@@ -214,16 +214,11 @@ export function MainPanel({ company, companies, articles, relations, onSelectCom
             <div>
               <div className="tt-section-title">Mapa relacji firmowych</div>
               <div className="tt-section-sub">
-                Węzły reprezentują spółki, a połączenia wynikają z osób, współpracy i relacji biznesowych do głębokości 2.
+                Węzły reprezentują firmy, osoby i zdarzenia, a połączenia pochodzą bezposrednio z grafu Neo4j.
               </div>
             </div>
           </div>
-          <CompanyGraph
-            company={company}
-            companies={companies}
-            relations={relations}
-            onSelectCompany={onSelectCompany}
-          />
+          <Neo4jGraph />
         </section>
       )}
     </main>

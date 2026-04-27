@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCompanies, getCompanyArticles, getCompanyRelations } from '@/lib/api';
+import { getCompanies, getCompanyArticles, getCompanyRelations, getNeo4jGraph } from '@/lib/api';
 
 describe('api', () => {
   it('loads companies', async () => {
@@ -21,6 +21,14 @@ describe('api', () => {
 
     expect(articles.length).toBeGreaterThan(0);
     expect(articles[0]).toHaveProperty('headline');
+  });
+
+  it('loads the neo4j graph payload', async () => {
+    const graph = await getNeo4jGraph();
+
+    expect(graph.nodes.length).toBeGreaterThan(0);
+    expect(graph.edges.length).toBeGreaterThan(0);
+    expect(graph.nodes[0]).toHaveProperty('kind');
   });
 
   it('throws on failed response', async () => {

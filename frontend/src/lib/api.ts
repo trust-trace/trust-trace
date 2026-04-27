@@ -1,4 +1,5 @@
 import type { Article, Company, CompanyRelation } from '@/lib/data';
+import type { Neo4jGraphPayload } from '@/lib/neo4j-graph';
 
 function toRequestUrl(input: string): URL | string {
   if (/^https?:\/\//.test(input)) {
@@ -29,4 +30,8 @@ export function getCompanyArticles(companyId: string) {
 
 export function getCompanyRelations() {
   return readJson<CompanyRelation[]>('/api/relations');
+}
+
+export function getNeo4jGraph() {
+  return readJson<Neo4jGraphPayload>('/api/graph');
 }

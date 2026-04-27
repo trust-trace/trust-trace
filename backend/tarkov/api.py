@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - guarded again in create_app
     FastAPIRequest = object
 
 from tarkov.config import Config
+from tarkov.graph_api import load_graph_payload
 from tarkov.database.models import RkrScore
 from tarkov.database.session import SessionLocal, create_all, init_engine
 from tarkov.pipeline.event_handlers import AMLScoringEventHandler
@@ -83,23 +84,44 @@ def create_app(config: Config | None = None):
             _check_db_connection()
             return {"status": "ok", "service": "tarkov", "db": "ok"}
         except Exception as exc:
-            raise HTTPException(status_code=503, detail=f"DB health check failed: {exc}") from exc
+            raise HTTPException(
+                status_code=503, detail=f"DB health check failed: {exc}"
+            ) from exc
+
+    @app.get("/v1/graph")
+    def graph() -> dict:
+        try:
+            return load_graph_payload()
+        except Exception as exc:
+            logger.exception("Graph read failed: %s", exc)
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/v1/articles")
     async def receive_article(request: FastAPIRequest):
         try:
             raw_payload = await request.json()
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {exc}") from exc
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON payload: {exc}"
+            ) from exc
 
         if not isinstance(raw_payload, dict):
-            raise HTTPException(status_code=400, detail="Expected a JSON object payload")
+            raise HTTPException(
+                status_code=400, detail="Expected a JSON object payload"
+            )
 
         correlation_id = None
         if cfg.enable_ingest_contract_headers:
-            correlation_id = request.headers.get("X-Correlation-Id") or request.headers.get("x-correlation-id")
-            payload_version = request.headers.get("X-Payload-Version") or request.headers.get("x-payload-version")
-            if cfg.enforce_payload_version_header and payload_version != cfg.expected_payload_version:
+            correlation_id = request.headers.get(
+                "X-Correlation-Id"
+            ) or request.headers.get("x-correlation-id")
+            payload_version = request.headers.get(
+                "X-Payload-Version"
+            ) or request.headers.get("x-payload-version")
+            if (
+                cfg.enforce_payload_version_header
+                and payload_version != cfg.expected_payload_version
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -145,16 +167,22 @@ def create_app(config: Config | None = None):
             emitter = ResultEmitter()
             if cfg.enable_stage3_dispatch:
                 handler = AMLScoringEventHandler(
-                    event_classifier_client=EventClassifierClient(cfg.event_classifier_url),
+                    event_classifier_client=EventClassifierClient(
+                        cfg.event_classifier_url
+                    ),
                     nsa_client=NSAClient(cfg.nsa_url),
                 )
                 emitter.register_async_handler(handler.handle_parsed_event)
 
-            result = ArticleProcessor(session, cfg, result_emitter=emitter).process_article(
-                article, correlation_id=correlation_id
-            )
+            result = ArticleProcessor(
+                session, cfg, result_emitter=emitter
+            ).process_article(article, correlation_id=correlation_id)
             if result is None:
-                return {"status": "skipped", "reason": "no_company_matches", "title": article.article.title}
+                return {
+                    "status": "skipped",
+                    "reason": "no_company_matches",
+                    "title": article.article.title,
+                }
 
             return {
                 "status": "processed",
