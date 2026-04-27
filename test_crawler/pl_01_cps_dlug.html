@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cyfrowy Polsat ukrywa długi? — MediaWatch</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=Space+Mono:wght@400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --ink: #0f0e0e;
+      --ink-mid: #2c2a2a;
+      --ink-light: #585454;
+      --ink-faint: #989494;
+      --paper: #f6f3ee;
+      --warm: #ebe7df;
+      --red: #bf3325;
+      --redd: #8b2419;
+      --border: #cfc9c0;
+      --borderdk: #a89f94;
+      --gold: #a67c00;
+      --blue: #1b4f8a;
+      --col: 720px
+    }
+
+    html {
+      font-size: 16px
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Source Serif 4', Georgia, serif;
+      line-height: 1.7;
+      min-height: 100vh
+    }
+
+    /* masthead */
+    .mh {
+      background: var(--ink);
+      border-bottom: 4px solid var(--red)
+    }
+
+    .mh-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 16px 24px 13px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--red);
+      text-transform: uppercase
+    }
+
+    .mhdate {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #6a6a6a;
+      letter-spacing: .06em
+    }
+
+    /* cat bar */
+    .cb {
+      padding: 7px 0
+    }
+
+    .cb-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .85)
+    }
+
+    /* article */
+    .aw {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px 80px
+    }
+
+    /* header */
+    .ah {
+      padding: 42px 0 28px;
+      border-bottom: 2px solid var(--ink)
+    }
+
+    .tr {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px
+    }
+
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      padding: 4px 11px;
+      border: 1px solid;
+      display: inline-block
+    }
+
+    .ts {
+      color: var(--red);
+      border-color: var(--red)
+    }
+
+    .tf {
+      color: var(--gold);
+      border-color: var(--gold)
+    }
+
+    .to {
+      color: var(--blue);
+      border-color: var(--blue)
+    }
+
+    .tg {
+      color: #1a6b3c;
+      border-color: #1a6b3c
+    }
+
+    .tk {
+      color: var(--ink-light);
+      border-color: var(--ink-light)
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(26px, 4.2vw, 38px);
+      font-weight: 700;
+      line-height: 1.17;
+      margin-bottom: 18px;
+      letter-spacing: -.015em
+    }
+
+    .deck {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--ink-mid);
+      font-style: italic;
+      border-left: 3px solid var(--red);
+      padding-left: 16px;
+      margin-bottom: 24px;
+      line-height: 1.56
+    }
+
+    .meta {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-faint);
+      letter-spacing: .05em
+    }
+
+    .meta b {
+      color: var(--ink-mid);
+      font-weight: 700
+    }
+
+    /* body */
+    .ab {
+      padding: 32px 0 0
+    }
+
+    .ab p {
+      font-size: 17px;
+      line-height: 1.8;
+      color: var(--ink-mid);
+      margin-bottom: 22px;
+      font-weight: 300
+    }
+
+    .ab p:first-of-type::first-letter {
+      font-family: 'Playfair Display', serif;
+      font-size: 66px;
+      font-weight: 900;
+      float: left;
+      line-height: .8;
+      padding-right: 10px;
+      padding-top: 6px;
+      color: var(--ink)
+    }
+
+    .kw {
+      color: var(--ink);
+      font-weight: 600
+    }
+
+    .kr {
+      color: var(--redd);
+      font-weight: 600
+    }
+
+    .tick {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 2px 7px;
+      border-radius: 2px;
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1.6
+    }
+
+    /* pull quote */
+    .pq {
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      margin: 38px 0;
+      padding: 24px 0;
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-style: italic;
+      line-height: 1.45;
+      color: var(--ink)
+    }
+
+    .pq::before {
+      content: '\201C';
+      font-size: 52px;
+      line-height: 0;
+      vertical-align: -18px;
+      color: var(--red);
+      margin-right: 3px
+    }
+
+    /* data box */
+    .db {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--red);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .dbt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 14px
+    }
+
+    .dr {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px
+    }
+
+    .dr:last-child {
+      border-bottom: none
+    }
+
+    .dl {
+      color: var(--ink-light)
+    }
+
+    .dv {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink)
+    }
+
+    .dv.n {
+      color: var(--red)
+    }
+
+    .dv.p {
+      color: #1a6b3c
+    }
+
+    /* info box */
+    .ib {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--blue);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .ibt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px
+    }
+
+    .ib p {
+      font-size: 14px;
+      color: var(--ink-mid);
+      line-height: 1.65;
+      margin-bottom: 10px;
+      font-weight: 300
+    }
+
+    .ib p:last-child {
+      margin-bottom: 0
+    }
+
+    /* timeline */
+    .tl {
+      margin: 30px 0;
+      list-style: none
+    }
+
+    .tl li {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tl li:last-child {
+      border-bottom: none
+    }
+
+    .tday {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red);
+      padding-top: 2px
+    }
+
+    .tev {
+      font-size: 15px;
+      color: var(--ink-mid);
+      line-height: 1.55
+    }
+
+    .tev b {
+      color: var(--ink)
+    }
+
+    /* keyword strip */
+    .ks {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid var(--borderdk)
+    }
+
+    .ksl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 10px
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .pill {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      color: var(--ink-mid)
+    }
+
+    .pill.t {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink)
+    }
+
+    /* footer */
+    .ft {
+      margin-top: 60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .fb {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--ink-faint);
+      text-transform: uppercase
+    }
+
+    .fd {
+      font-family: 'Source Serif 4', serif;
+      font-size: 11px;
+      color: var(--ink-faint);
+      font-style: italic;
+      max-width: 400px;
+      text-align: right
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mh">
+    <div class="mh-i"><span class="logo">MediaWatch Polska</span><span class="mhdate">27 KWIETNIA 2026 · RYNKI
+        KAPITAŁOWE</span></div>
+  </div>
+  <div class="cb" style="background:#bf3325">
+    <div class="cb-i">GIEŁDA &amp; MEDIA &nbsp;/&nbsp; CYFROWY POLSAT &nbsp;/&nbsp; WYNIKI Q1 2026</div>
+  </div>
+  <div class="aw">
+    <div class="ah">
+      <div class="tr"><span class="tag ts">Skandal giełdowy</span><span class="tag tf">Finanse / GPW</span></div>
+      <h1>Cyfrowy Polsat <span class="tick">CPS</span> ukrywa długi? Analitycy alarmują przed wynikami Q1&nbsp;2026</h1>
+      <p class="deck">Akcje grupy straciły ponad 14% od początku roku, spread CDS na obligacje skoczył o 42 punkty
+        bazowe, a mniejszościowi akcjonariusze domagają się ujawnienia transakcji z podmiotami powiązanymi. Zarząd
+        odpowiedział półstronicowym pismem.</p>
+      <div class="meta"><span><b>Autor:</b> Redakcja gospodarcza</span><span><b>Data:</b> 27 kwietnia
+          2026</span><span><b>Dział:</b> Rynki kapitałowe</span></div>
+    </div>
+    <div class="ab">
+      <p>Akcje <span class="kw">Cyfrowego Polsatu</span> <span class="tick">CPS</span> notowane na <span
+          class="kw">Giełdzie Papierów Wartościowych w Warszawie (GPW)</span> straciły od początku 2026 roku ponad <span
+          class="kr">14,2% wartości</span>, podczas gdy indeks <span class="kw">WIG-Media</span> zniżkował jedynie o
+        3,1%. Analitycy <span class="kw">Erste Securities</span> i <span class="kw">mBank Research</span> wskazują
+        jednoznacznie na rosnący wskaźnik dług netto do EBITDA, szacowany przed raportem kwartalnym na poziomie <span
+          class="kr">3,7–3,9x</span> — niebezpiecznie blisko progu komfortu obligatariuszy.</p>
+      <div class="db">
+        <div class="dbt">Sygnały ostrzegawcze — CPS · kwiecień 2026</div>
+        <div class="dr"><span class="dl">Zmiana kursu YTD (GPW)</span><span class="dv n">−14,2%</span></div>
+        <div class="dr"><span class="dl">WIG-Media YTD (benchmark)</span><span class="dv n">−3,1%</span></div>
+        <div class="dr"><span class="dl">Szacowany dług netto / EBITDA</span><span class="dv n">3,7–3,9×</span></div>
+        <div class="dr"><span class="dl">Zmiana spreadu CDS (5 sesji)</span><span class="dv n">+42 pb</span></div>
+        <div class="dr"><span class="dl">Udział OFE w akcjonariacie</span><span class="dv">~9,3%</span></div>
+        <div class="dr"><span class="dl">Eurobond 2028 (nominał)</span><span class="dv">€500 mln</span></div>
+      </div>
+      <p>Serce problemu tkwi w <span class="kw">transakcjach z podmiotami powiązanymi</span> — przepływach między
+        Cyfrowym Polsatem a aktywami energetycznymi kontrolowanymi przez głównego akcjonariusza <span
+          class="kw">Zygmunta Solorza</span>. Na marcowej konferencji inwestorskiej prezes grupy <span
+          class="kw">Mirosław Błaszczyk</span> zapewnił, że akwizycje energetyczne „nie obciążą bilansu Polsatu w sposób
+        materialny". Rynek odpowiedział natychmiast: spread CDS na <span class="kw">obligacje grupy serii 2028</span> o
+        wartości nominalnej <span class="kw">500 mln euro</span> wzrósł o 42 punkty bazowe w ciągu zaledwie pięciu
+        sesji.</p>
+      <div class="pq">Milczenie zarządu w kwestii powiązań kapitałowych to nie neutralność — to komunikat sam w sobie.
+      </div>
+      <p>Mniejszościowi akcjonariusze — w tym <span class="kw">otwarte fundusze emerytalne (OFE)</span> posiadające
+        łącznie ok. <span class="kr">9,3% akcji</span> — formalnie zażądały rozszerzenia not objaśniających w zakresie
+        ekspozycji na transakcje wewnątrzgrupowe. Odpowiedź zarządu: półstronicowe pismo przywołujące standardową
+        zgodność z <span class="kw">MSSF</span>. <span class="kw">Komisja Nadzoru Finansowego (KNF)</span> w kwietniu
+        2026 r. otworzyła wstępny przegląd sprawy. Kluczowe pytanie pozostaje bez odpowiedzi: czy raport za Q1 2026
+        ujawni pełną ekspozycję na transakcje wewnątrzgrupowe, czy kolejny raz poprzestanie na ogólnikach?</p>
+      <div class="ib">
+        <div class="ibt">Kontekst regulacyjny</div>
+        <p><b>KNF</b> potwierdziła wszczęcie wstępnego przeglądu w zakresie adekwatności ujawnień dotyczących transakcji
+          z podmiotami powiązanymi w sprawozdaniu rocznym Cyfrowego Polsatu za 2025 r.</p>
+        <p><b>ISS (Institutional Shareholder Services)</b> w przeglądzie ładu korporacyjnego za 2026 r. oznaczyła CPS
+          kategorią „podwyższone ryzyko — skoncentrowana własność i złożoność powiązań kapitałowych".</p>
+        <p><b>MSCI ESG</b> utrzymuje rating CCC dla Cyfrowego Polsatu — najniższy tier w skali. Dla funduszy z mandatem
+          ESG oznacza to coraz silniejszy impuls do redukcji pozycji.</p>
+      </div>
+    </div>
+    <div class="ks">
+      <div class="ksl">Sygnały dla scrapera — tickery i tagi</div>
+      <div class="pills">
+        <span class="pill t">CPS</span><span class="pill">Cyfrowy Polsat</span><span class="pill">GPW</span><span
+          class="pill">WIG-Media</span>
+        <span class="pill">Solorz</span><span class="pill">KNF</span><span class="pill">EBITDA 3.9x</span><span
+          class="pill">Q1 2026</span>
+        <span class="pill">obligacje 2028</span><span class="pill">OFE</span><span class="pill">ISS
+          governance</span><span class="pill">MSCI CCC</span>
+      </div>
+    </div>
+    <div class="ft"><span class="fb">MediaWatch Polska · 2026</span><span class="fd">Artykuł publicystyczny. Dane
+        finansowe z raportów analitycznych i komunikatów giełdowych.</span></div>
+  </div>
+</body>
+
+</html>

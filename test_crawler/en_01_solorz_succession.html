@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Solorz Family War Threatens CPS Governance — MediaWatch</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=Space+Mono:wght@400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --ink: #0f0e0e;
+      --ink-mid: #2c2a2a;
+      --ink-light: #585454;
+      --ink-faint: #989494;
+      --paper: #f6f3ee;
+      --warm: #ebe7df;
+      --red: #bf3325;
+      --redd: #8b2419;
+      --border: #cfc9c0;
+      --borderdk: #a89f94;
+      --gold: #a67c00;
+      --blue: #1b4f8a;
+      --col: 720px
+    }
+
+    html {
+      font-size: 16px
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Source Serif 4', Georgia, serif;
+      line-height: 1.7;
+      min-height: 100vh
+    }
+
+    /* masthead */
+    .mh {
+      background: var(--ink);
+      border-bottom: 4px solid var(--red)
+    }
+
+    .mh-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 16px 24px 13px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--red);
+      text-transform: uppercase
+    }
+
+    .mhdate {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #6a6a6a;
+      letter-spacing: .06em
+    }
+
+    /* cat bar */
+    .cb {
+      padding: 7px 0
+    }
+
+    .cb-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .85)
+    }
+
+    /* article */
+    .aw {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px 80px
+    }
+
+    /* header */
+    .ah {
+      padding: 42px 0 28px;
+      border-bottom: 2px solid var(--ink)
+    }
+
+    .tr {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px
+    }
+
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      padding: 4px 11px;
+      border: 1px solid;
+      display: inline-block
+    }
+
+    .ts {
+      color: var(--red);
+      border-color: var(--red)
+    }
+
+    .tf {
+      color: var(--gold);
+      border-color: var(--gold)
+    }
+
+    .to {
+      color: var(--blue);
+      border-color: var(--blue)
+    }
+
+    .tg {
+      color: #1a6b3c;
+      border-color: #1a6b3c
+    }
+
+    .tk {
+      color: var(--ink-light);
+      border-color: var(--ink-light)
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(26px, 4.2vw, 38px);
+      font-weight: 700;
+      line-height: 1.17;
+      margin-bottom: 18px;
+      letter-spacing: -.015em
+    }
+
+    .deck {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--ink-mid);
+      font-style: italic;
+      border-left: 3px solid var(--red);
+      padding-left: 16px;
+      margin-bottom: 24px;
+      line-height: 1.56
+    }
+
+    .meta {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-faint);
+      letter-spacing: .05em
+    }
+
+    .meta b {
+      color: var(--ink-mid);
+      font-weight: 700
+    }
+
+    /* body */
+    .ab {
+      padding: 32px 0 0
+    }
+
+    .ab p {
+      font-size: 17px;
+      line-height: 1.8;
+      color: var(--ink-mid);
+      margin-bottom: 22px;
+      font-weight: 300
+    }
+
+    .ab p:first-of-type::first-letter {
+      font-family: 'Playfair Display', serif;
+      font-size: 66px;
+      font-weight: 900;
+      float: left;
+      line-height: .8;
+      padding-right: 10px;
+      padding-top: 6px;
+      color: var(--ink)
+    }
+
+    .kw {
+      color: var(--ink);
+      font-weight: 600
+    }
+
+    .kr {
+      color: var(--redd);
+      font-weight: 600
+    }
+
+    .tick {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 2px 7px;
+      border-radius: 2px;
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1.6
+    }
+
+    /* pull quote */
+    .pq {
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      margin: 38px 0;
+      padding: 24px 0;
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-style: italic;
+      line-height: 1.45;
+      color: var(--ink)
+    }
+
+    .pq::before {
+      content: '\201C';
+      font-size: 52px;
+      line-height: 0;
+      vertical-align: -18px;
+      color: var(--red);
+      margin-right: 3px
+    }
+
+    /* data box */
+    .db {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--red);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .dbt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 14px
+    }
+
+    .dr {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px
+    }
+
+    .dr:last-child {
+      border-bottom: none
+    }
+
+    .dl {
+      color: var(--ink-light)
+    }
+
+    .dv {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink)
+    }
+
+    .dv.n {
+      color: var(--red)
+    }
+
+    .dv.p {
+      color: #1a6b3c
+    }
+
+    /* info box */
+    .ib {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--blue);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .ibt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px
+    }
+
+    .ib p {
+      font-size: 14px;
+      color: var(--ink-mid);
+      line-height: 1.65;
+      margin-bottom: 10px;
+      font-weight: 300
+    }
+
+    .ib p:last-child {
+      margin-bottom: 0
+    }
+
+    /* timeline */
+    .tl {
+      margin: 30px 0;
+      list-style: none
+    }
+
+    .tl li {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tl li:last-child {
+      border-bottom: none
+    }
+
+    .tday {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red);
+      padding-top: 2px
+    }
+
+    .tev {
+      font-size: 15px;
+      color: var(--ink-mid);
+      line-height: 1.55
+    }
+
+    .tev b {
+      color: var(--ink)
+    }
+
+    /* keyword strip */
+    .ks {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid var(--borderdk)
+    }
+
+    .ksl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 10px
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .pill {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      color: var(--ink-mid)
+    }
+
+    .pill.t {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink)
+    }
+
+    /* footer */
+    .ft {
+      margin-top: 60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .fb {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--ink-faint);
+      text-transform: uppercase
+    }
+
+    .fd {
+      font-family: 'Source Serif 4', serif;
+      font-size: 11px;
+      color: var(--ink-faint);
+      font-style: italic;
+      max-width: 400px;
+      text-align: right
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mh">
+    <div class="mh-i"><span class="logo">MediaWatch International</span><span class="mhdate">APRIL 27, 2026 · CORPORATE
+        GOVERNANCE</span></div>
+  </div>
+  <div class="cb" style="background:#bf3325">
+    <div class="cb-i">GOVERNANCE &amp; OWNERSHIP &nbsp;/&nbsp; CYFROWY POLSAT &nbsp;/&nbsp; SOLORZ SUCCESSION CRISIS
+    </div>
+  </div>
+  <div class="aw">
+    <div class="ah">
+      <div class="tr"><span class="tag ts">Governance scandal</span><span class="tag tf">Markets / WSE</span></div>
+      <h1>The Solorz family war: how a private inheritance dispute became a public governance crisis for <span
+          class="tick">CPS</span></h1>
+      <p class="deck">What began as a private dispute between Zygmunt Solorz and his adult children over control of the
+        family holding structure has escalated into Warsaw court filings, ISS governance flags, and a MSCI ESG rating of
+        CCC — the lowest tier. Minority shareholders of a PLN 7.2bn listed company are paying the price.</p>
+      <div class="meta"><span><b>Author:</b> Governance desk</span><span><b>Date:</b> April 27,
+          2026</span><span><b>Reading time:</b> 6 min</span></div>
+    </div>
+    <div class="ab">
+      <p>The dispute between <span class="kw">Zygmunt Solorz</span> and his adult children — <span class="kw">Tobias,
+          Piotr, and Joanna Solorz</span> — over the family holding structure that ultimately controls <span
+          class="kw">Cyfrowy Polsat</span> <span class="tick">CPS</span> has left the realm of private arbitration and
+        entered the public courts. Warsaw district court filings confirm the children allege that Solorz restructured
+        the holding through a series of 2024 transactions that effectively diluted their inheritance rights without
+        consent. Solorz's legal team denies any impropriety. The courts will decide. But the damage to investor
+        confidence is already visible in the data.</p>
+      <div class="db">
+        <div class="dbt">CPS governance risk indicators · April 2026</div>
+        <div class="dr"><span class="dl">Market capitalisation (WSE)</span><span class="dv">PLN 7.2 bn</span></div>
+        <div class="dr"><span class="dl">Free float</span><span class="dv">~22%</span></div>
+        <div class="dr"><span class="dl">ISS governance flag</span><span class="dv n">Elevated risk</span></div>
+        <div class="dr"><span class="dl">MSCI ESG rating</span><span class="dv n">CCC (lowest tier)</span></div>
+        <div class="dr"><span class="dl">Share price YTD vs WIG-Media</span><span class="dv n">−11pp
+            underperformance</span></div>
+        <div class="dr"><span class="dl">Active court proceedings (Warsaw)</span><span class="dv n">2</span></div>
+      </div>
+      <p>The ownership architecture of <span class="kw">Cyfrowy Polsat</span> was always concentrated. Solorz held
+        effective control through a layered holding structure that left minority shareholders of the <span
+          class="kw">Warsaw Stock Exchange (WSE/GPW)</span>-listed entity with limited means to influence strategic
+        decisions. That concentration, while legal, was tolerated by institutional investors as long as the patriarch's
+        decisions were broadly aligned with shareholder value. The succession dispute has broken that implicit contract.
+      </p>
+      <div class="pq">When the man who controls the controller goes to war with his own family, every board decision
+        becomes a question mark — and markets hate question marks.</div>
+      <p>International governance rating agency <span class="kw">ISS (Institutional Shareholder Services)</span> flagged
+        <span class="kw">CPS</span> in its 2026 Poland review under "elevated governance risk — concentrated ownership
+        and related-party complexity." <span class="kw">MSCI's ESG ratings</span> assign Cyfrowy Polsat a <span
+          class="kr">CCC rating</span> — the lowest tier in the scale. For institutional investors operating under ESG
+        mandates — including many of the major <span class="kw">European pension funds</span> that hold CPS through
+        index exposure — that rating creates a structural reason to reduce or exit the position. Combined with the
+        succession uncertainty, the <span class="kw">CPS free float</span> of approximately 22% may face sustained
+        selling pressure heading into the Q2 reporting period.</p>
+      <div class="ib">
+        <div class="ibt">What analysts are watching</div>
+        <p><b>Board composition:</b> Three non-executive directors have ties to Solorz-controlled entities. If the
+          family dispute destabilises the holding structure, their independence becomes questionable.</p>
+        <p><b>Related-party transactions:</b> KNF's preliminary review of 2025 disclosure adequacy covers exactly the
+          transactions that sit at the heart of the family dispute — energy-sector asset transfers between holding
+          vehicles.</p>
+        <p><b>Dividend policy:</b> CPS suspended its dividend guidance for 2026 in March without explanation. Analysts
+          at Erste Securities interpret this as a signal of balance-sheet stress linked to the holding restructuring.
+        </p>
+      </div>
+    </div>
+    <div class="ks">
+      <div class="ksl">Scraper signals — tickers and tags</div>
+      <div class="pills">
+        <span class="pill t">CPS</span><span class="pill">Solorz succession</span><span class="pill">ISS
+          governance</span>
+        <span class="pill">MSCI ESG CCC</span><span class="pill">WSE GPW</span><span class="pill">KNF</span>
+        <span class="pill">PLN 7.2bn market cap</span><span class="pill">free float</span><span class="pill">minority
+          shareholders</span>
+      </div>
+    </div>
+    <div class="ft"><span class="fb">MediaWatch International · 2026</span><span class="fd">Opinion article. Financial
+        data from WSE filings, ISS 2026 Poland review, MSCI ESG database.</span></div>
+  </div>
+</body>
+
+</html>

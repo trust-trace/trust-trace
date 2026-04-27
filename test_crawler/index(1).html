@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Polsat Articles — MediaWatch</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&family=Space+Mono:wght@400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --ink: #0f0e0e;
+      --ink-mid: #2c2a2a;
+      --ink-faint: #989494;
+      --paper: #f6f3ee;
+      --warm: #ebe7df;
+      --red: #bf3325;
+      --border: #cfc9c0;
+      --col: 760px
+    }
+
+    body {
+      background: var(--paper);
+      font-family: 'Source Serif 4', Georgia, serif;
+      min-height: 100vh
+    }
+
+    .mh {
+      background: var(--ink);
+      border-bottom: 4px solid var(--red);
+      padding: 18px 24px
+    }
+
+    .mh-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--red);
+      text-transform: uppercase
+    }
+
+    .mdate {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #6a6a6a
+    }
+
+    .wrap {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 40px 24px 80px
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      font-weight: 900;
+      margin-bottom: 8px
+    }
+
+    .sub {
+      font-size: 15px;
+      color: var(--ink-mid);
+      font-weight: 300;
+      margin-bottom: 40px;
+      font-style: italic
+    }
+
+    .section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--ink);
+      margin-bottom: 20px;
+      margin-top: 36px
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 16px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--border);
+      text-decoration: none;
+      color: inherit
+    }
+
+    .card:hover .ct {
+      color: var(--red)
+    }
+
+    .num {
+      font-family: 'Space Mono', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--border);
+      padding-top: 2px
+    }
+
+    .lang {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 6px
+    }
+
+    .lang.pl {
+      color: var(--red)
+    }
+
+    .lang.en {
+      color: #1b4f8a
+    }
+
+    .ct {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.25;
+      transition: color .15s;
+      margin-bottom: 6px
+    }
+
+    .cd {
+      font-size: 14px;
+      font-weight: 300;
+      color: #585454;
+      line-height: 1.5
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mh">
+    <div class="mh-i"><span class="logo">MediaWatch</span><span class="mdate">27 APRIL 2026</span></div>
+  </div>
+  <div class="wrap">
+    <h1>Polsat — article collection</h1>
+    <p class="sub">8 opinion articles for SCUTTLE_CRAB scraper testing — 4 in Polish, 4 in English on distinct topics
+    </p>
+
+    <div class="section-label">🇵🇱 Po polsku — artykuły</div>
+    <a class="card" href="pl_01_cps_dlug.html"><span class="num">01</span>
+      <div>
+        <div class="lang pl">Polski · Finanse</div>
+        <div class="ct">Cyfrowy Polsat (CPS) ukrywa długi? Analitycy alarmują przed wynikami Q1 2026</div>
+        <div class="cd">Dług netto/EBITDA 3.9x, spread CDS +42pb, akcjonariusze mniejszościowi, KNF</div>
+      </div>
+    </a>
+    <a class="card" href="pl_02_polsat_plus_uokik.html"><span class="num">02</span>
+      <div>
+        <div class="lang pl">Polski · Etyka medialna</div>
+        <div class="ct">Polsat News milczy o aferze Plus: redakcja czy agencja PR właściciela?</div>
+        <div class="cd">UOKiK, Polkomtel, kara 220 mln zł, 72 godziny ciszy, KRRiT</div>
+      </div>
+    </a>
+    <a class="card" href="pl_03_wydarzenie_polityka.html"><span class="num">03</span>
+      <div>
+        <div class="lang pl">Polski · Polityka medialna</div>
+        <div class="ct">„Wydarzenie": jak Polsat zamienił serwis informacyjny w narzędzie polityczne</div>
+        <div class="cd">IMM, 78% materiałów bez głosu opozycji, kontrakty 2 mld zł, wybory 2026</div>
+      </div>
+    </a>
+    <a class="card" href="pl_04_reklama_netflix.html"><span class="num">04</span>
+      <div>
+        <div class="lang pl">Polski · Rynek mediów</div>
+        <div class="ct">Polsat vs. Netflix (NFLX) i Disney+ (DIS): walka o reklamy, którą Polsat przegrywa</div>
+        <div class="cd">Spadek przychodów −11.4% r/r, Polsat Box 1.2mln sub, TV linearna poniżej 30%</div>
+      </div>
+    </a>
+
+    <div class="section-label">🇬🇧 In English — articles (different topics)</div>
+    <a class="card" href="en_01_solorz_succession.html"><span class="num">05</span>
+      <div>
+        <div class="lang en">English · Governance</div>
+        <div class="ct">The Solorz family war: how a private inheritance dispute became a public governance crisis for
+          CPS</div>
+        <div class="cd">ISS elevated risk, MSCI ESG CCC, Warsaw court filings, PLN 7.2bn market cap, free float</div>
+      </div>
+    </a>
+    <a class="card" href="en_02_reality_tv_factory.html"><span class="num">06</span>
+      <div>
+        <div class="lang en">English · Cultural criticism</div>
+        <div class="ct">Polsat's reality TV factory: how Poland's broadcaster industrialised stupidity and called it
+          entertainment</div>
+        <div class="cd">38hrs/week reality TV, investigative units cut 4→1, KRRiT, Polish Broadcasting Act</div>
+      </div>
+    </a>
+    <a class="card" href="en_03_polsat_box_failure.html"><span class="num">07</span>
+      <div>
+        <div class="lang en">English · Streaming strategy</div>
+        <div class="ct">Polsat Box: how CPS spent hundreds of millions building a streaming platform nobody wants</div>
+        <div class="cd">1.2mn vs Netflix 4.8mn, ARPU collapse, Plus bundling rescue, PLN 400–600mn capex</div>
+      </div>
+    </a>
+    <a class="card" href="en_04_sports_rights_monopoly.html"><span class="num">08</span>
+      <div>
+        <div class="lang en">English · Sports media</div>
+        <div class="ct">Polsat's sports rights lock-up: how one broadcaster turned the national passion into a
+          subscription toll road</div>
+        <div class="cd">Premier League, F1, Champions League exclusive, PLN 80/mo paywall, UOKiK 4 complaints</div>
+      </div>
+    </a>
+  </div>
+</body>
+
+</html>
