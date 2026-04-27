@@ -21,13 +21,42 @@ fn parses_fetch_url_subcommand() {
 }
 
 #[test]
+fn parses_scrape_company_subcommand() {
+    let cli = Cli::parse_from(["scuttle_crab", "scrape-company", "Allegro"]);
+
+    match cli.command {
+        Command::ScrapeCompany { query } => assert_eq!(query, "Allegro"),
+        _ => panic!("expected scrape-company command"),
+    }
+}
+
+#[test]
+fn fetch_url_command_is_parsed_with_localhost_url() {
+    let cli = Cli::parse_from([
+        "scuttle_crab",
+        "fetch-url",
+        "http://127.0.0.1:8787/en_01_solorz_succession.html",
+    ]);
+
+    match cli.command {
+        Command::FetchUrl { url } => {
+            assert_eq!(url, "http://127.0.0.1:8787/en_01_solorz_succession.html")
+        }
+        _ => panic!("expected fetch-url command"),
+    }
+}
+
+#[test]
 fn crawl_command_reports_default_data_paths() {
     let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
     let output = runtime
         .block_on(run_with_args(["scuttle_crab", "crawl"]))
         .expect("crawl should run");
 
+    assert!(output.contains("sources="));
     assert!(output.contains("data/companies.json"));
+    assert!(output.contains("data/sources.json"));
     assert!(output.contains("data/seen_urls.jsonl"));
     assert!(output.contains("data/outbox.jsonl"));
+    assert!(!output.contains("scaffold"));
 }

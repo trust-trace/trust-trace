@@ -10,7 +10,10 @@ pub mod utils;
 use clap::Parser;
 use cli::{Cli, Command};
 use config::AppConfig;
-use crawler::fetch::fetch_article_text;
+use crawler::company_pipeline::scrape_company_with_config;
+use crawler::fetch::fetch_article_payload;
+use crawler::pipeline::crawl_with_config;
+use storage::jsonl::JsonlOutbox;
 
 /// Run the binary with process arguments and print the command result.
 pub fn run() -> anyhow::Result<()> {
@@ -30,13 +33,48 @@ where
     let config = AppConfig::default();
 
     let output = match cli.command {
-        Command::Crawl => format!(
-            "crawl scaffold ready: companies={}, seen_urls={}, outbox={}",
-            config.companies_path, config.seen_urls_path, config.outbox_path
-        ),
+        Command::Crawl => {
+            let summary = crawl_with_config(&config).await?;
+            format!(
+                "crawl complete: sources={}, discovered={}, skipped={}, emitted={}, failed={}, companies={}, sources_path={}, seen_urls={}, outbox={}",
+                summary.sources,
+                summary.discovered,
+                summary.skipped,
+                summary.emitted,
+                summary.failed,
+                config.companies_path,
+                config.sources_path,
+                config.seen_urls_path,
+                config.outbox_path
+            )
+        }
         Command::FetchUrl { url } => {
-            let (title, text) = fetch_article_text(&url).await?;
-            format!("title: {title}\n\n{text}")
+            let payload = fetch_article_payload(&url).await?;
+            let outbox = JsonlOutbox::new(&config.outbox_path);
+            outbox.append(&payload)?;
+
+            let text_preview = payload.article.text.0.chars().take(200).collect::<String>();
+
+            format!(
+                "payload appended to {}\nsource={}\ntitle={}\nwords={}\n\npreview:\n{}",
+                config.outbox_path,
+                payload.source.url,
+                payload.article.title,
+                payload.article.word_count.unwrap_or(0),
+                text_preview
+            )
+        }
+        Command::ScrapeCompany { query } => {
+            let summary = scrape_company_with_config(&config, &query).await?;
+            format!(
+                "company scrape complete: query={}, emitted={}, companies={}, outbox={}, krs_api={}, msig_api={}",
+                query,
+                summary.emitted,
+                config.companies_path,
+                config.outbox_path,
+                config.krs_api_base_url,
+                config.msig_api_base_url
+            )
         }
         Command::TestSource { source } => format!("test-source scaffold ready: {source}"),
     };
