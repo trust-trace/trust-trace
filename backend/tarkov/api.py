@@ -14,7 +14,7 @@ from tarkov.database.session import SessionLocal, create_all, init_engine
 from tarkov.pipeline.event_handlers import AMLScoringEventHandler
 from tarkov.pipeline.processor import ArticleProcessor
 from tarkov.pipeline.result_emitter import ResultEmitter
-from tarkov.pipeline.stage3_clients import EventClassifierClient, NSAClient, TrustWebClient
+from tarkov.pipeline.stage3_clients import EventClassifierClient, NSAClient
 from tarkov.schemas.article import ArticleIn
 from tarkov.utils.logger import get_logger, setup_logging
 
@@ -70,7 +70,6 @@ def create_app(config: Config | None = None):
                 handler = AMLScoringEventHandler(
                     event_classifier_client=EventClassifierClient(cfg.event_classifier_url),
                     nsa_client=NSAClient(cfg.nsa_url),
-                    trustweb_client=TrustWebClient(cfg.trustweb_url),
                 )
                 emitter.register_async_handler(handler.handle_parsed_event)
 
@@ -85,7 +84,6 @@ def create_app(config: Config | None = None):
                 "article_id": result.article_id,
                 "events": len(result.events),
                 "people": len(result.people),
-                "connections": len(result.connections),
                 "company_matches": result.company_matches,
                 "total_risk_score": result.total_risk_score,
             }

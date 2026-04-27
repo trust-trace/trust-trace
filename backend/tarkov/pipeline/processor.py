@@ -1,4 +1,12 @@
-"""Main orchestration layer for Stage 2 processing."""
+"""Main orchestration layer for Stage 2 processing.
+
+Tarkov is responsible for:
+- Creating Postgres records (events, firms, people, sources, metadata)
+- Creating standalone Neo4j nodes (Company, Person, Event)
+
+Node connections, connection analysis, and intensity scoring are handled
+by a separate downstream module (TrustWeb).
+"""
 
 from __future__ import annotations
 
@@ -10,14 +18,12 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from tarkov.config import Config
-from tarkov.database.models import ConnectionEntity
 from tarkov.database.repositories.article_metadata_repo import ArticleMetadataRepository
 from tarkov.database.repositories.event_repo import EventRepository
 from tarkov.database.repositories.firm_repo import FirmRepository
 from tarkov.database.repositories.person_repo import PersonRepository
 from tarkov.database.repositories.source_repo import SourceRepository
 from tarkov.extraction.company_matcher import CompanyMatcher
-from tarkov.extraction.connection_extractor import ConnectionExtractor
 from tarkov.extraction.event_extractor import EventExtractor
 from tarkov.extraction.person_extractor import PersonExtractor
 from tarkov.extraction.summary_generator import SummaryGenerator
@@ -46,7 +52,6 @@ class ArticleProcessor:
         self.company_matcher = CompanyMatcher(db_session, config.company_reference_path)
         self.event_extractor = EventExtractor(llm_client=self.llm_client)
         self.person_extractor = PersonExtractor(llm_client=self.llm_client)
-        self.connection_extractor = ConnectionExtractor()
         self.result_emitter = result_emitter or ResultEmitter()
 
     def process_article(self, article: ArticleIn, correlation_id: str | None = None) -> ParsedResult | None:
@@ -67,10 +72,6 @@ class ArticleProcessor:
             events = self.event_extractor.extract_events_keyword_based(article)
             people = self.person_extractor.extract_people(article, [e.description for e in events])
 
-            connections = self.connection_extractor.extract_business_relationships(article, [f.full_name for f in firms])
-            connections.extend(self.connection_extractor.extract_shared_directors(article, people))
-            connections.extend(self.connection_extractor.extract_activity_links(article, events))
-
             for firm in firms:
                 for extracted in events:
                     event_out = self.event_extractor.to_event_out(extracted)
@@ -82,50 +83,12 @@ class ArticleProcessor:
                         db_person = self.person_repo.get_or_create_person(person.name, firm.id, person.role)
                         self.person_repo.link_person_to_event(db_person.id, db_event.unique_id, person.role, person.confidence)
 
-                    for conn in connections:
-                        self.db_session.add(
-                            ConnectionEntity(
-                                connection_event_id=db_event.unique_id,
-                                connection_type=conn.connection_type,
-                                entity_1_type=conn.entity_1_type,
-                                entity_1_id=conn.entity_1_id,
-                                entity_1_name=conn.entity_1_name,
-                                entity_2_type=conn.entity_2_type,
-                                entity_2_id=conn.entity_2_id,
-                                entity_2_name=conn.entity_2_name,
-                                relationship_description=conn.relationship_description,
-                                confidence=conn.confidence,
-                            )
-                        )
-
-                        # Create graph connection in Neo4j
-                        try:
-                            from tarkov.database.session import get_neo4j_session
-
-                            with get_neo4j_session() as g:
-                                q = (
-                                    "MATCH (a), (b) WHERE (a.company_id = $id1 OR a.person_id = $id1) AND (b.company_id = $id2 OR b.person_id = $id2) "
-                                    "CREATE (a)-[r:CONNECTION {type: $type, intensity: $intensity, description: $desc, source_event_id: $eid}]->(b)"
-                                )
-                                g.run(
-                                    q,
-                                    id1=int(conn.entity_1_id) if conn.entity_1_id.isdigit() else conn.entity_1_id,
-                                    id2=int(conn.entity_2_id) if conn.entity_2_id.isdigit() else conn.entity_2_id,
-                                    type=conn.connection_type,
-                                    intensity=conn.intensity or conn.confidence or 0.0,
-                                    desc=conn.relationship_description,
-                                    eid=db_event.unique_id,
-                                )
-                        except Exception:
-                            pass
-
             parsed = ParsedResult(
                 article_id=article_id,
                 processed_at=datetime.utcnow(),
                 llm_summary=summary,
                 events=events,
                 people=people,
-                connections=connections,
                 company_matches=[str(f.id) for f in firms],
                 language=article.article.language,
                 total_risk_score=(sum(e.risk_level for e in events) / len(events)) if events else 0.0,

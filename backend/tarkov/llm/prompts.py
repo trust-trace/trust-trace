@@ -45,13 +45,3 @@ Text:
 """.strip()
 
 
-CONNECTION_EXTRACTION_PROMPT = """
-Identify relations between entities and return ONLY JSON array.
-Allowed connection_type: shared_director, business_relationship, activity_link.
-
-Companies: {companies}
-People: {people}
-
-Text:
-{text}
-""".strip()
