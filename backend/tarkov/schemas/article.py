@@ -1,4 +1,4 @@
-"""Article input schemas."""
+"""Stage 1 payload schemas accepted by Tarkov."""
 
 from __future__ import annotations
 
@@ -14,9 +14,7 @@ class SourceInfo(BaseModel):
     credibility_score: float = 0.5
     credibility_label: str = "unknown"
 
-    model_config = {
-        "extra": "ignore",
-    }
+    model_config = {"extra": "ignore"}
 
 
 class ArticleBody(BaseModel):
@@ -28,9 +26,7 @@ class ArticleBody(BaseModel):
     authors: list[str] = Field(default_factory=list)
     language: str = "en"
 
-    model_config = {
-        "extra": "ignore",
-    }
+    model_config = {"extra": "ignore"}
 
 
 class ArticleMetadata(BaseModel):
@@ -42,9 +38,7 @@ class ArticleMetadata(BaseModel):
     discovery_method: str | None = None
     http_status: int | None = None
 
-    model_config = {
-        "extra": "ignore",
-    }
+    model_config = {"extra": "ignore"}
 
 
 class ArticleIn(BaseModel):
@@ -52,6 +46,4 @@ class ArticleIn(BaseModel):
     article: ArticleBody
     metadata: ArticleMetadata = Field(default_factory=ArticleMetadata)
 
-    model_config = {
-        "extra": "ignore",
-    }
+    model_config = {"extra": "ignore"}

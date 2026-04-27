@@ -1,4 +1,4 @@
-"""Handlers that route parsed events to AML scoring modules."""
+"""Stage 3 routing handlers."""
 
 from __future__ import annotations
 
@@ -18,40 +18,20 @@ class AMLScoringEventHandler:
         self.trustweb = trustweb_client
 
     async def handle_parsed_event(self, event: ParsingEvent):
-        parsed_result = event.parsed_result
-        correlation_id = event.correlation_id
+        parsed = event.parsed_result
+        cid = event.correlation_id
 
         tasks = []
-        if "event_classifier" in event.target_modules and parsed_result.events:
-            tasks.append(
-                self.event_classifier.score_events(
-                    parsed_result.company_matches,
-                    parsed_result.events,
-                    correlation_id,
-                )
-            )
-
-        if "nsa" in event.target_modules and parsed_result.people:
-            tasks.append(
-                self.nsa.score_people(
-                    parsed_result.company_matches,
-                    parsed_result.people,
-                    correlation_id,
-                )
-            )
-
-        if "trustweb" in event.target_modules and parsed_result.connections:
-            tasks.append(
-                self.trustweb.score_network(
-                    parsed_result.company_matches,
-                    parsed_result.connections,
-                    correlation_id,
-                )
-            )
+        if "event_classifier" in event.target_modules and parsed.events:
+            tasks.append(self.event_classifier.score_events(parsed.company_matches, parsed.events, cid))
+        if "nsa" in event.target_modules and parsed.people:
+            tasks.append(self.nsa.score_people(parsed.company_matches, parsed.people, cid))
+        if "trustweb" in event.target_modules and parsed.connections:
+            tasks.append(self.trustweb.score_network(parsed.company_matches, parsed.connections, cid))
 
         if not tasks:
             return []
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("Scoring completed for correlation_id=%s", correlation_id)
+        logger.info("stage3 scoring completed correlation_id=%s", cid)
         return results

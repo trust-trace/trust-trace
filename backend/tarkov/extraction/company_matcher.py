@@ -1,4 +1,4 @@
-"""Company matching and firm creation logic."""
+"""Company matching and firm upsert logic."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from tarkov.database.repositories.firm_repo import FirmRepository
 from tarkov.utils.text_utils import normalize_whitespace
 
 
-@dataclass
+@dataclass(slots=True)
 class MatchedCompany:
     company_name: str
     ticker: str | None
@@ -27,15 +27,14 @@ class CompanyMatcher:
         self.firm_repo = FirmRepository(db_session)
         self.company_reference = self._load_company_reference(company_reference_path)
 
-    def _load_company_reference(self, company_reference_path: str) -> list[dict]:
-        path = Path(company_reference_path)
+    @staticmethod
+    def _load_company_reference(path_value: str) -> list[dict]:
+        path = Path(path_value)
         if not path.exists():
             return []
-        with path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        if isinstance(data, list):
-            return data
-        return []
+        with path.open("r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+        return payload if isinstance(payload, list) else []
 
     def match_companies(self, article_text: str) -> list[MatchedCompany]:
         text = normalize_whitespace(article_text)
@@ -43,26 +42,37 @@ class CompanyMatcher:
         results: list[MatchedCompany] = []
         seen: set[tuple[str, str | None]] = set()
 
-        for company in self.company_reference:
-            name = company.get("name", "").strip()
-            ticker = company.get("ticker")
-            aliases = [a for a in company.get("aliases", []) if isinstance(a, str)]
+        for row in self.company_reference:
+            name = str(row.get("name", "")).strip()
+            ticker = row.get("ticker")
+            aliases = [a for a in row.get("aliases", []) if isinstance(a, str)]
 
             if ticker:
-                pattern = rf"\b{re.escape(ticker)}\b"
-                match = re.search(pattern, text)
-                if match and (name, ticker) not in seen:
-                    results.append(MatchedCompany(name, ticker, 0.95, match.group(0)))
+                hit = re.search(rf"\b{re.escape(str(ticker))}\b", text)
+                if hit and (name, ticker) not in seen:
                     seen.add((name, ticker))
+                    results.append(
+                        MatchedCompany(
+                            company_name=name or str(ticker),
+                            ticker=str(ticker),
+                            confidence=0.95,
+                            matched_text=hit.group(0),
+                        )
+                    )
                     continue
 
             for alias in aliases + ([name] if name else []):
-                alias_clean = alias.strip()
-                if not alias_clean:
-                    continue
-                if alias_clean.lower() in lowered and (name, ticker) not in seen:
-                    results.append(MatchedCompany(name or alias_clean, ticker, 0.85, alias_clean))
+                candidate = alias.strip()
+                if candidate and candidate.lower() in lowered and (name, ticker) not in seen:
                     seen.add((name, ticker))
+                    results.append(
+                        MatchedCompany(
+                            company_name=name or candidate,
+                            ticker=str(ticker) if ticker else None,
+                            confidence=0.85,
+                            matched_text=candidate,
+                        )
+                    )
                     break
 
         return results
@@ -70,13 +80,8 @@ class CompanyMatcher:
     def get_or_create_firm(self, company_name: str, ticker: str | None = None) -> Firm:
         firm = self.firm_repo.get_or_create_firm(company_name, ticker)
         if ticker:
-            self.firm_repo.add_alias(firm.id, ticker, "ticker")
+            self.firm_repo.add_alias(firm.id, ticker, "ticker", confidence=1.0)
         return firm
 
     def add_alias(self, firm: Firm, alias: str, alias_type: str, confidence: float | None = None) -> None:
-        self.firm_repo.add_alias(
-            firm_id=firm.id,
-            alias=alias,
-            alias_type=alias_type,
-            confidence=confidence,
-        )
+        self.firm_repo.add_alias(firm.id, alias, alias_type, confidence=confidence)

@@ -1,4 +1,4 @@
-"""Person repository implementation."""
+"""Person repository."""
 
 from __future__ import annotations
 
@@ -12,23 +12,27 @@ class PersonRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_person(self, name: str, role: str | None = None, firm_id: int | None = None, description: str | None = None) -> Person:
-        person = Person(name=name, role=role, firm_id=firm_id, description=description)
-        self.db.add(person)
+    def create_person(
+        self,
+        name: str,
+        role: str | None = None,
+        firm_id: int | None = None,
+        description: str | None = None,
+    ) -> Person:
+        obj = Person(name=name, role=role, firm_id=firm_id, description=description)
+        self.db.add(obj)
         self.db.flush()
-        return person
+        return obj
 
     def get_or_create_person(self, name: str, firm_id: int | None = None, role: str | None = None) -> Person:
         stmt = select(Person).where(func.lower(Person.name) == name.lower())
         if firm_id is not None:
             stmt = stmt.where(Person.firm_id == firm_id)
-
-        person = self.db.execute(stmt).scalar_one_or_none()
-        if person is not None:
-            if role and not person.role:
-                person.role = role
-            return person
-
+        obj = self.db.execute(stmt).scalar_one_or_none()
+        if obj is not None:
+            if role and not obj.role:
+                obj.role = role
+            return obj
         return self.create_person(name=name, role=role, firm_id=firm_id)
 
     def link_person_to_event(
@@ -41,15 +45,15 @@ class PersonRepository:
         existing = self.db.execute(
             select(PersonEvent).where(PersonEvent.person_id == person_id, PersonEvent.event_id == event_id)
         ).scalar_one_or_none()
-        if existing is not None:
+        if existing:
             return existing
 
-        link = PersonEvent(
+        obj = PersonEvent(
             person_id=person_id,
             event_id=event_id,
             role_in_event=role,
             confidence=confidence,
         )
-        self.db.add(link)
+        self.db.add(obj)
         self.db.flush()
-        return link
+        return obj

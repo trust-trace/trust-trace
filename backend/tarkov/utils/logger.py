@@ -1,4 +1,4 @@
-"""Logging setup helpers."""
+"""Logging utilities."""
 
 from __future__ import annotations
 

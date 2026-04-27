@@ -1,42 +1,47 @@
-"""Database session management."""
+"""Database engine/session lifecycle for Tarkov."""
 
 from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 
 class Base(DeclarativeBase):
-    """Base class for all ORM models."""
+    pass
 
 
-engine = None
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, future=True)
+_engine: Engine | None = None
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, future=True)
 
 
-def init_engine(database_url: str):
-    global engine
+def init_engine(database_url: str) -> Engine:
+    global _engine
     if database_url.startswith("sqlite") and ":memory:" in database_url:
-        engine = create_engine(
+        _engine = create_engine(
             database_url,
             future=True,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
     else:
-        engine = create_engine(database_url, future=True)
-    SessionLocal.configure(bind=engine)
-    return engine
+        _engine = create_engine(database_url, future=True)
+
+    SessionLocal.configure(bind=_engine)
+    return _engine
+
+
+def get_engine() -> Engine:
+    if _engine is None:
+        raise RuntimeError("Database engine not initialized. Call init_engine().")
+    return _engine
 
 
 def create_all() -> None:
-    if engine is None:
-        raise RuntimeError("Engine not initialized. Call init_engine() first.")
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_engine())
 
 
 @contextmanager

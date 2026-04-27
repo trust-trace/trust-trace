@@ -1,4 +1,4 @@
-"""HTTP API for receiving Stage 1 payloads from Scuttle Crab."""
+"""FastAPI application for Stage 1 -> Stage 2 ingestion."""
 
 from __future__ import annotations
 
@@ -26,20 +26,14 @@ def create_app(config: Config | None = None):
     try:
         from fastapi import FastAPI, HTTPException
     except ImportError as exc:
-        raise RuntimeError(
-            "FastAPI is required to run Tarkov API. Install dependencies from backend/requirements.txt"
-        ) from exc
+        raise RuntimeError("FastAPI is required to run Tarkov API") from exc
 
     cfg = config or Config.from_env()
     setup_logging(cfg.log_level)
     init_engine(cfg.database_url)
     create_all()
 
-    app = FastAPI(
-        title="Tarkov API",
-        version="0.1.0",
-        description="Receives normalized article payloads from Scuttle Crab and runs Stage 2 extraction.",
-    )
+    app = FastAPI(title="Tarkov API", version="0.1.0")
 
     @app.get("/health")
     def health() -> dict:
@@ -62,14 +56,9 @@ def create_app(config: Config | None = None):
                 )
                 emitter.register_async_handler(handler.handle_parsed_event)
 
-            processor = ArticleProcessor(session, cfg, result_emitter=emitter)
-            result = processor.process_article(article)
+            result = ArticleProcessor(session, cfg, result_emitter=emitter).process_article(article)
             if result is None:
-                return {
-                    "status": "skipped",
-                    "reason": "no_company_matches",
-                    "title": article.article.title,
-                }
+                return {"status": "skipped", "reason": "no_company_matches", "title": article.article.title}
 
             return {
                 "status": "processed",

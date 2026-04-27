@@ -1,3 +1,5 @@
+"""Pipeline tests."""
+
 from __future__ import annotations
 
 from tarkov.config import Config
@@ -21,15 +23,21 @@ def test_process_article_full_flow(tmp_path):
     db = SessionLocal()
     config = Config(
         database_url="sqlite+pysqlite:///:memory:",
+        log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
         llm_model="gpt-4o-mini",
-        log_level="INFO",
-        keywords_file_path="",
         article_input_source="jsonl",
         article_input_path="",
         company_reference_path=str(companies),
+        keywords_file_path="",
         dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
+        api_host="127.0.0.1",
+        api_port=8081,
+        enable_stage3_dispatch=False,
+        event_classifier_url="",
+        nsa_url="",
+        trustweb_url="",
     )
     processor = ArticleProcessor(db, config)
     result = processor.process_article(SAMPLE_ARTICLE_1)

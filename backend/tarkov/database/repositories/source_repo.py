@@ -1,4 +1,4 @@
-"""Source repository implementation."""
+"""Source repository."""
 
 from __future__ import annotations
 
@@ -38,19 +38,20 @@ class SourceRepository:
         )
         self.db.add(original)
 
-        if llm_summary:
-            llm_source = Source(
-                event_id=event_id,
-                url=article.source.url,
-                title=f"LLM Summary: {article.article.title}",
-                content=llm_summary.text,
-                source_type="llm_summary",
-                source_category="summary",
-                language=article.article.language,
-                published_at=article.article.published_at,
-                credibility=llm_summary.confidence,
+        if llm_summary is not None:
+            self.db.add(
+                Source(
+                    event_id=event_id,
+                    url=article.source.url,
+                    title=f"LLM Summary: {article.article.title}",
+                    content=llm_summary.text,
+                    source_type="llm_summary",
+                    source_category="summary",
+                    language=article.article.language,
+                    published_at=article.article.published_at,
+                    credibility=llm_summary.confidence,
+                )
             )
-            self.db.add(llm_source)
 
         self.db.flush()
         return original

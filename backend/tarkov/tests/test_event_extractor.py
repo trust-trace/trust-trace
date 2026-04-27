@@ -1,3 +1,5 @@
+"""Event extractor tests."""
+
 from __future__ import annotations
 
 from tarkov.extraction.event_extractor import EventExtractor

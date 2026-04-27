@@ -1,4 +1,4 @@
-"""Firm repository implementation."""
+"""Firm repository."""
 
 from __future__ import annotations
 
@@ -15,22 +15,22 @@ class FirmRepository:
         self.db = db
 
     def get_or_create_firm(self, name: str, ticker: str | None = None, country: str = "PL") -> Firm:
-        stmt = select(Firm).where(func.lower(Firm.full_name) == name.lower())
-        firm = self.db.execute(stmt).scalar_one_or_none()
-        if firm is None and ticker:
-            stmt = select(Firm).join(FirmAlias).where(func.lower(FirmAlias.alias) == ticker.lower())
-            firm = self.db.execute(stmt).scalar_one_or_none()
+        existing = self.find_by_alias(name)
+        if existing is not None:
+            return existing
 
-        if firm is not None:
-            return firm
+        if ticker:
+            existing = self.find_by_alias(ticker)
+            if existing is not None:
+                return existing
 
         firm = Firm(full_name=name, country=country)
         self.db.add(firm)
         self.db.flush()
-        self.add_alias(firm.id, name, "name", is_primary=True)
+
+        self.add_alias(firm.id, name, "name", confidence=1.0, is_primary=True)
         if ticker:
-            self.add_alias(firm.id, ticker, "ticker")
-        self.db.flush()
+            self.add_alias(firm.id, ticker, "ticker", confidence=1.0)
         return firm
 
     def add_alias(
@@ -47,27 +47,32 @@ class FirmRepository:
                 func.lower(FirmAlias.alias) == alias.lower(),
             )
         ).scalar_one_or_none()
-        if existing is not None:
+        if existing:
             return existing
 
-        firm_alias = FirmAlias(
+        obj = FirmAlias(
             firm_id=firm_id,
             alias=alias,
             alias_type=alias_type,
             confidence=confidence,
             is_primary=is_primary,
         )
-        self.db.add(firm_alias)
+        self.db.add(obj)
         self.db.flush()
-        return firm_alias
+        return obj
 
     def find_by_alias(self, alias: str) -> Optional[Firm]:
         stmt = (
             select(Firm)
-            .join(FirmAlias)
-            .where(or_(func.lower(FirmAlias.alias) == alias.lower(), func.lower(Firm.full_name) == alias.lower()))
+            .outerjoin(FirmAlias, FirmAlias.firm_id == Firm.id)
+            .where(
+                or_(
+                    func.lower(Firm.full_name) == alias.lower(),
+                    func.lower(FirmAlias.alias) == alias.lower(),
+                )
+            )
         )
-        return self.db.execute(stmt).scalar_one_or_none()
+        return self.db.execute(stmt).scalars().first()
 
     def list_firms(self) -> list[Firm]:
         return list(self.db.execute(select(Firm).order_by(Firm.id)).scalars().all())

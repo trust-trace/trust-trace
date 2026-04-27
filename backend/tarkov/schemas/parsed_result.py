@@ -1,4 +1,4 @@
-"""Parsed result and event emission schemas."""
+"""Parsed payload contracts emitted by Tarkov."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class SourceReference(BaseModel):
     title: str
     source_text: str
     published_at: datetime | None = None
-    credibility_score: float = Field(ge=0.0, le=1.0, default=0.5)
+    credibility_score: float = Field(default=0.5, ge=0.0, le=1.0)
     language: str = "en"
 
 

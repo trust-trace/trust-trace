@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for Tarkov tests."""
+"""Shared pytest fixtures."""
 
 from __future__ import annotations
 
@@ -14,24 +14,21 @@ BACKEND_ROOT = PROJECT_ROOT / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from tarkov.database.session import Base, init_engine
+from tarkov.database.session import Base, SessionLocal, init_engine
 
 
 @pytest.fixture()
 def db_session() -> Session:
     engine = init_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    from tarkov.database.session import SessionLocal
-
     session = SessionLocal()
     try:
         yield session
     finally:
         session.close()
 
+
 def create_test_session() -> Session:
     engine = init_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    from tarkov.database.session import SessionLocal
-
     return SessionLocal()

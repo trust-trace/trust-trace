@@ -1,4 +1,4 @@
-"""Article reader for JSONL or API sources."""
+"""Read articles from JSONL or API input source."""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ class ArticleReader:
 
     def read_articles(self) -> Iterator[ArticleIn]:
         if self.source == "jsonl":
-            with open(self.path, "r", encoding="utf-8") as handle:
-                for line in handle:
+            with open(self.path, "r", encoding="utf-8") as fh:
+                for line in fh:
                     line = line.strip()
                     if not line:
                         continue
@@ -28,8 +28,7 @@ class ArticleReader:
         if self.source == "api":
             response = requests.get(self.path, timeout=30)
             response.raise_for_status()
-            payload = response.json()
-            for item in payload:
+            for item in response.json():
                 yield ArticleIn.model_validate(item)
             return
 
@@ -42,6 +41,5 @@ class ArticleReader:
             if len(batch) >= batch_size:
                 yield batch
                 batch = []
-
         if batch:
             yield batch

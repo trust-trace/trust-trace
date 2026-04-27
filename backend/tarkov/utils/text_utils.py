@@ -1,4 +1,4 @@
-"""Text processing helper functions."""
+"""Common text normalization helpers."""
 
 from __future__ import annotations
 
@@ -13,8 +13,7 @@ def split_sentences(text: str) -> list[str]:
     normalized = normalize_whitespace(text)
     if not normalized:
         return []
-    parts = re.split(r"(?<=[.!?])\s+", normalized)
-    return [part.strip() for part in parts if part.strip()]
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", normalized) if part.strip()]
 
 
 def extract_excerpt(text: str, max_len: int = 300) -> str:

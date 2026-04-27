@@ -1,4 +1,4 @@
-"""CLI entrypoint for Tarkov."""
+"""CLI entrypoints for Tarkov processing and API service."""
 
 from __future__ import annotations
 
@@ -27,47 +27,45 @@ def cli() -> None:
 @click.option("--input-path", default="articles.jsonl", show_default=True)
 @click.option("--batch-size", default=100, show_default=True, type=int)
 def process_articles(input_source: str, input_path: str, batch_size: int) -> None:
-    """Process articles from source and extract events."""
     config = Config.from_env()
     setup_logging(config.log_level)
     init_engine(config.database_url)
-    db_session = SessionLocal()
+    session = SessionLocal()
 
-    reader = ArticleReader(input_source, input_path)
-    processor = ArticleProcessor(db_session, config)
-
-    for batch in reader.read_article_batch(batch_size):
-        processor.process_articles_batch(batch)
-
-    logger.info("All articles processed")
+    try:
+        processor = ArticleProcessor(session, config)
+        for batch in ArticleReader(input_source, input_path).read_article_batch(batch_size):
+            processor.process_articles_batch(batch)
+        logger.info("All articles processed")
+    finally:
+        session.close()
 
 
 @cli.command("process-single")
 @click.argument("article_path")
 def process_single(article_path: str) -> None:
-    """Process a single article from JSON file."""
     config = Config.from_env()
     setup_logging(config.log_level)
     init_engine(config.database_url)
-    db_session = SessionLocal()
+    session = SessionLocal()
 
-    with open(article_path, "r", encoding="utf-8") as handle:
-        article_data = json.load(handle)
-
-    article = ArticleIn.model_validate(article_data)
-    processor = ArticleProcessor(db_session, config)
-    result = processor.process_article(article)
-    if result is None:
-        logger.warning("Article processed without company matches")
-    else:
-        logger.info("Processed article_id=%s", result.article_id)
+    try:
+        with open(article_path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+        article = ArticleIn.model_validate(payload)
+        result = ArticleProcessor(session, config).process_article(article)
+        if result is None:
+            logger.warning("Article processed without company matches")
+        else:
+            logger.info("Processed article_id=%s", result.article_id)
+    finally:
+        session.close()
 
 
 @cli.command("serve")
 @click.option("--host", default=None)
 @click.option("--port", default=None, type=int)
 def serve(host: str | None, port: int | None) -> None:
-    """Run HTTP API for Scuttle Crab -> Tarkov ingestion."""
     config = Config.from_env()
     setup_logging(config.log_level)
 
@@ -75,9 +73,8 @@ def serve(host: str | None, port: int | None) -> None:
 
     from tarkov.api import create_app
 
-    app = create_app(config)
     uvicorn.run(
-        app,
+        create_app(config),
         host=host or config.api_host,
         port=port or config.api_port,
         log_level=config.log_level.lower(),

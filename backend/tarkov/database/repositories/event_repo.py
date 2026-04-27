@@ -1,4 +1,4 @@
-"""Event repository implementation."""
+"""Event repository."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ class EventRepository:
         self.db = db
 
     def create_event(self, firm_id: int, event_data: EventOut, event_category: str = "classical") -> Event:
-        event = Event(
+        obj = Event(
             firm_id=firm_id,
             title=event_data.title,
             event_type=event_data.event_type,
@@ -24,11 +24,11 @@ class EventRepository:
             risk_level=event_data.risk_level,
             occurred_at=event_data.occurred_at or datetime.utcnow(),
             extraction_confidence=event_data.confidence,
-            source_text_quote=getattr(event_data, "source_text", None),
+            source_text_quote=event_data.source_text,
         )
-        self.db.add(event)
+        self.db.add(obj)
         self.db.flush()
-        return event
+        return obj
 
     def get_event(self, event_id: str) -> Event | None:
         return self.db.execute(select(Event).where(Event.unique_id == event_id)).scalar_one_or_none()

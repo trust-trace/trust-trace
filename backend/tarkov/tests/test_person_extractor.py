@@ -1,3 +1,5 @@
+"""Person extractor tests."""
+
 from __future__ import annotations
 
 from tarkov.extraction.person_extractor import PersonExtractor

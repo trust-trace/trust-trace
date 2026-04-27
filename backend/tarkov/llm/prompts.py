@@ -1,54 +1,57 @@
-"""Prompt templates for LLM extraction."""
+"""Prompt templates used by the optional LLM integration."""
 
 ARTICLE_SUMMARY_PROMPT = """
-Write a concise 2-3 sentence summary of this article focusing on business and regulatory events.
+You are an AML analyst assistant.
+Summarize the article in 2-3 sentences with focus on compliance, fraud, sanctions, or investigation risk.
 
 Article:
 {article_text}
 
-Summary (max 3 sentences):
+Return plain text only.
 """.strip()
 
 
 EVENT_EXTRACTION_PROMPT = """
-You are an AML analyst. Extract fraud and AML-related events from the article.
-For each event include:
-1. event_type
-2. risk_level (1-10)
-3. title
-4. description
-5. source_text (direct quote)
-6. confidence (0.0-1.0)
+You are an AML analyst.
+Extract risk-relevant events from the article and return ONLY JSON array.
 
-Article: {article_text}
-Firm Context: {firm_context}
+Each object must include:
+- event_type
+- title
+- description
+- risk_level (1-10)
+- confidence (0.0-1.0)
+- source_text (direct quote)
 
-Respond as JSON array.
+Firm context:
+{firm_context}
+
+Article:
+{article_text}
 """.strip()
 
 
 PERSON_EXTRACTION_PROMPT = """
-Extract all people mentioned in this text and include:
+Extract people from the text and return ONLY JSON array.
+Each object must include:
 - name
 - role
 - description
-- source_text
 - confidence
+- source_text
 
 Text:
 {text}
-
-Respond as JSON array.
 """.strip()
 
 
 CONNECTION_EXTRACTION_PROMPT = """
-Identify connections between entities in this article.
-Connection types: shared_director, business_relationship, activity_link.
+Identify relations between entities and return ONLY JSON array.
+Allowed connection_type: shared_director, business_relationship, activity_link.
 
-Text: {text}
 Companies: {companies}
 People: {people}
 
-Respond as JSON array.
+Text:
+{text}
 """.strip()

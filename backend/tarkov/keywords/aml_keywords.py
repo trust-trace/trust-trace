@@ -1,4 +1,4 @@
-"""AML, fraud, and role keyword dictionaries."""
+"""Keyword dictionaries for deterministic extraction."""
 
 AML_KEYWORDS: dict[str, list[str]] = {
     "money_laundering": [

@@ -1,4 +1,4 @@
-"""Main article processing orchestrator."""
+"""Main orchestration layer for Stage 2 processing."""
 
 from __future__ import annotations
 
@@ -34,7 +34,6 @@ class ArticleProcessor:
     def __init__(self, db_session: Session, config: Config, result_emitter: ResultEmitter | None = None):
         self.db_session = db_session
         self.config = config
-
         self.firm_repo = FirmRepository(db_session)
         self.event_repo = EventRepository(db_session)
         self.person_repo = PersonRepository(db_session)
@@ -51,77 +50,64 @@ class ArticleProcessor:
     def process_article(self, article: ArticleIn, correlation_id: str | None = None) -> ParsedResult | None:
         correlation_id = correlation_id or str(uuid.uuid4())
         try:
-            llm_summary = self.summary_generator.generate_article_summary(article.article.text)
+            summary = self.summary_generator.generate_article_summary(article.article.text)
 
-            matches = self.company_matcher.match_companies(article.article.text)
-            if not matches:
+            company_matches = self.company_matcher.match_companies(article.article.text)
+            if not company_matches:
                 logger.warning("No companies found in article: %s", article.article.title)
                 return None
 
-            firms = [self.company_matcher.get_or_create_firm(m.company_name, m.ticker) for m in matches]
-            event_extractions = self.event_extractor.extract_events_keyword_based(article)
-            if not event_extractions:
-                logger.info("No AML events found for article: %s", article.article.title)
+            firms = [self.company_matcher.get_or_create_firm(m.company_name, m.ticker) for m in company_matches]
+            events = self.event_extractor.extract_events_keyword_based(article)
+            people = self.person_extractor.extract_people(article, [e.description for e in events])
 
-            people_extractions = self.person_extractor.extract_people(
-                article,
-                event_context=[event.description for event in event_extractions],
-            )
-
-            connections = self.connection_extractor.extract_business_relationships(
-                article,
-                [firm.full_name for firm in firms],
-            )
-            connections.extend(self.connection_extractor.extract_shared_directors(article, people_extractions))
-            connections.extend(self.connection_extractor.extract_activity_links(article, event_extractions))
+            connections = self.connection_extractor.extract_business_relationships(article, [f.full_name for f in firms])
+            connections.extend(self.connection_extractor.extract_shared_directors(article, people))
+            connections.extend(self.connection_extractor.extract_activity_links(article, events))
 
             for firm in firms:
-                for extraction in event_extractions:
-                    event_out = self.event_extractor.to_event_out(extraction)
+                for extracted in events:
+                    event_out = self.event_extractor.to_event_out(extracted)
                     db_event = self.event_repo.create_event(firm.id, event_out)
-                    self.source_repo.create_source_from_article(db_event.unique_id, article, llm_summary)
-                    self.source_repo.create_source_with_excerpt(db_event.unique_id, extraction)
+                    self.source_repo.create_source_from_article(db_event.unique_id, article, summary)
+                    self.source_repo.create_source_with_excerpt(db_event.unique_id, extracted)
 
-                    for person in people_extractions:
+                    for person in people:
                         db_person = self.person_repo.get_or_create_person(person.name, firm.id, person.role)
                         self.person_repo.link_person_to_event(db_person.id, db_event.unique_id, person.role, person.confidence)
 
-                    for connection in connections:
+                    for conn in connections:
                         self.db_session.add(
                             ConnectionEntity(
                                 connection_event_id=db_event.unique_id,
-                                connection_type=connection.connection_type,
-                                entity_1_type=connection.entity_1_type,
-                                entity_1_id=connection.entity_1_id,
-                                entity_1_name=connection.entity_1_name,
-                                entity_2_type=connection.entity_2_type,
-                                entity_2_id=connection.entity_2_id,
-                                entity_2_name=connection.entity_2_name,
-                                relationship_description=connection.relationship_description,
-                                confidence=connection.confidence,
+                                connection_type=conn.connection_type,
+                                entity_1_type=conn.entity_1_type,
+                                entity_1_id=conn.entity_1_id,
+                                entity_1_name=conn.entity_1_name,
+                                entity_2_type=conn.entity_2_type,
+                                entity_2_id=conn.entity_2_id,
+                                entity_2_name=conn.entity_2_name,
+                                relationship_description=conn.relationship_description,
+                                confidence=conn.confidence,
                             )
                         )
 
-            parsed_result = ParsedResult(
+            parsed = ParsedResult(
                 article_id=str(uuid.uuid4()),
                 processed_at=datetime.utcnow(),
-                llm_summary=llm_summary,
-                events=event_extractions,
-                people=people_extractions,
+                llm_summary=summary,
+                events=events,
+                people=people,
                 connections=connections,
-                company_matches=[str(firm.id) for firm in firms],
+                company_matches=[str(f.id) for f in firms],
                 language=article.article.language,
-                total_risk_score=(
-                    sum(event.risk_level for event in event_extractions) / len(event_extractions)
-                    if event_extractions
-                    else 0.0
-                ),
+                total_risk_score=(sum(e.risk_level for e in events) / len(events)) if events else 0.0,
             )
 
-            self.result_emitter.emit(parsed_result, correlation_id)
+            self.result_emitter.emit(parsed, correlation_id)
             self.db_session.commit()
             logger.info("Processed article: %s", article.article.title)
-            return parsed_result
+            return parsed
         except Exception as exc:
             logger.exception("Error processing article: %s", exc)
             self.db_session.rollback()
@@ -129,19 +115,19 @@ class ArticleProcessor:
             raise
 
     def process_articles_batch(self, articles: list[ArticleIn]) -> list[ParsedResult]:
-        results: list[ParsedResult] = []
+        out: list[ParsedResult] = []
         for article in articles:
             result = self.process_article(article)
             if result is not None:
-                results.append(result)
-        return results
+                out.append(result)
+        return out
 
     def process_articles_stream(self, article_iterator):
         for article in article_iterator:
             self.process_article(article)
 
     def _write_dead_letter(self, article: ArticleIn, correlation_id: str, error_message: str) -> None:
-        dead_letter = {
+        payload = {
             "correlation_id": correlation_id,
             "error": error_message,
             "source_url": article.source.url,
@@ -150,5 +136,5 @@ class ArticleProcessor:
         }
         path = Path(self.config.dead_letter_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(dead_letter) + "\n")
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload) + "\n")

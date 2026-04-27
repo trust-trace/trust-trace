@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for Tarkov."""
+"""SQLAlchemy models for Stage 2 persistence."""
 
 from __future__ import annotations
 
@@ -9,6 +9,10 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tarkov.database.session import Base
+
+
+def _uuid() -> str:
+    return str(uuid.uuid4())
 
 
 class Firm(Base):
@@ -23,9 +27,9 @@ class Firm(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    aliases: Mapped[list["FirmAlias"]] = relationship("FirmAlias", back_populates="firm", cascade="all, delete-orphan")
-    events: Mapped[list["Event"]] = relationship("Event", back_populates="firm", cascade="all, delete-orphan")
-    people: Mapped[list["Person"]] = relationship("Person", back_populates="firm")
+    aliases: Mapped[list["FirmAlias"]] = relationship(back_populates="firm", cascade="all, delete-orphan")
+    events: Mapped[list["Event"]] = relationship(back_populates="firm", cascade="all, delete-orphan")
+    people: Mapped[list["Person"]] = relationship(back_populates="firm")
 
 
 class FirmAlias(Base):
@@ -38,13 +42,13 @@ class FirmAlias(Base):
     confidence: Mapped[float | None] = mapped_column(Float)
     is_primary: Mapped[bool] = mapped_column(default=False)
 
-    firm: Mapped[Firm] = relationship("Firm", back_populates="aliases")
+    firm: Mapped[Firm] = relationship(back_populates="aliases")
 
 
 class Event(Base):
     __tablename__ = "event"
 
-    unique_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    unique_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     firm_id: Mapped[int] = mapped_column(ForeignKey("firm.id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -55,14 +59,10 @@ class Event(Base):
     extraction_confidence: Mapped[float | None] = mapped_column(Float)
     source_text_quote: Mapped[str | None] = mapped_column(Text)
 
-    firm: Mapped[Firm] = relationship("Firm", back_populates="events")
-    sources: Mapped[list["Source"]] = relationship("Source", back_populates="event", cascade="all, delete-orphan")
-    people_links: Mapped[list["PersonEvent"]] = relationship("PersonEvent", back_populates="event", cascade="all, delete-orphan")
-    connection_entities: Mapped[list["ConnectionEntity"]] = relationship(
-        "ConnectionEntity",
-        back_populates="event",
-        cascade="all, delete-orphan",
-    )
+    firm: Mapped[Firm] = relationship(back_populates="events")
+    sources: Mapped[list["Source"]] = relationship(back_populates="event", cascade="all, delete-orphan")
+    people_links: Mapped[list["PersonEvent"]] = relationship(back_populates="event", cascade="all, delete-orphan")
+    connection_entities: Mapped[list["ConnectionEntity"]] = relationship(back_populates="event", cascade="all, delete-orphan")
 
 
 class Source(Base):
@@ -75,12 +75,12 @@ class Source(Base):
     content: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str | None] = mapped_column(String(10))
     source_type: Mapped[str] = mapped_column(String(50), nullable=False, default="original")
-    source_category: Mapped[str] = mapped_column(String(20), default="article")
+    source_category: Mapped[str] = mapped_column(String(20), nullable=False, default="article")
     published_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     credibility: Mapped[float | None] = mapped_column(Float)
 
-    event: Mapped[Event] = relationship("Event", back_populates="sources")
+    event: Mapped[Event] = relationship(back_populates="sources")
 
 
 class Person(Base):
@@ -94,8 +94,8 @@ class Person(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    firm: Mapped[Firm | None] = relationship("Firm", back_populates="people")
-    event_links: Mapped[list["PersonEvent"]] = relationship("PersonEvent", back_populates="person", cascade="all, delete-orphan")
+    firm: Mapped[Firm | None] = relationship(back_populates="people")
+    event_links: Mapped[list["PersonEvent"]] = relationship(back_populates="person", cascade="all, delete-orphan")
 
 
 class PersonEvent(Base):
@@ -108,8 +108,8 @@ class PersonEvent(Base):
     confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    person: Mapped[Person] = relationship("Person", back_populates="event_links")
-    event: Mapped[Event] = relationship("Event", back_populates="people_links")
+    person: Mapped[Person] = relationship(back_populates="event_links")
+    event: Mapped[Event] = relationship(back_populates="people_links")
 
 
 class ConnectionEntity(Base):
@@ -128,14 +128,14 @@ class ConnectionEntity(Base):
     confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    event: Mapped[Event] = relationship("Event", back_populates="connection_entities")
+    event: Mapped[Event] = relationship(back_populates="connection_entities")
 
 
 class ArticleMetadata(Base):
     __tablename__ = "article_metadata"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    article_id: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    article_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     correlation_id: Mapped[str] = mapped_column(String(50), nullable=False)
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str | None] = mapped_column(Text)

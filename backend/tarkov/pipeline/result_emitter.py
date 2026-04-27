@@ -1,4 +1,4 @@
-"""Result emitter for parsed article events."""
+"""Result event dispatcher."""
 
 from __future__ import annotations
 
@@ -25,24 +25,19 @@ class ResultEmitter:
         self.async_handlers.append(handler)
 
     def emit(self, parsed_result: ParsedResult, correlation_id: str) -> ParsingEvent:
-        event = ParsingEvent(
-            timestamp=datetime.utcnow(),
-            parsed_result=parsed_result,
-            correlation_id=correlation_id,
-        )
+        event = ParsingEvent(timestamp=datetime.utcnow(), parsed_result=parsed_result, correlation_id=correlation_id)
 
         for handler in self.handlers:
             try:
                 handler(event)
             except Exception as exc:
-                logger.exception("Sync handler failed: %s", exc)
+                logger.exception("sync handler failed: %s", exc)
 
-        for async_handler in self.async_handlers:
+        for handler in self.async_handlers:
             try:
-                asyncio.create_task(async_handler(event))
+                asyncio.create_task(handler(event))
             except RuntimeError:
-                asyncio.run(async_handler(event))
+                asyncio.run(handler(event))
             except Exception as exc:
-                logger.exception("Async handler failed: %s", exc)
-
+                logger.exception("async handler failed: %s", exc)
         return event

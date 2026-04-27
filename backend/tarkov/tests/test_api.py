@@ -1,3 +1,5 @@
+"""API ingestion tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -20,14 +22,14 @@ def test_article_ingestion_endpoint_processes_payload(tmp_path):
 
     config = Config(
         database_url="sqlite+pysqlite:///:memory:",
+        log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
         llm_model="gpt-4o-mini",
-        log_level="INFO",
-        keywords_file_path="",
         article_input_source="jsonl",
         article_input_path="",
         company_reference_path=str(companies),
+        keywords_file_path="",
         dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
         api_host="127.0.0.1",
         api_port=8081,

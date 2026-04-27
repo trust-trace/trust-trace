@@ -1,4 +1,4 @@
-"""LLM client wrapper supporting OpenAI/Anthropic fallback behavior."""
+"""LLM client with safe fallback behavior."""
 
 from __future__ import annotations
 
@@ -25,28 +25,25 @@ class LLMClient:
             sentences = split_sentences(article_text)
             text = " ".join(sentences[:3]) if sentences else article_text[:350]
             return LLMSummary(text=text, confidence=0.55, key_topics=[])
-
-        prompt = ARTICLE_SUMMARY_PROMPT.format(article_text=article_text)
-        text = self._complete(prompt)
-        return LLMSummary(text=text.strip(), confidence=0.85, key_topics=[])
+        text = self._complete(ARTICLE_SUMMARY_PROMPT.format(article_text=article_text)).strip()
+        return LLMSummary(text=text or article_text[:300], confidence=0.85, key_topics=[])
 
     def extract_events(self, article_text: str, firm_context: str):
-        prompt = EVENT_EXTRACTION_PROMPT.format(article_text=article_text, firm_context=firm_context)
-        response = self._complete(prompt)
+        response = self._complete(EVENT_EXTRACTION_PROMPT.format(article_text=article_text, firm_context=firm_context))
         return self._parse_json_response(response)
 
     def extract_people(self, article_text: str, event_context: str):
-        prompt = PERSON_EXTRACTION_PROMPT.format(text=article_text + "\n" + event_context)
-        response = self._complete(prompt)
+        response = self._complete(PERSON_EXTRACTION_PROMPT.format(text=f"{article_text}\n{event_context}"))
         return self._parse_json_response(response)
 
     def extract_connections(self, article_text: str, companies: list[str], people: list[str]):
-        prompt = CONNECTION_EXTRACTION_PROMPT.format(
-            text=article_text,
-            companies=", ".join(companies),
-            people=", ".join(people),
+        response = self._complete(
+            CONNECTION_EXTRACTION_PROMPT.format(
+                text=article_text,
+                companies=", ".join(companies),
+                people=", ".join(people),
+            )
         )
-        response = self._complete(prompt)
         return self._parse_json_response(response)
 
     def _complete(self, prompt: str) -> str:
@@ -55,11 +52,11 @@ class LLMClient:
                 from openai import OpenAI
 
                 client = OpenAI(api_key=self.api_key)
-                result = client.chat.completions.create(
+                out = client.chat.completions.create(
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                return result.choices[0].message.content or ""
+                return out.choices[0].message.content or ""
             except Exception:
                 return ""
 
@@ -68,13 +65,13 @@ class LLMClient:
                 from anthropic import Anthropic
 
                 client = Anthropic(api_key=self.api_key)
-                message = client.messages.create(
+                out = client.messages.create(
                     model=self.model,
                     max_tokens=800,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                if message.content:
-                    return getattr(message.content[0], "text", "")
+                if out.content:
+                    return getattr(out.content[0], "text", "")
             except Exception:
                 return ""
 
