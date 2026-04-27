@@ -398,42 +398,93 @@
   letter-spacing: 0.02em;
 }
 
-.tt-sort {
+/* --- unified toggle group (replaces tt-sort, tt-chart-tabs, tt-tab) --- */
+
+.tt-toggle-group {
   display: inline-flex;
-  gap: 6px;
-  margin-bottom: 12px;
-  font-size: 13px;
+  gap: 2px;
   background: var(--tt-bg-soft);
   border: 1px solid var(--tt-line);
-  border-radius: 999px;
-  padding: 5px 6px;
+  border-radius: var(--tt-radius-lg);
+  padding: 3px;
 }
 
-.tt-sort-btn {
-  padding: 7px 18px;
-  border-radius: 999px;
+.tt-toggle-item {
+  position: relative;
+  padding: 6px 16px;
+  border-radius: calc(var(--tt-radius-lg) - 2px);
   color: var(--tt-fg-mute);
   font-weight: 500;
+  font-size: 12.5px;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
   user-select: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   white-space: nowrap;
+  line-height: 1;
 }
 
-.tt-sort-btn:hover {
-  color: var(--tt-fg);
-  background: color-mix(in srgb, var(--tt-fg-mute) 8%, transparent);
+.tt-toggle-item:hover {
+  color: var(--tt-fg-soft);
+  background: oklch(0.94 0.006 260 / 0.5);
 }
-.tt-sort-btn.is-active {
+
+.tt-toggle-item.is-active {
   background: var(--tt-bg-card);
   color: var(--tt-fg);
-  box-shadow: var(--tt-shadow-sm), 0 1px 3px rgba(0, 0, 0, 0.06);
-  font-weight: 500;
+  box-shadow:
+    0 1px 2px oklch(0.18 0.02 260 / 0.06),
+    0 1px 3px oklch(0.18 0.02 260 / 0.04);
+}
+
+.tt-toggle-item:focus-visible {
+  outline: 2px solid var(--tt-accent);
+  outline-offset: -1px;
+}
+
+/* size: sm */
+.tt-toggle-group--sm .tt-toggle-item {
+  padding: 5px 14px;
+  font-size: 12px;
+}
+
+/* size: lg — prominent view switcher */
+.tt-toggle-group--lg {
+  padding: 4px;
+  border-radius: var(--tt-radius-lg);
+  background: var(--tt-bg-card);
+  border: 1px solid var(--tt-line);
+  box-shadow: var(--tt-shadow-sm);
+}
+
+.tt-toggle-group--lg .tt-toggle-item {
+  padding: 9px 28px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-radius: calc(var(--tt-radius-lg) - 3px);
+}
+
+.tt-toggle-group--lg .tt-toggle-item:hover {
+  color: var(--tt-fg);
+  background: oklch(0.96 0.008 260 / 0.6);
+}
+
+.tt-toggle-group--lg .tt-toggle-item.is-active {
+  background: var(--tt-accent);
+  color: white;
+  box-shadow:
+    0 1px 3px oklch(0.55 0.13 250 / 0.25),
+    0 2px 6px oklch(0.55 0.13 250 / 0.12);
+}
+
+/* backwards compat - sidebar sort still needs margin-bottom */
+.tt-sidebar-head > .tt-toggle-group {
+  margin-bottom: 12px;
 }
 
 .tt-list {
@@ -878,41 +929,7 @@
   margin-top: 2px;
 }
 
-.tt-chart-tabs {
-  display: inline-flex;
-  gap: 6px;
-  background: var(--tt-bg-soft);
-  border: 1px solid var(--tt-line);
-  border-radius: 999px;
-  padding: 5px 6px;
-  font-size: 13px;
-}
-
-.tt-tab {
-  padding: 7px 18px;
-  border-radius: 999px;
-  color: var(--tt-fg-mute);
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  white-space: nowrap;
-}
-.tt-tab:hover {
-  color: var(--tt-fg);
-  background: color-mix(in srgb, var(--tt-fg-mute) 8%, transparent);
-}
-.tt-tab.is-active {
-  background: var(--tt-bg-card);
-  color: var(--tt-fg);
-  box-shadow: var(--tt-shadow-sm), 0 1px 3px rgba(0, 0, 0, 0.06);
-  font-weight: 500;
-}
+/* (tt-chart-tabs and tt-tab removed - now handled by tt-toggle-group) */
 
 .tt-chart {
   width: 100%;

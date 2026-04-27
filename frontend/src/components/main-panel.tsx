@@ -6,6 +6,7 @@ import { ScoreChart } from './score-chart';
 import { ArticleRow } from './article-row';
 import { CompanyGraph } from './company-graph';
 import { riskColor, riskLabel } from './sidebar';
+import { ToggleGroup, type ToggleOption } from './toggle-group';
 
 function relativeTime(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -44,12 +45,17 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
     return articles;
   }, [articles, filter]);
 
-  const timeTabs = ['12M', '6M', '3M', '30D'];
-  const filterTabs: [FilterKey, string][] = [
-    ['all', 'Wszystkie'],
-    ['neg', 'Negatywne'],
-    ['pos', 'Pozytywne'],
-    ['high', 'Wysoki wpływ'],
+  const timeTabs: ToggleOption[] = [
+    { value: '12M', label: '12M' },
+    { value: '6M', label: '6M' },
+    { value: '3M', label: '3M' },
+    { value: '30D', label: '30D' },
+  ];
+  const filterTabs: ToggleOption<FilterKey>[] = [
+    { value: 'all', label: 'Wszystkie' },
+    { value: 'neg', label: 'Negatywne' },
+    { value: 'pos', label: 'Pozytywne' },
+    { value: 'high', label: 'Wysoki wpływ' },
   ];
 
   return (
@@ -60,18 +66,7 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
             <div className="tt-section-title">Historia scoringu</div>
             <div className="tt-section-sub">Ostatnich 12 miesięcy · agregat dzienny</div>
           </div>
-          <div className="tt-chart-tabs">
-            {timeTabs.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={'tt-tab' + (activeTab === tab ? ' is-active' : '')}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+          <ToggleGroup options={timeTabs} value={activeTab} onChange={setActiveTab} size="sm" />
         </div>
         <ScoreChart history={company.history} color={accentColor} />
       </section>
@@ -84,18 +79,7 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
               Algorytm sentymentu · {filtered.length} z {articles.length}
             </div>
           </div>
-          <div className="tt-chart-tabs">
-            {filterTabs.map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={'tt-tab' + (filter === key ? ' is-active' : '')}
-                onClick={() => setFilter(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <ToggleGroup options={filterTabs} value={filter} onChange={setFilter} size="sm" />
         </div>
 
         <div className="tt-art-table-head">
@@ -188,22 +172,17 @@ export function MainPanel({ company, companies, articles, relations, onSelectCom
       </header>
 
       <section className="tt-main-switcher">
-        <div className="tt-chart-tabs" role="tablist" aria-label="Przełącznik widoku panelu firmy">
-          <button
-            type="button"
-            className={'tt-tab' + (activeView === 'overview' ? ' is-active' : '')}
-            onClick={() => setActiveView('overview')}
-          >
-            Overview
-          </button>
-          <button
-            type="button"
-            className={'tt-tab' + (activeView === 'graph' ? ' is-active' : '')}
-            onClick={() => setActiveView('graph')}
-          >
-            Graph
-          </button>
-        </div>
+        <ToggleGroup
+          options={[
+            { value: 'overview' as MainPanelView, label: 'Overview' },
+            { value: 'graph' as MainPanelView, label: 'Graph' },
+          ]}
+          value={activeView}
+          onChange={setActiveView}
+          size="lg"
+          role="tablist"
+          ariaLabel="Przełącznik widoku panelu firmy"
+        />
       </section>
 
       {activeView === 'overview' ? (
