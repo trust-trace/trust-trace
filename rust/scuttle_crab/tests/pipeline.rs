@@ -100,6 +100,7 @@ fn crawl_skips_seen_urls_before_fetching() {
     let max_in_flight = Arc::new(AtomicUsize::new(0));
     let current_in_flight = Arc::new(AtomicUsize::new(0));
     let server = spawn_test_server(listener, 2, max_in_flight, current_in_flight);
+    let article_url = format!("http://127.0.0.1:{}/article-1", address.port());
 
     let sources_path = root.join("sources.json");
     let sources_json = format!(
@@ -118,11 +119,8 @@ fn crawl_skips_seen_urls_before_fetching() {
         root.join("seen_urls.jsonl"),
         format!(
             "{{\"url_hash\":\"{}\",\"canonical_url\":\"{}\",\"first_seen_at\":\"2026-04-27T08:16:12Z\",\"source\":\"Example Feed\"}}\n",
-            hash_url(
-                &normalize_url(&format!("http://127.0.0.1:{}/article-1", address.port()))
-                    .expect("url should normalize")
-            ),
-            format!("http://127.0.0.1:{}/article-1", address.port())
+            hash_url(&normalize_url(&article_url).expect("url should normalize")),
+            article_url
         ),
     )
     .expect("seen store should be primed");

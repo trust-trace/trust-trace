@@ -3,20 +3,22 @@
 use anyhow::{Context, bail};
 use chrono::{SecondsFormat, Utc};
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::config::AppConfig;
+use crate::domain::article::{ArticlePayload, ArticleSection, ArticleText, MetadataSection};
 use crate::domain::company::{CompanyRecord, load_companies_if_exists};
-use crate::domain::registry::RegistryRecordPayload;
+use crate::domain::source::SourceInfo;
 use crate::storage::jsonl::JsonlOutbox;
 
 const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
-const KRZ_PORTAL_URL: &str = "https://krz.ms.gov.pl/";
-const RNP_PORTAL_URL: &str = "https://www.podatki.gov.pl/e-urzad-skarbowy/";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CompanyScrapeSummary {
     pub emitted: usize,
+    pub failed: usize,
+    pub krs_documents: usize,
+    pub msig_documents: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,119 +69,61 @@ pub async fn scrape_company_with_config(
     .await
     .with_context(|| format!("failed to fetch full KRS extract for {}", company.krs))?;
 
-    let mut emitted = 0;
+    let mut summary = CompanyScrapeSummary::default();
 
-    emitted += append_registry_record(
-        &outbox,
-        build_registry_payload(
-            &company,
-            Some(("krs", company.krs.as_str())),
-            "krs",
-            "current_extract",
-            "KRS odpis aktualny",
-            &format!(
-                "{}/krs/OdpisAktualny/{}",
-                config.krs_api_base_url.trim_end_matches('/'),
-                company.krs
-            ),
-            &fetched_at,
-            None,
-            Some("Aktualny odpis KRS dla wskazanej spółki.".to_string()),
-            current_value.clone(),
-        ),
-    )?;
-
-    emitted += append_registry_record(
-        &outbox,
-        build_registry_payload(
-            &company,
-            Some(("krs", company.krs.as_str())),
-            "krs",
-            "full_extract",
-            "KRS odpis pełny",
-            &format!(
-                "{}/krs/OdpisPelny/{}",
-                config.krs_api_base_url.trim_end_matches('/'),
-                company.krs
-            ),
-            &fetched_at,
-            None,
-            Some("Pełna historia zmian KRS dla wskazanej spółki.".to_string()),
-            full_value.clone(),
-        ),
-    )?;
-
-    if let Some(filing_summary) = extract_json_path(
+    let current_payload = build_krs_payload(
+        &company,
         &current_value,
-        &["odpis", "dane", "dzial3", "wzmiankiOZlozonychDokumentach"],
-    ) {
-        emitted += append_registry_record(
-            &outbox,
-            build_registry_payload(
-                &company,
-                Some(("krs", company.krs.as_str())),
-                "rdf",
-                "financial_filings_summary",
-                "RDF wzmianki o złożonych sprawozdaniach",
-                &format!(
-                    "{}/krs/OdpisAktualny/{}",
-                    config.krs_api_base_url.trim_end_matches('/'),
-                    company.krs
-                ),
-                &fetched_at,
-                None,
-                Some(
-                    "Wzmianki o złożonych dokumentach finansowych widoczne w aktualnym odpisie KRS."
-                        .to_string(),
-                ),
-                filing_summary,
-            ),
-        )?;
+        &format!(
+            "{}/krs/OdpisAktualny/{}",
+            config.krs_api_base_url.trim_end_matches('/'),
+            company.krs
+        ),
+        &fetched_at,
+        "KRS odpis aktualny",
+        "Aktualny odpis KRS dla wskazanej spółki.",
+        "krs/current_extract",
+    );
+    append_article_payload(&outbox, current_payload)?;
+    summary.emitted += 1;
+    summary.krs_documents += 1;
+
+    let full_payload = build_krs_payload(
+        &company,
+        &full_value,
+        &format!(
+            "{}/krs/OdpisPelny/{}",
+            config.krs_api_base_url.trim_end_matches('/'),
+            company.krs
+        ),
+        &fetched_at,
+        "KRS odpis pełny",
+        "Pełna historia zmian KRS dla wskazanej spółki.",
+        "krs/full_extract",
+    );
+    append_article_payload(&outbox, full_payload)?;
+    summary.emitted += 1;
+    summary.krs_documents += 1;
+
+    match scrape_msig_records(&client, &config.msig_api_base_url, &company, &fetched_at).await {
+        Ok(msig_payloads) => {
+            summary.msig_documents += msig_payloads.len();
+            for payload in msig_payloads {
+                append_article_payload(&outbox, payload)?;
+                summary.emitted += 1;
+            }
+        }
+        Err(_) => {
+            summary.failed += 1;
+        }
     }
 
-    if let Some(rdf_events) = extract_rdf_events(&full_value) {
-        emitted += append_registry_record(
-            &outbox,
-            build_registry_payload(
-                &company,
-                Some(("krs", company.krs.as_str())),
-                "rdf",
-                "filing_events",
-                "RDF zdarzenia ze sprawozdań w historii KRS",
-                &format!(
-                    "{}/krs/OdpisPelny/{}",
-                    config.krs_api_base_url.trim_end_matches('/'),
-                    company.krs
-                ),
-                &fetched_at,
-                None,
-                Some(
-                    "Wpisy historyczne KRS powiązane ze złożeniem dokumentów finansowych RDF."
-                        .to_string(),
-                ),
-                rdf_events,
-            ),
-        )?;
-    }
-
-    for payload in
-        scrape_msig_records(&client, &config.msig_api_base_url, &company, &fetched_at).await
-    {
-        emitted += append_registry_record(&outbox, payload)?;
-    }
-
-    emitted += append_registry_record(&outbox, scrape_krz_record(&company, &fetched_at))?;
-    emitted += append_registry_record(&outbox, scrape_rnp_record(&company, &fetched_at))?;
-
-    Ok(CompanyScrapeSummary { emitted })
+    Ok(summary)
 }
 
-fn append_registry_record(
-    outbox: &JsonlOutbox,
-    payload: RegistryRecordPayload,
-) -> anyhow::Result<usize> {
+fn append_article_payload(outbox: &JsonlOutbox, payload: ArticlePayload) -> anyhow::Result<()> {
     outbox.append(&payload)?;
-    Ok(1)
+    Ok(())
 }
 
 fn build_registry_http_client() -> anyhow::Result<reqwest::Client> {
@@ -205,10 +149,10 @@ async fn fetch_krs_document(
         .error_for_status()
         .with_context(|| format!("non-success status for {url}"))?;
 
-    Ok(response
+    response
         .json()
         .await
-        .with_context(|| format!("invalid json from {url}"))?)
+        .with_context(|| format!("invalid json from {url}"))
 }
 
 async fn scrape_msig_records(
@@ -216,7 +160,7 @@ async fn scrape_msig_records(
     base_url: &str,
     company: &ResolvedCompany,
     fetched_at: &str,
-) -> Vec<RegistryRecordPayload> {
+) -> anyhow::Result<Vec<ArticlePayload>> {
     let search_url = format!("{}/Monitor/Search", base_url.trim_end_matches('/'));
     let body = MsigSearchRequest {
         krs: Some(company.krs.clone()),
@@ -228,127 +172,57 @@ async fn scrape_msig_records(
 
     let response = match client.post(&search_url).json(&body).send().await {
         Ok(response) => response,
-        Err(error) => {
-            return vec![build_registry_payload(
-                company,
-                Some(("krs", company.krs.as_str())),
-                "msig",
-                "lookup_unavailable",
-                "MSiG wyszukiwanie niedostępne",
-                &search_url,
-                fetched_at,
-                None,
-                Some(format!("MSiG search request failed: {error}")),
-                json!({
-                    "reason": "request_failed",
-                    "attempted_url": search_url,
-                    "query": body,
-                }),
-            )];
-        }
+        Err(error) => return Err(error).context("MSiG search request failed"),
     };
 
     let status = response.status();
     if !status.is_success() {
-        return vec![build_registry_payload(
-            company,
-            Some(("krs", company.krs.as_str())),
-            "msig",
-            "lookup_unavailable",
-            "MSiG wyszukiwanie niedostępne",
-            &search_url,
-            fetched_at,
-            None,
-            Some(format!("MSiG search returned status {status}")),
-            json!({
-                "reason": "non_success_status",
-                "status": status.as_u16(),
-                "attempted_url": search_url,
-                "query": body,
-            }),
-        )];
+        return Err(anyhow::anyhow!("MSiG search returned status {status}"));
     }
 
     match response.json::<Value>().await {
-        Ok(value) => vec![build_registry_payload(
-            company,
-            Some(("krs", company.krs.as_str())),
-            "msig",
-            "search_results",
-            "MSiG wyniki wyszukiwania",
-            &search_url,
-            fetched_at,
-            None,
-            Some("Surowa odpowiedź wyszukiwarki ogłoszeń MSiG dla wskazanej spółki.".to_string()),
-            value,
-        )],
-        Err(error) => vec![build_registry_payload(
-            company,
-            Some(("krs", company.krs.as_str())),
-            "msig",
-            "lookup_unavailable",
-            "MSiG wyszukiwanie niedostępne",
-            &search_url,
-            fetched_at,
-            None,
-            Some(format!("MSiG returned invalid json: {error}")),
-            json!({
-                "reason": "invalid_json",
-                "attempted_url": search_url,
-                "query": body,
-            }),
-        )],
+        Ok(value) => {
+            let items = value
+                .get("items")
+                .and_then(Value::as_array)
+                .context("MSiG search response missing items array")?;
+
+            Ok(items
+                .iter()
+                .map(|item| {
+                    let published_at = item
+                        .get("publicationDate")
+                        .and_then(Value::as_str)
+                        .unwrap_or(fetched_at);
+                    let title = item
+                        .get("title")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .or_else(|| {
+                            item.get("publicationDate")
+                                .and_then(Value::as_str)
+                                .map(|date| format!("MSiG ogłoszenie {date}"))
+                        })
+                        .unwrap_or_else(|| "MSiG ogłoszenie".to_string());
+                    let text = render_registry_text(item);
+                    build_article_payload(
+                        company,
+                        ArticlePayloadParts {
+                            source_name: "MSiG",
+                            source_url: &search_url,
+                            fetched_at,
+                            published_at,
+                            title: &title,
+                            text,
+                            tag: "msig/notice",
+                            discovery_method: "registry_msig",
+                        },
+                    )
+                })
+                .collect())
+        }
+        Err(error) => Err(error).context("MSiG search returned invalid json"),
     }
-}
-
-fn scrape_krz_record(company: &ResolvedCompany, fetched_at: &str) -> RegistryRecordPayload {
-    build_registry_payload(
-        company,
-        Some(("krs", company.krs.as_str())),
-        "krz",
-        "lookup_unavailable",
-        "KRZ publiczne pobieranie niedostępne",
-        KRZ_PORTAL_URL,
-        fetched_at,
-        None,
-        Some(
-            "KRZ jest jawny, ale brak stabilnego publicznego API do bezpośredniego pobierania danych w tym scraperze."
-                .to_string(),
-        ),
-        json!({
-            "reason": "no_public_api",
-            "portal_url": KRZ_PORTAL_URL,
-            "krs": company.krs,
-            "nip": company.nip,
-        }),
-    )
-}
-
-fn scrape_rnp_record(company: &ResolvedCompany, fetched_at: &str) -> RegistryRecordPayload {
-    build_registry_payload(
-        company,
-        company
-            .nip
-            .as_deref()
-            .map(|value| ("nip", value))
-            .or(Some(("krs", company.krs.as_str()))),
-        "rnp",
-        "lookup_unavailable",
-        "RNP wymaga uwierzytelnionego dostępu",
-        RNP_PORTAL_URL,
-        fetched_at,
-        None,
-        Some(
-            "RNP wymaga logowania do e-Urzędu Skarbowego albo uprawnionego konta PUE, więc bez poświadczeń nie ma publicznego scrapingu."
-                .to_string(),
-        ),
-        json!({
-            "reason": "authentication_required",
-            "portal_url": RNP_PORTAL_URL,
-            "krs": company.krs,
-            "nip": company.nip,
-        }),
-    )
 }
 
 fn resolve_company(query: &str, companies: &[CompanyRecord]) -> anyhow::Result<ResolvedCompany> {
@@ -390,74 +264,88 @@ fn is_krs_query(query: &str) -> bool {
     query.len() == 10 && query.chars().all(|value| value.is_ascii_digit())
 }
 
-fn build_registry_payload(
+struct ArticlePayloadParts<'a> {
+    source_name: &'a str,
+    source_url: &'a str,
+    fetched_at: &'a str,
+    published_at: &'a str,
+    title: &'a str,
+    text: String,
+    tag: &'a str,
+    discovery_method: &'a str,
+}
+
+fn build_article_payload(
     company: &ResolvedCompany,
-    matched_identifier: Option<(&str, &str)>,
-    registry: &str,
-    record_type: &str,
-    title: &str,
+    parts: ArticlePayloadParts<'_>,
+) -> ArticlePayload {
+    ArticlePayload {
+        source: SourceInfo {
+            name: parts.source_name.to_string(),
+            domain: payload_domain(parts.source_url),
+            url: parts.source_url.to_string(),
+            credibility_score: 1.0,
+            credibility_label: "official".to_string(),
+        },
+        article: ArticleSection {
+            title: parts.title.to_string(),
+            text: ArticleText(parts.text),
+            language: Some("pl".to_string()),
+            authors: Vec::new(),
+            published_at: parts.published_at.to_string(),
+            scraped_at: parts.fetched_at.to_string(),
+            canonical_url: Some(parts.source_url.to_string()),
+            word_count: None,
+        },
+        metadata: MetadataSection {
+            discovery_method: Some(parts.discovery_method.to_string()),
+            region: Some("pl".to_string()),
+            companies: vec![company.display_name.clone()],
+            tags: vec![parts.tag.to_string()],
+            ..MetadataSection::default()
+        },
+    }
+}
+
+fn build_krs_payload(
+    company: &ResolvedCompany,
+    value: &Value,
     source_url: &str,
     fetched_at: &str,
-    published_at: Option<String>,
-    snippet: Option<String>,
-    data: Value,
-) -> RegistryRecordPayload {
-    RegistryRecordPayload {
-        company_name: company.display_name.clone(),
-        matched_identifier: matched_identifier.map(|(_, value)| value.to_string()),
-        matched_identifier_kind: matched_identifier.map(|(kind, _)| kind.to_string()),
-        registry: registry.to_string(),
-        record_type: record_type.to_string(),
-        title: title.to_string(),
-        source_url: source_url.to_string(),
-        fetched_at: fetched_at.to_string(),
-        published_at,
-        snippet,
-        data,
-    }
+    title: &str,
+    text: &str,
+    tag: &str,
+) -> ArticlePayload {
+    build_article_payload(
+        company,
+        ArticlePayloadParts {
+            source_name: "KRS",
+            source_url,
+            fetched_at,
+            published_at: fetched_at,
+            title,
+            text: format!("{}\n\n{}", text, render_registry_text(value)),
+            tag,
+            discovery_method: "registry_krs",
+        },
+    )
 }
 
-fn extract_json_path(source: &Value, path: &[&str]) -> Option<Value> {
-    let mut current = source;
-
-    for segment in path {
-        current = current.get(*segment)?;
-    }
-
-    Some(current.clone())
+fn payload_domain(url: &str) -> String {
+    url::Url::parse(url)
+        .ok()
+        .and_then(|parsed| parsed.host_str().map(str::to_string))
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
-fn extract_rdf_events(source: &Value) -> Option<Value> {
-    let entries = source
-        .get("odpis")?
-        .get("naglowekP")?
-        .get("wpis")?
-        .as_array()?;
-
-    let rdf_entries: Vec<Value> = entries
-        .iter()
-        .filter(|entry| {
-            entry
-                .get("sygnaturaAktSprawyDotyczacejWpisu")
-                .and_then(Value::as_str)
-                .map(|signature| signature.contains("RDF/"))
-                .unwrap_or(false)
-        })
-        .cloned()
-        .collect();
-
-    if rdf_entries.is_empty() {
-        None
-    } else {
-        Some(Value::Array(rdf_entries))
-    }
+fn render_registry_text(value: &Value) -> String {
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_rdf_events, resolve_company};
+    use super::resolve_company;
     use crate::domain::company::CompanyRecord;
-    use serde_json::json;
 
     #[test]
     fn resolves_company_by_alias() {
@@ -479,29 +367,5 @@ mod tests {
         assert_eq!(resolved.krs, "0000635012");
         assert_eq!(resolved.nip.as_deref(), Some("5252674798"));
         assert!(resolved.display_name.contains("ALLEGRO"));
-    }
-
-    #[test]
-    fn extracts_only_rdf_events_from_full_extract() {
-        let full_extract = json!({
-            "odpis": {
-                "naglowekP": {
-                    "wpis": [
-                        {"sygnaturaAktSprawyDotyczacejWpisu": "PO.VIII NS-REJ.KRS/1/24/123"},
-                        {"sygnaturaAktSprawyDotyczacejWpisu": "RDF/100/24/111"},
-                        {"sygnaturaAktSprawyDotyczacejWpisu": "RDF/100/24/222"}
-                    ]
-                }
-            }
-        });
-
-        let extracted = extract_rdf_events(&full_extract).expect("rdf entries should exist");
-        let entries = extracted.as_array().expect("entries should be an array");
-
-        assert_eq!(entries.len(), 2);
-        assert_eq!(
-            entries[0]["sygnaturaAktSprawyDotyczacejWpisu"],
-            "RDF/100/24/111"
-        );
     }
 }

@@ -119,6 +119,7 @@ pub fn build_article_payload(
             region: None,
             discovery_method: Some(discovery_method.to_string()),
             http_status: Some(http_status),
+            ..MetadataSection::default()
         },
     })
 }

@@ -15,6 +15,25 @@ use crawler::fetch::fetch_article_payload;
 use crawler::pipeline::crawl_with_config;
 use storage::jsonl::JsonlOutbox;
 
+pub fn format_company_scrape_output(
+    query: &str,
+    summary: &crawler::company_pipeline::CompanyScrapeSummary,
+    config: &AppConfig,
+) -> String {
+    format!(
+        "company scrape complete: query={}, emitted={}, failed={}, krs_documents={}, msig_documents={}, companies={}, outbox={}, krs_api={}, msig_api={}",
+        query,
+        summary.emitted,
+        summary.failed,
+        summary.krs_documents,
+        summary.msig_documents,
+        config.companies_path,
+        config.outbox_path,
+        config.krs_api_base_url,
+        config.msig_api_base_url
+    )
+}
+
 /// Run the binary with process arguments and print the command result.
 pub fn run() -> anyhow::Result<()> {
     let runtime = tokio::runtime::Runtime::new()?;
@@ -66,15 +85,7 @@ where
         }
         Command::ScrapeCompany { query } => {
             let summary = scrape_company_with_config(&config, &query).await?;
-            format!(
-                "company scrape complete: query={}, emitted={}, companies={}, outbox={}, krs_api={}, msig_api={}",
-                query,
-                summary.emitted,
-                config.companies_path,
-                config.outbox_path,
-                config.krs_api_base_url,
-                config.msig_api_base_url
-            )
+            format_company_scrape_output(&query, &summary, &config)
         }
         Command::TestSource { source } => format!("test-source scaffold ready: {source}"),
     };

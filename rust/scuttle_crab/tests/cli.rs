@@ -1,7 +1,9 @@
 use clap::Parser;
 
 use scuttle_crab::cli::{Cli, Command};
-use scuttle_crab::run_with_args;
+use scuttle_crab::config::AppConfig;
+use scuttle_crab::crawler::company_pipeline::CompanyScrapeSummary;
+use scuttle_crab::{format_company_scrape_output, run_with_args};
 
 #[test]
 fn parses_crawl_subcommand() {
@@ -59,4 +61,26 @@ fn crawl_command_reports_default_data_paths() {
     assert!(output.contains("data/seen_urls.jsonl"));
     assert!(output.contains("data/outbox.jsonl"));
     assert!(!output.contains("scaffold"));
+}
+
+#[test]
+fn scrape_company_output_includes_extended_summary_fields() {
+    let config = AppConfig::default();
+    let summary = CompanyScrapeSummary {
+        emitted: 3,
+        failed: 1,
+        krs_documents: 2,
+        msig_documents: 1,
+    };
+
+    let output = format_company_scrape_output("Allegro", &summary, &config);
+
+    assert!(output.contains("query=Allegro"));
+    assert!(output.contains("failed=1"));
+    assert!(output.contains("krs_documents=2"));
+    assert!(output.contains("msig_documents=1"));
+    assert!(output.contains("companies=data/companies.json"));
+    assert!(output.contains("outbox=data/outbox.jsonl"));
+    assert!(output.contains("krs_api=https://api-krs.ms.gov.pl/api"));
+    assert!(output.contains("msig_api=https://wyszukiwarka-msig.ms.gov.pl/api"));
 }
