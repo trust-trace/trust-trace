@@ -23,6 +23,7 @@ class ArticleBody(BaseModel):
     published_at: datetime | None = None
     scraped_at: datetime | None = None
     canonical_url: str | None = None
+    word_count: int | None = None
     authors: list[str] = Field(default_factory=list)
     language: str = "en"
 

@@ -54,3 +54,7 @@ def test_process_article_full_flow(tmp_path):
     assert metadata.title == SAMPLE_ARTICLE_1.article.title
     assert metadata.processed_at is not None
     assert metadata.companies_found >= 1
+    assert metadata.discovery_method == SAMPLE_ARTICLE_1.metadata.discovery_method
+    assert metadata.http_status == SAMPLE_ARTICLE_1.metadata.http_status
+    assert metadata.canonical_url == SAMPLE_ARTICLE_1.article.canonical_url
+    assert metadata.word_count is None

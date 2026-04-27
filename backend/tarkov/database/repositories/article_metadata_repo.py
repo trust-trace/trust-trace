@@ -25,6 +25,10 @@ class ArticleMetadataRepository:
             scraped_at=article.article.scraped_at,
             language=article.article.language,
             region=article.metadata.region,
+            discovery_method=article.metadata.discovery_method,
+            http_status=article.metadata.http_status,
+            canonical_url=article.article.canonical_url,
+            word_count=article.article.word_count,
             companies_found=0,
         )
         self.db.add(obj)
