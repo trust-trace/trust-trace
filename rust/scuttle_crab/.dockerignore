@@ -1,0 +1,7 @@
+target
+.git
+.gitignore
+docs
+tests
+*.log
+data/*.jsonl

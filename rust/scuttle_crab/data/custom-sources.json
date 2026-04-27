@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Yahoo Finance POET",
+    "page_url": "https://finance.yahoo.com/markets/stocks/articles/why-poet-technologies-stock-just-154851096.html",
+    "article_link_selector": "main a[href*=\"/articles/\"], main a[href*=\"/article/\"], article a[href*=\"/articles/\"], article a[href*=\"/article/\"]",
+    "max_depth": 2,
+    "include_page_url": true,
+    "allowed_domains": ["finance.yahoo.com"],
+    "credibility_score": 0.85,
+    "credibility_label": "high"
+  }
+]

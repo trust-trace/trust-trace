@@ -112,17 +112,33 @@ cargo check
 
 The binary currently exposes scaffold commands that confirm wiring and default paths.
 
+Working directory:
+
+```bash
+cd rust/scuttle_crab
+```
+
 Show help:
 
 ```bash
 cargo run -- --help
 ```
 
-Run the crawl scaffold:
+Run the default crawl using `data/sources.json`:
 
 ```bash
 cargo run -- crawl
 ```
+
+Run crawl with an explicit JSON file of source links:
+
+```bash
+cargo run -- crawl --sources-file data/custom-sources.json
+```
+
+The file passed to `--sources-file` must already exist.
+
+Use a custom file when you want to hand the crawler a specific set of pages or feeds without replacing the default `data/sources.json`.
 
 Example output:
 
@@ -141,6 +157,39 @@ Test a named source command shape:
 ```bash
 cargo run -- test-source reuters
 ```
+
+Supported CLI patterns:
+
+```bash
+cargo run -- crawl
+cargo run -- crawl --sources-file data/custom-sources.json
+cargo run -- fetch-url https://example.com/article
+cargo run -- test-source reuters
+```
+
+## Docker Compose
+
+From the repo root, start the crawler with its default command:
+
+```bash
+docker compose up scuttle-crab
+```
+
+Use Docker Compose but still call the CLI directly:
+
+```bash
+docker compose run --rm scuttle-crab crawl --sources-file data/custom-sources.json
+docker compose run --rm scuttle-crab fetch-url https://example.com/article
+docker compose run --rm scuttle-crab test-source reuters
+```
+
+How this works:
+- the service defined in `/home/tmk/hackaton/docker-compose.yml` already points at the `scuttle_crab` binary
+- `docker compose up scuttle-crab` runs the default `crawl` command
+- `docker compose run --rm scuttle-crab ...` overrides that default and passes the rest of the arguments to the CLI
+- `./rust/scuttle_crab` is bind-mounted into the container, so files under `data/` are available in both places
+
+When using `--sources-file` with Docker, use a path relative to `rust/scuttle_crab`, for example `data/custom-sources.json`.
 
 ## How The Current Code Fits Together
 

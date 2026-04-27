@@ -10,6 +10,7 @@ pub mod utils;
 use clap::Parser;
 use cli::{Cli, Command};
 use config::AppConfig;
+use crawler::delivery::maybe_deliver_to_tarkov;
 use crawler::company_pipeline::scrape_company_with_config;
 use crawler::fetch::fetch_article_payload;
 use crawler::pipeline::crawl_with_config;
@@ -49,10 +50,10 @@ where
     T: Into<std::ffi::OsString> + Clone,
 {
     let cli = Cli::parse_from(args);
-    let config = AppConfig::default();
 
     let output = match cli.command {
-        Command::Crawl => {
+        Command::Crawl { sources_file } => {
+            let config = AppConfig::default().with_sources_path(sources_file)?;
             let summary = crawl_with_config(&config).await?;
             format!(
                 "crawl complete: sources={}, discovered={}, skipped={}, emitted={}, failed={}, companies={}, sources_path={}, seen_urls={}, outbox={}",
@@ -68,9 +69,13 @@ where
             )
         }
         Command::FetchUrl { url } => {
+            let config = AppConfig::default();
             let payload = fetch_article_payload(&url).await?;
             let outbox = JsonlOutbox::new(&config.outbox_path);
             outbox.append(&payload)?;
+            if let Err(error) = maybe_deliver_to_tarkov(&payload).await {
+                eprintln!("[FETCH_URL] tarkov delivery failed for {url}: {error}");
+            }
 
             let text_preview = payload.article.text.0.chars().take(200).collect::<String>();
 
@@ -84,6 +89,7 @@ where
             )
         }
         Command::ScrapeCompany { query } => {
+            let config = AppConfig::default();
             let summary = scrape_company_with_config(&config, &query).await?;
             format_company_scrape_output(&query, &summary, &config)
         }

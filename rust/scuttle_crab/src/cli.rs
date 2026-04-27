@@ -15,7 +15,11 @@ pub struct Cli {
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
     /// Run the crawler pipeline.
-    Crawl,
+    Crawl {
+        /// Override the JSON sources file used for discovery.
+        #[arg(long)]
+        sources_file: Option<String>,
+    },
     /// Fetch a single URL for debugging.
     FetchUrl { url: String },
     /// Scrape official company registry data for one company.
