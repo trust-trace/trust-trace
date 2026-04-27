@@ -4,7 +4,7 @@ FROM postgres:16-alpine
 # Set environment variables for PostgreSQL
 ENV POSTGRES_USER=postgres \
     POSTGRES_PASSWORD=postgres \
-    POSTGRES_DB=trusttrace
+    POSTGRES_DB=trust-trade
 
 # Copy the initialization script
 COPY db/init-db.sh /docker-entrypoint-initdb.d/99-run-migrations.sh
