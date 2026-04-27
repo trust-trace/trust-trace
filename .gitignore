@@ -1,2 +1,4 @@
 .opencode/
 *.pyc
+.claude/
+.worktrees/

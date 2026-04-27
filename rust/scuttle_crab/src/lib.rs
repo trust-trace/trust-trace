@@ -10,16 +10,18 @@ pub mod utils;
 use clap::Parser;
 use cli::{Cli, Command};
 use config::AppConfig;
+use crawler::fetch::fetch_article_text;
 
 /// Run the binary with process arguments and print the command result.
 pub fn run() -> anyhow::Result<()> {
-    let output = run_with_args(std::env::args())?;
+    let runtime = tokio::runtime::Runtime::new()?;
+    let output = runtime.block_on(run_with_args(std::env::args()))?;
     println!("{output}");
     Ok(())
 }
 
 /// Parse CLI arguments and execute the currently implemented command scaffold.
-pub fn run_with_args<I, T>(args: I) -> anyhow::Result<String>
+pub async fn run_with_args<I, T>(args: I) -> anyhow::Result<String>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
@@ -32,7 +34,10 @@ where
             "crawl scaffold ready: companies={}, seen_urls={}, outbox={}",
             config.companies_path, config.seen_urls_path, config.outbox_path
         ),
-        Command::FetchUrl { url } => format!("fetch-url scaffold ready: {url}"),
+        Command::FetchUrl { url } => {
+            let (title, text) = fetch_article_text(&url).await?;
+            format!("title: {title}\n\n{text}")
+        }
         Command::TestSource { source } => format!("test-source scaffold ready: {source}"),
     };
 

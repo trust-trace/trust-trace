@@ -35,8 +35,6 @@ fn sample_payload(title: &str) -> ArticlePayload {
             word_count: Some(845),
         },
         metadata: MetadataSection {
-            tickers: vec!["AAPL".to_string()],
-            companies: vec!["Apple".to_string()],
             ..MetadataSection::default()
         },
     }
