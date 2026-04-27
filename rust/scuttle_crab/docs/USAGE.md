@@ -13,7 +13,7 @@ cargo run -- test-source reuters
 
 ## Output Shape
 
-The crawler emits one article payload per record. Payload metadata should stay operational:
+The intended crawler will emit one article payload per record. The current binary is scaffold-only. Payload metadata should stay operational:
 
 - `section`
 - `region`
