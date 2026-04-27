@@ -36,6 +36,10 @@ pub struct MetadataSection {
     pub discovery_method: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_status: Option<u16>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub companies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 /// Full outbound payload emitted for one article.
