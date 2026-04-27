@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-from ..keywords.risk_keywords import RISK_KEYWORDS
+from ..keywords.risk_keywords import RISK_KEYWORDS, KeywordDef
 
 _CONTEXT_WINDOW = 60
 
@@ -26,7 +26,8 @@ class EngineMatch:
 
 
 class RegexEngine:
-    def __init__(self) -> None:
+    def __init__(self, keywords: list[KeywordDef] | None = None) -> None:
+        source = keywords if keywords is not None else RISK_KEYWORDS
         self._compiled: list[_CompiledKeyword] = [
             _CompiledKeyword(
                 phrase=kw["phrase"],
@@ -35,7 +36,7 @@ class RegexEngine:
                 weight=kw["weight"],
                 lang=kw["lang"],
             )
-            for kw in RISK_KEYWORDS
+            for kw in source
         ]
 
     def scan(self, text: str, title: str = "") -> list[EngineMatch]:
