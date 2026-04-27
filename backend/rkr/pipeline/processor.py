@@ -3,7 +3,8 @@ import logging
 from pathlib import Path
 
 from ..scanner.article_scorer import DEFAULT_THRESHOLD, score_article
-from ..scanner.regex_engine import EngineMatch, RegexEngine
+from ..scanner.language_engine import LanguageEngineCache
+from ..scanner.regex_engine import EngineMatch
 from ..schemas.rkr_result import EnrichedArticle, RkrMatch, RkrResult
 
 logger = logging.getLogger(__name__)
@@ -35,13 +36,15 @@ def _build_rkr_result(
 class ArticleProcessor:
     def __init__(self, threshold: float = DEFAULT_THRESHOLD) -> None:
         self.threshold = threshold
-        self._engine = RegexEngine()
+        self._engine_cache = LanguageEngineCache()
 
     def process_article(self, raw: dict) -> EnrichedArticle:
+        lang = raw.get("article", {}).get("language", "en")
         title = raw.get("article", {}).get("title", "")
         text = raw.get("article", {}).get("text", "")
 
-        matches = self._engine.scan(text, title)
+        engine = self._engine_cache.get_engine(lang)
+        matches = engine.scan(text, title)
         rkr = _build_rkr_result(matches, self.threshold)
 
         return EnrichedArticle(
