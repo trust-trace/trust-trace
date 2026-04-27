@@ -92,6 +92,27 @@ class ArticleProcessor:
                             )
                         )
 
+                        # Create graph connection in Neo4j
+                        try:
+                            from tarkov.database.session import get_neo4j_session
+
+                            with get_neo4j_session() as g:
+                                q = (
+                                    "MATCH (a), (b) WHERE (a.company_id = $id1 OR a.person_id = $id1) AND (b.company_id = $id2 OR b.person_id = $id2) "
+                                    "CREATE (a)-[r:CONNECTION {type: $type, intensity: $intensity, description: $desc, source_event_id: $eid}]->(b)"
+                                )
+                                g.run(
+                                    q,
+                                    id1=int(conn.entity_1_id) if conn.entity_1_id.isdigit() else conn.entity_1_id,
+                                    id2=int(conn.entity_2_id) if conn.entity_2_id.isdigit() else conn.entity_2_id,
+                                    type=conn.connection_type,
+                                    intensity=conn.intensity or conn.confidence or 0.0,
+                                    desc=conn.relationship_description,
+                                    eid=db_event.unique_id,
+                                )
+                        except Exception:
+                            pass
+
             parsed = ParsedResult(
                 article_id=str(uuid.uuid4()),
                 processed_at=datetime.utcnow(),

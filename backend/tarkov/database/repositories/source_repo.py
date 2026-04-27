@@ -1,4 +1,4 @@
-"""Source repository."""
+"""Source repository with optional Neo4j sync for article/event references."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from tarkov.database.models import Source
 from tarkov.schemas.article import ArticleIn
 from tarkov.schemas.parsed_result import EventExtraction, LLMSummary
+from tarkov.database.session import get_neo4j_session
 
 
 class SourceRepository:
@@ -37,6 +38,14 @@ class SourceRepository:
             credibility=article.source.credibility_score,
         )
         self.db.add(original)
+
+        # Optional: create light Article node in Neo4j for reference
+        try:
+            with get_neo4j_session() as g:
+                g.create_node("Article", {"source_url": article.source.url, "article_id": original.article_id})
+                g.run("MATCH (e:Event {event_id: $eid}), (a:Article {article_id: $aid}) CREATE (a)-[:SOURCED_FOR]->(e)", eid=event_id, aid=original.article_id)
+        except Exception:
+            pass
 
         if llm_summary is not None:
             self.db.add(

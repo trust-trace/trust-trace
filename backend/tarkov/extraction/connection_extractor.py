@@ -26,6 +26,7 @@ class ConnectionExtractor:
                 confidence=0.55,
                 source_text=f"{a.source_text} {b.source_text}"[:800],
                 source_reference=self._source_ref(article),
+                intensity=0.5,  # Placeholder intensity value
             )
         ]
 
@@ -48,6 +49,7 @@ class ConnectionExtractor:
                 confidence=0.65,
                 source_text=article.article.text[:600],
                 source_reference=self._source_ref(article),
+                intensity=0.7,  # Placeholder intensity value
             )
         ]
 
@@ -67,6 +69,7 @@ class ConnectionExtractor:
                 confidence=0.5,
                 source_text=" ".join(e.source_text for e in events)[:800],
                 source_reference=self._source_ref(article),
+                intensity=0.6,  # Placeholder intensity value
             )
         ]
 
