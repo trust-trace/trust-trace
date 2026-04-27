@@ -46,6 +46,22 @@ services:
     networks:
       - trust-trace-network
 
+  scuttle-crab:
+    build:
+      context: ./rust/scuttle_crab
+      dockerfile: Dockerfile
+    container_name: scuttle-crab
+    working_dir: /workspace/scuttle_crab
+    entrypoint: ["scuttle_crab"]
+    command: ["crawl"]
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ./rust/scuttle_crab:/workspace/scuttle_crab
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - trust-trace-network
+
 volumes:
   neo4j_data:
   pgdata:
