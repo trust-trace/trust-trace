@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Polsat's Sports Rights Monopoly Is Locking Polish Fans Out — MediaWatch</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=Space+Mono:wght@400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --ink: #0f0e0e;
+      --ink-mid: #2c2a2a;
+      --ink-light: #585454;
+      --ink-faint: #989494;
+      --paper: #f6f3ee;
+      --warm: #ebe7df;
+      --red: #bf3325;
+      --redd: #8b2419;
+      --border: #cfc9c0;
+      --borderdk: #a89f94;
+      --gold: #a67c00;
+      --blue: #1b4f8a;
+      --col: 720px
+    }
+
+    html {
+      font-size: 16px
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Source Serif 4', Georgia, serif;
+      line-height: 1.7;
+      min-height: 100vh
+    }
+
+    /* masthead */
+    .mh {
+      background: var(--ink);
+      border-bottom: 4px solid var(--red)
+    }
+
+    .mh-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 16px 24px 13px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .2em;
+      color: var(--red);
+      text-transform: uppercase
+    }
+
+    .mhdate {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #6a6a6a;
+      letter-spacing: .06em
+    }
+
+    /* cat bar */
+    .cb {
+      padding: 7px 0
+    }
+
+    .cb-i {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .85)
+    }
+
+    /* article */
+    .aw {
+      max-width: var(--col);
+      margin: 0 auto;
+      padding: 0 24px 80px
+    }
+
+    /* header */
+    .ah {
+      padding: 42px 0 28px;
+      border-bottom: 2px solid var(--ink)
+    }
+
+    .tr {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px
+    }
+
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      padding: 4px 11px;
+      border: 1px solid;
+      display: inline-block
+    }
+
+    .ts {
+      color: var(--red);
+      border-color: var(--red)
+    }
+
+    .tf {
+      color: var(--gold);
+      border-color: var(--gold)
+    }
+
+    .to {
+      color: var(--blue);
+      border-color: var(--blue)
+    }
+
+    .tg {
+      color: #1a6b3c;
+      border-color: #1a6b3c
+    }
+
+    .tk {
+      color: var(--ink-light);
+      border-color: var(--ink-light)
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(26px, 4.2vw, 38px);
+      font-weight: 700;
+      line-height: 1.17;
+      margin-bottom: 18px;
+      letter-spacing: -.015em
+    }
+
+    .deck {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--ink-mid);
+      font-style: italic;
+      border-left: 3px solid var(--red);
+      padding-left: 16px;
+      margin-bottom: 24px;
+      line-height: 1.56
+    }
+
+    .meta {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-faint);
+      letter-spacing: .05em
+    }
+
+    .meta b {
+      color: var(--ink-mid);
+      font-weight: 700
+    }
+
+    /* body */
+    .ab {
+      padding: 32px 0 0
+    }
+
+    .ab p {
+      font-size: 17px;
+      line-height: 1.8;
+      color: var(--ink-mid);
+      margin-bottom: 22px;
+      font-weight: 300
+    }
+
+    .ab p:first-of-type::first-letter {
+      font-family: 'Playfair Display', serif;
+      font-size: 66px;
+      font-weight: 900;
+      float: left;
+      line-height: .8;
+      padding-right: 10px;
+      padding-top: 6px;
+      color: var(--ink)
+    }
+
+    .kw {
+      color: var(--ink);
+      font-weight: 600
+    }
+
+    .kr {
+      color: var(--redd);
+      font-weight: 600
+    }
+
+    .tick {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 2px 7px;
+      border-radius: 2px;
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1.6
+    }
+
+    /* pull quote */
+    .pq {
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      margin: 38px 0;
+      padding: 24px 0;
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-style: italic;
+      line-height: 1.45;
+      color: var(--ink)
+    }
+
+    .pq::before {
+      content: '\201C';
+      font-size: 52px;
+      line-height: 0;
+      vertical-align: -18px;
+      color: var(--red);
+      margin-right: 3px
+    }
+
+    /* data box */
+    .db {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--red);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .dbt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 14px
+    }
+
+    .dr {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px
+    }
+
+    .dr:last-child {
+      border-bottom: none
+    }
+
+    .dl {
+      color: var(--ink-light)
+    }
+
+    .dv {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink)
+    }
+
+    .dv.n {
+      color: var(--red)
+    }
+
+    .dv.p {
+      color: #1a6b3c
+    }
+
+    /* info box */
+    .ib {
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      border-left: 4px solid var(--blue);
+      padding: 20px 24px;
+      margin: 32px 0
+    }
+
+    .ibt {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px
+    }
+
+    .ib p {
+      font-size: 14px;
+      color: var(--ink-mid);
+      line-height: 1.65;
+      margin-bottom: 10px;
+      font-weight: 300
+    }
+
+    .ib p:last-child {
+      margin-bottom: 0
+    }
+
+    /* timeline */
+    .tl {
+      margin: 30px 0;
+      list-style: none
+    }
+
+    .tl li {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tl li:last-child {
+      border-bottom: none
+    }
+
+    .tday {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red);
+      padding-top: 2px
+    }
+
+    .tev {
+      font-size: 15px;
+      color: var(--ink-mid);
+      line-height: 1.55
+    }
+
+    .tev b {
+      color: var(--ink)
+    }
+
+    /* keyword strip */
+    .ks {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid var(--borderdk)
+    }
+
+    .ksl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 10px
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .pill {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      background: var(--warm);
+      border: 1px solid var(--borderdk);
+      color: var(--ink-mid)
+    }
+
+    .pill.t {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink)
+    }
+
+    /* footer */
+    .ft {
+      margin-top: 60px;
+      padding: 20px 0;
+      border-top: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .fb {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--ink-faint);
+      text-transform: uppercase
+    }
+
+    .fd {
+      font-family: 'Source Serif 4', serif;
+      font-size: 11px;
+      color: var(--ink-faint);
+      font-style: italic;
+      max-width: 400px;
+      text-align: right
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mh">
+    <div class="mh-i"><span class="logo">MediaWatch International</span><span class="mhdate">APRIL 27, 2026 · SPORTS
+        MEDIA</span></div>
+  </div>
+  <div class="cb" style="background:#1a6b3c">
+    <div class="cb-i">SPORTS RIGHTS &nbsp;/&nbsp; BROADCASTING MONOPOLY &nbsp;/&nbsp; CONSUMER HARM</div>
+  </div>
+  <div class="aw">
+    <div class="ah">
+      <div class="tr"><span class="tag tg">Sports rights</span><span class="tag ts">Monopoly concern</span></div>
+      <h1>Polsat's sports rights lock-up: how one broadcaster turned the national passion into a subscription toll road
+      </h1>
+      <p class="deck">Polsat and its Polsat Box platform hold exclusive Polish rights to the Premier League, Formula 1,
+        Serie A, and the UEFA Champions League. Fans who want to watch live sport legally now have no realistic option
+        below PLN 80 per month. UOKiK has received four complaints. Nobody has acted.</p>
+      <div class="meta"><span><b>Author:</b> Sports Media desk</span><span><b>Date:</b> April 27,
+          2026</span><span><b>Reading time:</b> 6 min</span></div>
+    </div>
+    <div class="ab">
+      <p>For most of post-communist Polish broadcasting history, major international sport was accessible on free-to-air
+        television. The <span class="kw">Premier League</span>, <span class="kw">Formula 1</span>, and <span
+          class="kw">Champions League</span> were carried on channels that any household with an aerial or basic cable
+        could receive. That era ended quietly — not through a single decision, but through a decade of rights
+        acquisitions by <span class="kw">Cyfrowy Polsat</span> <span class="tick">CPS</span> and its <span
+          class="kw">Polsat Box</span> platform that systematically shifted live sport behind a paywall. The price of
+        admission in 2026: a minimum of <span class="kr">PLN 79.99 per month</span> for a Polsat Box subscription — or a
+        <span class="kw">Plus</span> mobile contract at equivalent cost — to watch any of the four marquee competitions
+        live.</p>
+      <div class="db">
+        <div class="dbt">Polsat / Polsat Box exclusive sports rights in Poland · 2026</div>
+        <div class="dr"><span class="dl">Premier League (English football)</span><span class="dv n">Exclusive /
+            paywall</span></div>
+        <div class="dr"><span class="dl">Formula 1 (all races)</span><span class="dv n">Exclusive / paywall</span></div>
+        <div class="dr"><span class="dl">UEFA Champions League</span><span class="dv n">Exclusive / paywall</span></div>
+        <div class="dr"><span class="dl">Serie A (Italian football)</span><span class="dv n">Exclusive / paywall</span>
+        </div>
+        <div class="dr"><span class="dl">Minimum monthly cost for full access (PLN)</span><span
+            class="dv n">79.99</span></div>
+        <div class="dr"><span class="dl">UOKiK complaints received (2024–2026)</span><span class="dv n">4 (no
+            action)</span></div>
+      </div>
+      <p>The economics of sports rights acquisition are straightforward: exclusive rights are a subscriber acquisition
+        tool. <span class="kw">Polsat</span> pays a premium to lock out competitors and compel fans with no alternative
+        to subscribe. The strategy is not unique to Poland — <span class="kw">Sky</span> in the UK, <span
+          class="kw">DAZN</span> across Europe, and <span class="kw">ESPN</span> <span class="tick">DIS</span> in the
+        United States have built entire business models on it. What makes the Polish case distinctive is the degree of
+        concentration: one operator, <span class="kw">Cyfrowy Polsat</span>, holds exclusive rights to virtually every
+        major live sporting competition that Polish fans care about.</p>
+      <div class="pq">When one company controls access to football, Formula 1, and the Champions League, it does not
+        have sports rights — it has a sports tax on every fan who refuses to go without.</div>
+      <p><span class="kw">UOKiK</span>, Poland's competition regulator, has received at least four formal complaints
+        since 2024 alleging that the concentration of sports rights in a single operator constitutes an abuse of market
+        dominance harming consumer welfare. The regulator confirmed receipt of the complaints. Beyond that, there has
+        been no public action, no investigation announcement, and no interim guidance. Meanwhile, <span
+          class="kw">CPS</span> renewed its <span class="kw">Formula 1</span> deal through 2029 in January 2026,
+        extending its grip on the calendar before any regulatory challenge could mature. The speed of the renewal — and
+        the silence from UOKiK — suggests the regulator either lacks the tools or the appetite to intervene in broadcast
+        rights markets. Either answer should trouble Polish sports fans.</p>
+      <div class="ib">
+        <div class="ibt">European precedents worth watching</div>
+        <p><b>Germany:</b> The Bundeskartellamt (Federal Cartel Office) requires that no single broadcaster may hold
+          more than 50% of Bundesliga broadcast rights. A structural model Poland has never adopted.</p>
+        <p><b>Italy:</b> AGCM investigated exclusive Serie A rights bundling in 2023. Settlement required partial
+          sub-licensing to free-to-air platforms for highlight packages — a minimum access floor Polsat faces no
+          equivalent obligation to provide.</p>
+        <p><b>EU Digital Markets Act:</b> Legal scholars at <span class="kw">Kozminski University Warsaw</span> argue
+          the DMA's interoperability provisions may, if applied creatively, open a pathway to challenge exclusive
+          broadcast rights concentration. The European Commission has not confirmed this interpretation.</p>
+      </div>
+    </div>
+    <div class="ks">
+      <div class="ksl">Scraper signals — tickers and tags</div>
+      <div class="pills">
+        <span class="pill t">CPS</span><span class="pill t">DIS</span>
+        <span class="pill">Polsat Box</span><span class="pill">Premier League rights</span><span class="pill">Formula 1
+          Poland</span>
+        <span class="pill">Champions League</span><span class="pill">UOKiK</span><span class="pill">sports
+          monopoly</span>
+        <span class="pill">paywall PLN 80</span><span class="pill">DAZN</span><span class="pill">Digital Markets
+          Act</span>
+      </div>
+    </div>
+    <div class="ft"><span class="fb">MediaWatch International · 2026</span><span class="fd">Opinion article. Rights data
+        from Polsat Box public listings and broadcast industry reports, Q1 2026.</span></div>
+  </div>
+</body>
+
+</html>
