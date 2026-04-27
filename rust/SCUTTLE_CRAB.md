@@ -94,6 +94,12 @@ Build a Rust-based crawler for collecting news and financial articles that can l
 - Step 3.3: Add URL normalization and domain filtering so the crawler stays inside approved sites.
 - Step 3.4: Add dedup at discovery time using canonicalized URLs.
 - Step 3.5: Hash the normalized canonical URL and check the local seen-URL store before scraping an article.
+- Step 3.6: Strengthen URL normalization before hashing so common canonical equivalents do not bypass dedup.
+  - strip fragments
+  - lowercase the host
+  - trim trailing slashes on non-root paths
+  - drop explicit default ports (`:80` for HTTP, `:443` for HTTPS)
+  - define which tracking query params should be removed for MVP (at minimum `utm_*`)
 
 [Phase 4: Fetching and crawl politeness]
 - Step 4.1: Build a shared async HTTP client wrapper around `reqwest::Client`.
@@ -125,7 +131,9 @@ Build a Rust-based crawler for collecting news and financial articles that can l
   - exact ticker matches
   - case-insensitive alias matches
   - higher confidence when matches appear in the title or multiple times
-- Step 6.6: Defer open-ended "detect any company name" support to a later phase.
+- Step 6.6: When multiple aliases for the same company overlap, prefer the most specific alias actually present in the text so stored match evidence is accurate.
+  - example: prefer `Apple Inc.` over `Apple` when both aliases exist and the article contains `Apple Inc.`
+- Step 6.7: Defer open-ended "detect any company name" support to a later phase.
 
 [Phase 7: CLI, persistence, and operability]
 - Step 7.1: Add a small CLI in `main.rs` / `cli.rs` with commands such as:
@@ -142,7 +150,14 @@ Build a Rust-based crawler for collecting news and financial articles that can l
 - Step 8.2: Add fixture-based parser tests using saved HTML in `tests/fixtures/` so extraction is deterministic.
 - Step 8.3: Add integration tests for the end-to-end pipeline using local fixture inputs instead of live websites.
 - Step 8.4: Add failure-path tests for timeout, invalid HTML, duplicate URLs, and missing metadata.
-- Step 8.5: Only after the crawler is stable, evaluate adding database persistence, message queues, or distributed crawling.
+- Step 8.5: Add regression tests for URL canonicalization edge cases in `tests/seen_urls.rs`.
+  - verify explicit default ports normalize to the same URL
+  - verify `utm_*` query parameters do not create distinct dedup hashes
+  - verify non-tracking query parameters that change resource identity are preserved
+- Step 8.6: Add regression tests for overlapping alias matches in `tests/matcher.rs`.
+  - verify `matched_text` records the most specific alias present
+  - verify alias ordering in `data/companies.json` does not change the emitted evidence
+- Step 8.7: Only after the crawler is stable, evaluate adding database persistence, message queues, or distributed crawling.
 
 ## Dependency Recommendation
 - Keep your original choices: `reqwest`, `scraper`, and `tokio` are the right MVP foundation.
@@ -262,6 +277,7 @@ Example company record:
 - MEDIUM: Duplicate content across syndication partners, mirrors, and updated URLs can pollute downstream scoring unless canonicalization and seen-URL dedup are implemented early.
 - MEDIUM: Entity/company matching can produce noisy false positives if it relies only on naive substring matching.
 - MEDIUM: Entity/company matching can produce noisy false positives if aliases are too broad or ambiguous.
+- MEDIUM: Overlapping aliases can produce inaccurate `matched_text` evidence unless the matcher prefers the most specific match actually found in the article.
 - MEDIUM: Async concurrency without strong limits may cause unstable crawls, source bans, or difficult-to-reproduce parsing failures.
 - LOW: Starting with JSONL may require a later migration to SQLite/Postgres, but it is the fastest path for MVP validation.
 - LOW: Some useful crates may need evaluation for maintenance quality before adoption.
