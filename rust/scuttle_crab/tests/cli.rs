@@ -22,7 +22,10 @@ fn parses_fetch_url_subcommand() {
 
 #[test]
 fn crawl_command_reports_default_data_paths() {
-    let output = run_with_args(["scuttle_crab", "crawl"]).expect("crawl should run");
+    let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
+    let output = runtime
+        .block_on(run_with_args(["scuttle_crab", "crawl"]))
+        .expect("crawl should run");
 
     assert!(output.contains("data/companies.json"));
     assert!(output.contains("data/seen_urls.jsonl"));
