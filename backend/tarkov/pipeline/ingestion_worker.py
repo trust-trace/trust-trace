@@ -114,11 +114,6 @@ class IngestionWorker:
             session.add(score)
             session.flush()
 
-            if not enriched.rkr.passed_threshold:
-                repo.mark_skipped(job)
-                session.commit()
-                return
-
             try:
                 article = ArticleIn.model_validate(enriched.model_dump())
             except ValidationError as exc:
