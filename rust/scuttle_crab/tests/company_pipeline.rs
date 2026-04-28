@@ -215,99 +215,56 @@ fn scrape_company_succeeds_when_msig_fails_but_krs_succeeds() {
 }
 
 #[test]
-fn scrape_company_articles_preserves_successes_after_later_fetch_failure() {
-    let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
-    let root = temp_dir_path("company_articles_partial_failure");
-    fs::create_dir_all(&root).expect("temp dir should be created");
+fn discover_company_articles_supports_html_search_results() {
+    use scuttle_crab::crawler::search_discovery::discover_company_article_urls;
 
+    let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = thread::spawn(move || {
-        for _ in 0..3 {
-            let (mut stream, _) = listener.accept().expect("request should arrive");
-            let request = read_request(&mut stream);
-            let request_path = request_path(&request);
 
-            if request_path.starts_with("/html/?q=") {
-                let body = format!(
-                    r#"<html><body><a class="result__a" href="http://{address}/article-1">Article 1</a><a class="result__a" href="http://{address}/article-2">Article 2</a></body></html>"#
-                );
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                stream
-                    .write_all(response.as_bytes())
-                    .expect("response should write");
-            } else if request_path == "/article-1" {
-                let body = r#"<html><head><title>First Article</title></head><body><article><p>First article body text is long enough.</p></article></body></html>"#;
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                stream
-                    .write_all(response.as_bytes())
-                    .expect("response should write");
-            } else if request_path == "/article-2" {
-                let response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-                stream
-                    .write_all(response.as_bytes())
-                    .expect("response should write");
-            } else {
-                panic!("unexpected request path: {request_path}");
-            }
-        }
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("request should arrive");
+        let request = read_request(&mut stream);
+        let request_path = request_path(&request);
+
+        assert!(request_path.starts_with("/html/?q="));
+
+        let body = format!(
+            r#"<html><body><a class="result__a" href="http://{address}/article-1">Article 1</a><a class="result__a" href="http://{address}/article-2">Article 2</a></body></html>"#
+        );
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("response should write");
     });
 
-    fs::write(
-        root.join("companies.json"),
-        r#"[
-          {
-            "name": "Allegro",
-            "ticker": "ALE",
-            "aliases": ["allegro"],
-            "official_name": "ALLEGRO SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
-            "krs": "0000635012"
-          }
-        ]"#,
-    )
-    .expect("companies file should be written");
-
-    unsafe {
-        std::env::set_var(
-            "SCUTTLE_COMPANY_SEARCH_BASE_URL",
-            format!("http://{address}/html/?q="),
-        );
-    }
-
-    let config = AppConfig {
-        companies_path: root.join("companies.json").display().to_string(),
-        sources_path: root.join("sources.json").display().to_string(),
-        seen_urls_path: root.join("seen_urls.jsonl").display().to_string(),
-        outbox_path: root.join("outbox.jsonl").display().to_string(),
-        krs_api_base_url: format!("http://{address}"),
-        msig_api_base_url: format!("http://{address}"),
-        concurrency: 2,
-    };
-
-    let result = runtime
-        .block_on(scrape_company_articles_with_config(&config, "allegro"))
-        .expect("company article scrape should complete");
+    let urls = runtime
+        .block_on(async {
+            let client = reqwest::Client::new();
+            unsafe {
+                std::env::set_var(
+                    "SCUTTLE_COMPANY_SEARCH_BASE_URL",
+                    format!("http://{address}/html/?q="),
+                );
+            }
+            let urls = discover_company_article_urls(&client, "allegro", 10).await;
+            unsafe {
+                std::env::remove_var("SCUTTLE_COMPANY_SEARCH_BASE_URL");
+            }
+            urls
+        })
+        .expect("discovery should complete");
 
     server.join().expect("server should finish");
 
-    unsafe {
-        std::env::remove_var("SCUTTLE_COMPANY_SEARCH_BASE_URL");
-    }
-
-    assert_eq!(result.summary.emitted, 1);
-    assert_eq!(result.summary.failed, 1);
-    assert_eq!(result.payloads.len(), 1);
-    assert_eq!(result.payloads[0].article.title, "First Article");
-
-    fs::remove_dir_all(&root).ok();
+    assert_eq!(urls, vec![
+        format!("http://{address}/article-1"),
+        format!("http://{address}/article-2"),
+    ]);
 }
 
 #[test]

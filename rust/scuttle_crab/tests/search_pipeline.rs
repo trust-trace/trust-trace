@@ -62,7 +62,7 @@ fn search_company_news_only_emits_articles_to_outbox() {
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_search_server(listener, 3, false);
+    let server = spawn_search_server(listener, 5, false);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -146,7 +146,7 @@ fn search_company_registry_only_fails_when_identifiers_are_missing() {
 }
 
 #[test]
-fn search_company_succeeds_when_news_fails_but_registry_succeeds() {
+fn search_company_fails_when_news_results_never_produce_ten_articles() {
     let _guard = env_lock().lock().expect("env lock should be available");
     let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
     let root = temp_dir_path("search_company_partial_success");
@@ -155,7 +155,7 @@ fn search_company_succeeds_when_news_fails_but_registry_succeeds() {
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_registry_server(listener, 4);
+    let server = spawn_registry_server(listener, 6);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -168,7 +168,7 @@ fn search_company_succeeds_when_news_fails_but_registry_succeeds() {
 
     let summary = runtime
         .block_on(search_company_with_config(&config, "InPost", false, false))
-        .expect("combined search should still succeed");
+        .expect("combined search should complete even when news does not produce ten articles");
 
     unsafe {
         std::env::remove_var("SCUTTLE_COMPANY_SEARCH_BASE_URL");
@@ -191,7 +191,7 @@ fn search_company_counts_tarkov_delivery_failures_without_losing_outbox_records(
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_search_server(listener, 2, false);
+    let server = spawn_search_server(listener, 4, false);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -223,6 +223,79 @@ fn search_company_counts_tarkov_delivery_failures_without_losing_outbox_records(
     assert_eq!(summary.news_emitted, 1);
     assert_eq!(summary.delivery_failed, 1);
     assert_eq!(outbox.lines().count(), 1);
+
+    fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn search_company_delivers_exactly_ten_news_articles_when_candidates_are_available() {
+    let _guard = env_lock().lock().expect("env lock should be available");
+    let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
+    let root = temp_dir_path("search_company_exact_ten");
+    fs::create_dir_all(&root).expect("temp dir should be created");
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+    let address = listener.local_addr().expect("listener should have address");
+    let server = spawn_contract_server(listener, 12, 2, 15);
+
+    let config = config_for_root(&root, &address.to_string());
+
+    unsafe {
+        std::env::set_var(
+            "SCUTTLE_COMPANY_SEARCH_BASE_URL",
+            format!("http://{address}/html/?q="),
+        );
+    }
+
+    let summary = runtime
+        .block_on(search_company_with_config(&config, "InPost", true, false))
+        .expect("search should complete");
+
+    unsafe {
+        std::env::remove_var("SCUTTLE_COMPANY_SEARCH_BASE_URL");
+    }
+
+    server.join().expect("server should finish");
+
+    let outbox = fs::read_to_string(root.join("outbox.jsonl")).expect("outbox should exist");
+    assert_eq!(summary.news_emitted, 10);
+    assert_eq!(summary.registry_emitted, 0);
+    assert_eq!(outbox.lines().count(), 10);
+
+    fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn search_company_fails_when_fewer_than_ten_valid_news_articles_exist() {
+    let _guard = env_lock().lock().expect("env lock should be available");
+    let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
+    let root = temp_dir_path("search_company_under_ten");
+    fs::create_dir_all(&root).expect("temp dir should be created");
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+    let address = listener.local_addr().expect("listener should have address");
+    let server = spawn_contract_server(listener, 9, 0, 12);
+
+    let config = config_for_root(&root, &address.to_string());
+
+    unsafe {
+        std::env::set_var(
+            "SCUTTLE_COMPANY_SEARCH_BASE_URL",
+            format!("http://{address}/html/?q="),
+        );
+    }
+
+    let error = runtime
+        .block_on(search_company_with_config(&config, "InPost", true, false))
+        .expect_err("search should fail");
+
+    unsafe {
+        std::env::remove_var("SCUTTLE_COMPANY_SEARCH_BASE_URL");
+    }
+
+    server.join().expect("server should finish");
+
+    assert!(error.to_string().contains("10 news articles"));
 
     fs::remove_dir_all(&root).ok();
 }
@@ -287,6 +360,60 @@ fn spawn_registry_server(
             };
 
             write_http_ok(&mut stream, &body);
+        }
+    })
+}
+
+fn spawn_contract_server(
+    listener: TcpListener,
+    total_results: usize,
+    dead_results: usize,
+    expected_requests: usize,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        for _ in 0..expected_requests {
+            let (mut stream, _) = listener.accept().expect("request should arrive");
+            let request = read_request(&mut stream);
+            let path = request_path(&request);
+
+            if path.starts_with("/html/") {
+                let mut html = String::from("<html><body>");
+                for index in 0..total_results {
+                    let suffix = index + 1;
+                    html.push_str(&format!(
+                        "<a class=\"result__a\" href=\"http://127.0.0.1:{}/article-{}\">Article {}</a>",
+                        listener.local_addr().expect("addr").port(),
+                        suffix,
+                        suffix
+                    ));
+                }
+                html.push_str("</body></html>");
+                write_http_ok(&mut stream, &html);
+            } else if path.contains("/article-") {
+                let index = path
+                    .split('-')
+                    .next_back()
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .unwrap_or(0);
+                if index <= dead_results {
+                    let response =
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                    stream
+                        .write_all(response.as_bytes())
+                        .expect("response should write");
+                } else {
+                    let body = format!(
+                        "<html><head><title>Article {index}</title></head><body><article><p>Article {index} body text is long enough to be extracted successfully, with enough detail and punctuation to satisfy the article extractor reliably.</p></article></body></html>"
+                    );
+                    write_http_ok(&mut stream, &body);
+                }
+            } else {
+                let response =
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                stream
+                    .write_all(response.as_bytes())
+                    .expect("response should write");
+            }
         }
     })
 }
