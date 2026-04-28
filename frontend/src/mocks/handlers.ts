@@ -1,6 +1,6 @@
 import { HttpResponse, http } from 'msw';
 
-import { ARTICLES, COMPANIES, COMPANY_RELATIONS, GRAPH_RESPONSES } from '@/mocks/data';
+import { ARTICLES, COMPANIES, COMPANY_RELATIONS, GRAPH_RESPONSES, generateMockTraces } from '@/mocks/data';
 
 export const handlers = [
   http.get('*/api/companies', () => {
@@ -16,5 +16,13 @@ export const handlers = [
   http.get('*/api/graph/:companyId', ({ params }) => {
     const companyId = String(params.companyId);
     return HttpResponse.json(GRAPH_RESPONSES[companyId] ?? null);
+  }),
+  http.get('*/api/traces/correlation/:correlationId', ({ params }) => {
+    return HttpResponse.json(generateMockTraces(String(params.correlationId)));
+  }),
+  http.get('*/api/traces/:classifier/:entityId', ({ params }) => {
+    return HttpResponse.json(
+      generateMockTraces(String(params.entityId), String(params.classifier))
+    );
   }),
 ];

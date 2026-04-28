@@ -130,6 +130,15 @@ export interface GraphResponse {
   edges: GraphEdge[];
 }
 
+export interface ReasoningTrace {
+  classifier_name: 'EEM' | 'NSA' | 'Tarkov' | 'Market';
+  entity_type: string;
+  entity_id: string;
+  correlation_id: string | null;
+  trace_data: Record<string, unknown>;
+  created_at: string;
+}
+
 export const COMPANIES: Company[] = [
   {
     id: 'orlen',

@@ -1,4 +1,4 @@
-import type { Article, Company, CompanyRelation, GraphResponse } from '@/lib/data';
+import type { Article, Company, CompanyRelation, GraphResponse, ReasoningTrace } from '@/lib/data';
 
 function toRequestUrl(input: string): URL | string {
   if (/^https?:\/\//.test(input)) {
@@ -33,4 +33,16 @@ export function getCompanyRelations() {
 
 export function getGraph(companyId: string) {
   return readJson<GraphResponse>(`/api/graph/${companyId}`);
+}
+
+export function getTracesByCorrelation(correlationId: string) {
+  return readJson<ReasoningTrace[]>(
+    `/api/traces/correlation/${encodeURIComponent(correlationId)}`
+  );
+}
+
+export function getTraces(classifier: string, entityId: string) {
+  return readJson<ReasoningTrace[]>(
+    `/api/traces/${encodeURIComponent(classifier)}/${encodeURIComponent(entityId)}`
+  );
 }

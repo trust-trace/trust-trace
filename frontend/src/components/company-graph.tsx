@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { TraceDrawer } from './trace-drawer';
 import {
   Background,
   BackgroundVariant,
@@ -55,7 +56,7 @@ const LINE_HEIGHT = 16;
 
 function estimateNodeSize(node: EntityGraphNode): { width: number; height: number } {
   const label =
-    node.entityType === 'Event' ? truncate(node.label, 56) : (node.data.short ?? node.label);
+    node.entityType === 'Event' ? truncate(node.label, 56) : ('short' in node.data && node.data.short ? node.data.short : node.label);
   const baseW = BASE_NODE_WIDTH[node.entityType];
   const baseH = BASE_NODE_HEIGHT[node.entityType];
 
@@ -428,10 +429,20 @@ function Legend() {
 /* Main                                                                */
 /* ------------------------------------------------------------------ */
 
+function classifierForEntityType(type: string): string {
+  switch (type) {
+    case 'Person': return 'NSA';
+    case 'Event': return 'Tarkov';
+    case 'Company': return 'Market';
+    default: return 'EEM';
+  }
+}
+
 function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProps) {
   const model = useMemo(() => normalizeEntityGraph(graph), [graph]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [lastRootId, setLastRootId] = useState<string>(model.rootId);
+  const [traceOpen, setTraceOpen] = useState(false);
 
   // Reset selection whenever the graph root changes.
   if (lastRootId !== model.rootId) {
@@ -592,6 +603,15 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
             {selectedNode.entityType === 'Company' && CompanyDetailRows(selectedNode)}
             {selectedNode.entityType === 'Person' && PersonDetailRows(selectedNode)}
             {selectedNode.entityType === 'Event' && EventDetailRows(selectedNode)}
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                className="tt-btn-ghost tt-btn-trace"
+                onClick={() => setTraceOpen(true)}
+              >
+                Pokaż trace
+              </button>
+            </div>
           </div>
           {selectedNode.entityType === 'Company' && selectedNode.id !== model.rootId && (
             <footer className="tt-rf-drawer-foot">
@@ -609,6 +629,15 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
             </footer>
           )}
         </aside>
+      )}
+
+      {selectedNode && (
+        <TraceDrawer
+          open={traceOpen}
+          onClose={() => setTraceOpen(false)}
+          classifier={classifierForEntityType(selectedNode.entityType)}
+          entityId={selectedNode.entityId}
+        />
       )}
     </div>
   );
