@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -20,6 +20,7 @@ import '@xyflow/react/dist/style.css';
 
 import {
   normalizeEntityGraph,
+  rerootEntityGraph,
   type EntityGraphEdge,
   type EntityGraphNode,
 } from '@/lib/entity-graph';
@@ -55,7 +56,11 @@ const LINE_HEIGHT = 16;
 
 function estimateNodeSize(node: EntityGraphNode): { width: number; height: number } {
   const label =
-    node.entityType === 'Event' ? truncate(node.label, 56) : (node.data.short ?? node.label);
+    node.entityType === 'Event'
+      ? truncate(node.label, 56)
+      : node.entityType === 'Company'
+        ? (node.data.short ?? node.label)
+        : node.label;
   const baseW = BASE_NODE_WIDTH[node.entityType];
   const baseH = BASE_NODE_HEIGHT[node.entityType];
 
@@ -228,8 +233,7 @@ function truncate(value: string, max: number): string {
 
 function layoutGraph(
   nodes: EntityGraphNode[],
-  edges: EntityGraphEdge[],
-  rootId: string
+  edges: EntityGraphEdge[]
 ): {
   positions: Map<string, { x: number; y: number }>;
   sizes: Map<string, { width: number; height: number }>;
@@ -239,23 +243,31 @@ function layoutGraph(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: 'TB',
-    nodesep: 80,
-    ranksep: 120,
-    marginx: 30,
-    marginy: 30,
+    nodesep: 120,
+    edgesep: 40,
+    ranksep: 150,
+    marginx: 40,
+    marginy: 40,
+    ranker: 'tight-tree',
+    acyclicer: 'greedy',
   });
 
   const sizes = new Map<string, { width: number; height: number }>();
   for (const node of nodes) {
     const size = estimateNodeSize(node);
     sizes.set(node.id, size);
-    g.setNode(node.id, size);
+    g.setNode(node.id, { ...size, rank: node.depth });
   }
 
+  const depthById = new Map(nodes.map((node) => [node.id, node.depth]));
   for (const edge of edges) {
-    g.setEdge(edge.source, edge.target);
+    const sourceDepth = depthById.get(edge.source) ?? 0;
+    const targetDepth = depthById.get(edge.target) ?? sourceDepth + 1;
+    g.setEdge(edge.source, edge.target, {
+      minlen: Math.max(1, targetDepth - sourceDepth),
+      weight: edge.relationshipType === 'CONNECTION' ? 3 : 2,
+    });
   }
-  void rootId;
 
   dagre.layout(g);
 
@@ -429,19 +441,20 @@ function Legend() {
 /* ------------------------------------------------------------------ */
 
 function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProps) {
-  const model = useMemo(() => normalizeEntityGraph(graph), [graph]);
+  const baseModel = useMemo(() => normalizeEntityGraph(graph), [graph]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [lastRootId, setLastRootId] = useState<string>(model.rootId);
+  const [localRootId, setLocalRootId] = useState<string>(baseModel.rootId);
 
-  // Reset selection whenever the graph root changes.
-  if (lastRootId !== model.rootId) {
-    setLastRootId(model.rootId);
-    if (selectedId !== null) setSelectedId(null);
-  }
+  useEffect(() => {
+    setLocalRootId(baseModel.rootId);
+    setSelectedId(null);
+  }, [baseModel.rootId]);
+
+  const model = useMemo(() => rerootEntityGraph(baseModel, localRootId), [baseModel, localRootId]);
 
   const { positions, sizes } = useMemo(
-    () => layoutGraph(model.nodes, model.edges, model.rootId),
-    [model.edges, model.nodes, model.rootId]
+    () => layoutGraph(model.nodes, model.edges),
+    [model.edges, model.nodes]
   );
 
   const rfNodes: Node[] = useMemo(
@@ -482,18 +495,23 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
           source: edge.source,
           target: edge.target,
           type: 'smoothstep',
+          pathOptions: { borderRadius: 18, offset: 24 },
           animated: edge.relationshipType === 'INVOLVED_IN',
-          label: edge.connectionType || edge.label || style.label,
+          label:
+            isHighlighted || model.edges.length <= 5
+              ? truncate(edge.connectionType || edge.label || style.label, 24)
+              : undefined,
           labelStyle: { fontSize: 10, fill: 'var(--tt-fg-soft)' },
-          labelBgStyle: { fill: 'var(--tt-bg-card)', fillOpacity: 0.9 },
-          labelBgPadding: [4, 2] as [number, number],
-          labelBgBorderRadius: 3,
+          labelBgStyle: { fill: 'var(--tt-bg-card)', fillOpacity: 0.98 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelBgBorderRadius: 4,
           style: {
             stroke: style.stroke,
             strokeWidth: isHighlighted ? style.strokeWidth + 1 : style.strokeWidth,
             strokeDasharray: style.strokeDasharray,
             opacity: selectedId === null || isHighlighted ? 1 : 0.18,
           },
+          zIndex: isHighlighted ? 2 : 0,
           data: { edge },
         };
       }),
@@ -506,12 +524,10 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback(
     (_, node) => {
-      const original = model.nodes.find((entry) => entry.id === node.id);
-      if (!original || original.entityType !== 'Company') return;
-      const target = original.data.id ?? original.entityId;
-      if (target) onSelectCompany(target);
+      setLocalRootId(node.id);
+      setSelectedId(node.id);
     },
-    [model.nodes, onSelectCompany]
+    []
   );
 
   const onPaneClick = useCallback(() => setSelectedId(null), []);
@@ -593,19 +609,38 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
             {selectedNode.entityType === 'Person' && PersonDetailRows(selectedNode)}
             {selectedNode.entityType === 'Event' && EventDetailRows(selectedNode)}
           </div>
-          {selectedNode.entityType === 'Company' && selectedNode.id !== model.rootId && (
+          {(selectedNode.id !== model.rootId || selectedNode.entityType === 'Company') && (
             <footer className="tt-rf-drawer-foot">
-              <button
-                type="button"
-                className="tt-rf-drawer-action"
-                onClick={() => {
-                  const target = selectedNode.data.id ?? selectedNode.entityId;
-                  if (target) onSelectCompany(target);
-                }}
-              >
-                Re-center graph on this company →
-              </button>
-              <div className="tt-rf-drawer-hint">Tip: double-click a company to re-center.</div>
+              {selectedNode.id !== model.rootId && (
+                <button
+                  type="button"
+                  className="tt-rf-drawer-action"
+                  onClick={() => setLocalRootId(selectedNode.id)}
+                >
+                  Use as graph root
+                </button>
+              )}
+              {selectedNode.entityType === 'Company' && selectedNode.id !== model.rootId && (
+                <div className="tt-rf-drawer-hint">Local graph root and company navigation are separate now.</div>
+              )}
+              {selectedNode.entityType === 'Company' && selectedNode.id === model.rootId && (
+                <div className="tt-rf-drawer-hint">This company is the current graph root.</div>
+              )}
+              {selectedNode.entityType !== 'Company' && (
+                <div className="tt-rf-drawer-hint">Tip: double-click any node to re-center the graph.</div>
+              )}
+              {selectedNode.entityType === 'Company' && (
+                <button
+                  type="button"
+                  className="tt-rf-drawer-action is-secondary"
+                  onClick={() => {
+                    const target = selectedNode.data.id ?? selectedNode.entityId;
+                    if (target) onSelectCompany(target);
+                  }}
+                >
+                  Open company record
+                </button>
+              )}
             </footer>
           )}
         </aside>

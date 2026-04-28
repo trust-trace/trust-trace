@@ -35,6 +35,39 @@ export interface EntityGraphModel {
   edges: EntityGraphEdge[];
 }
 
+function makeAdjacency(edges: GraphEdge[]): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>();
+
+  for (const edge of edges) {
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
+    if (!adjacency.has(edge.target)) adjacency.set(edge.target, new Set());
+    adjacency.get(edge.source)!.add(edge.target);
+    adjacency.get(edge.target)!.add(edge.source);
+  }
+
+  return adjacency;
+}
+
+function computeDepths(rootId: string, edges: GraphEdge[]): Map<string, number> {
+  const adjacency = makeAdjacency(edges);
+  const depths = new Map<string, number>([[rootId, 0]]);
+  const queue = [rootId];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+
+    const nextDepth = (depths.get(current) ?? 0) + 1;
+    for (const nextId of adjacency.get(current) ?? []) {
+      if (depths.has(nextId)) continue;
+      depths.set(nextId, nextDepth);
+      queue.push(nextId);
+    }
+  }
+
+  return depths;
+}
+
 function getEventRisk(riskLevel?: number): Risk {
   if ((riskLevel ?? 0) >= 7) return 'high';
   if ((riskLevel ?? 0) >= 4) return 'medium';
@@ -202,5 +235,42 @@ export function normalizeEntityGraph(graph: GraphResponse): EntityGraphModel {
       ...edge,
       ...edgePresentation(edge),
     })),
+  };
+}
+
+export function rerootEntityGraph(graph: EntityGraphModel, nextRootId: string): EntityGraphModel {
+  const hasRoot = graph.nodes.some((node) => node.id === nextRootId);
+  const rootId = hasRoot ? nextRootId : graph.rootId;
+  const depths = computeDepths(rootId, graph.edges);
+  const maxDepth = Math.max(...depths.values(), 0);
+
+  const nodes = [...graph.nodes]
+    .map((node) => ({
+      ...node,
+      depth: depths.get(node.id) ?? maxDepth + node.depth + 1,
+    }))
+    .sort(compareNodes);
+
+  const edges = [...graph.edges]
+    .map((edge) => {
+      const sourceDepth = depths.get(edge.source) ?? Number.MAX_SAFE_INTEGER;
+      const targetDepth = depths.get(edge.target) ?? Number.MAX_SAFE_INTEGER;
+
+      if (sourceDepth <= targetDepth) {
+        return edge;
+      }
+
+      return {
+        ...edge,
+        source: edge.target,
+        target: edge.source,
+      };
+    })
+    .sort(compareEdges);
+
+  return {
+    rootId,
+    nodes,
+    edges,
   };
 }

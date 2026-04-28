@@ -1431,6 +1431,12 @@
   fill: var(--tt-fg-soft);
 }
 
+.tt-rf-stage .react-flow__edge-textbg {
+  fill: oklch(1 0 0 / 0.98);
+  stroke: var(--tt-line-soft);
+  stroke-width: 1;
+}
+
 .tt-rf-stage .react-flow__controls {
   border: 1px solid var(--tt-line);
   border-radius: 6px;
@@ -1797,6 +1803,16 @@
 
 .tt-rf-drawer-action:hover {
   background: oklch(0.5 0.18 260);
+}
+
+.tt-rf-drawer-action.is-secondary {
+  border-color: var(--tt-line);
+  background: var(--tt-bg-card);
+  color: var(--tt-fg);
+}
+
+.tt-rf-drawer-action.is-secondary:hover {
+  background: oklch(0.97 0.005 250);
 }
 
 .tt-rf-drawer-hint {

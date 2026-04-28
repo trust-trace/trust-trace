@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GRAPH_RESPONSES } from '@/mocks/data';
-import { normalizeEntityGraph } from '@/lib/entity-graph';
+import { normalizeEntityGraph, rerootEntityGraph } from '@/lib/entity-graph';
 
 describe('normalizeEntityGraph', () => {
   it('preserves ids and sorts nodes by depth then type', () => {
@@ -114,5 +114,32 @@ describe('normalizeEntityGraph', () => {
     });
 
     expect(graph.nodes[1].tintRisk).toBe('high');
+  });
+
+  it('can reroot the graph around any node, including events', () => {
+    const graph = rerootEntityGraph(normalizeEntityGraph(GRAPH_RESPONSES.jsw), 'event:cba-investigation');
+
+    expect(graph.rootId).toBe('event:cba-investigation');
+    expect(graph.nodes.map((node) => [node.id, node.depth])).toEqual([
+      ['event:cba-investigation', 0],
+      ['company:jsw', 1],
+      ['person:jan-kowalski', 1],
+      ['company:orlen', 2],
+      ['person:anna-nowak', 2],
+      ['company:tauron', 3],
+      ['event:labour-strike', 3],
+    ]);
+    expect(
+      graph.edges.find((edge) => edge.id === 'company:jsw->event:cba-investigation:ABOUT:-')
+    ).toMatchObject({
+      source: 'event:cba-investigation',
+      target: 'company:jsw',
+    });
+    expect(
+      graph.edges.find((edge) => edge.id === 'person:jan-kowalski->event:cba-investigation:INVOLVED_IN:-')
+    ).toMatchObject({
+      source: 'event:cba-investigation',
+      target: 'person:jan-kowalski',
+    });
   });
 });
