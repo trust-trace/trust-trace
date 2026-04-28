@@ -1,6 +1,6 @@
 import { HttpResponse, http } from 'msw';
 
-import { ARTICLES, COMPANIES, COMPANY_RELATIONS } from '@/mocks/data';
+import { ARTICLES, COMPANIES, COMPANY_RELATIONS, GRAPH_RESPONSES } from '@/mocks/data';
 
 export const handlers = [
   http.get('*/api/companies', () => {
@@ -12,5 +12,9 @@ export const handlers = [
   http.get('*/api/companies/:companyId/articles', ({ params }) => {
     const companyId = String(params.companyId);
     return HttpResponse.json(ARTICLES[companyId] ?? []);
+  }),
+  http.get('*/api/graph/:companyId', ({ params }) => {
+    const companyId = String(params.companyId);
+    return HttpResponse.json(GRAPH_RESPONSES[companyId] ?? null);
   }),
 ];

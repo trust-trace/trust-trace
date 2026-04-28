@@ -37,6 +37,93 @@ export interface CompanyRelation {
   label?: string;
 }
 
+export type GraphEntityType = 'Company' | 'Person' | 'Event';
+export type GraphRelationshipType =
+  | 'CONNECTION'
+  | 'ABOUT'
+  | 'INVOLVED_IN'
+  | 'AFFILIATED_WITH';
+
+export interface GraphNodeBase<
+  TType extends GraphEntityType,
+  TData extends object,
+> {
+  id: string;
+  entityType: TType;
+  entityId: string;
+  depth: number;
+  label: string;
+  data: TData;
+}
+
+export interface CompanyGraphNodeData {
+  id?: string;
+  name?: string;
+  short?: string;
+  nip?: string;
+  sector?: string;
+  country?: string;
+  score?: number;
+  trend?: number;
+  risk?: Risk;
+  history?: number[];
+  keywords?: string[];
+  articles?: number;
+  lastUpdate?: string;
+}
+
+export interface PersonGraphNodeData {
+  name?: string;
+  role?: string;
+  description?: string;
+  firmId?: string;
+  firmName?: string;
+  eventCount?: number;
+  trustScore?: number;
+  risk?: Risk;
+}
+
+export interface EventGraphNodeData {
+  title?: string;
+  eventType?: string;
+  eventCategory?: string;
+  riskLevel?: number;
+  risk?: Risk;
+  occurredAt?: string;
+  companyId?: string;
+  companyName?: string;
+  excerpt?: string;
+  keywords?: string[];
+  entities?: string[];
+  source?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+}
+
+export type CompanyGraphNode = GraphNodeBase<'Company', CompanyGraphNodeData>;
+export type PersonGraphNode = GraphNodeBase<'Person', PersonGraphNodeData>;
+export type EventGraphNode = GraphNodeBase<'Event', EventGraphNodeData>;
+
+export type GraphNode = CompanyGraphNode | PersonGraphNode | EventGraphNode;
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relationshipType: GraphRelationshipType;
+  connectionType: string;
+  intensity: number | null;
+  label: string;
+  sourceUrl: string;
+  sourceTitle: string;
+}
+
+export interface GraphResponse {
+  rootId: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 export const COMPANIES: Company[] = [
   {
     id: 'orlen',

@@ -18,6 +18,7 @@ services:
       COMPANY_REFERENCE_PATH: /app/tarkov/data/companies.json
       KEYWORDS_FILE_PATH: /app/tarkov/data/aml_keywords.json
       DEAD_LETTER_PATH: /tmp/tarkov_dead_letters.jsonl
+      SCUTTLE_CRAB_URL: http://scuttle-crab:3000
     ports:
       - '8081:8081'
     depends_on:
@@ -86,12 +87,20 @@ services:
     container_name: scuttle-crab
     working_dir: /workspace/scuttle_crab
     entrypoint: ["scuttle_crab"]
-    command: ["crawl"]
+    command: ["serve"]
     user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      SCUTTLE_BIND_ADDR: "0.0.0.0:3000"
+      TARKOV_BASE_URL: "http://tarkov-api:8081"
+    ports:
+      - "3000:3000"
     volumes:
       - ./rust/scuttle_crab:/workspace/scuttle_crab
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      tarkov-api:
+        condition: service_healthy
     networks:
       - trust-trace-network
 

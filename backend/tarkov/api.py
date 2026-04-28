@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 
 from sqlalchemy import text
@@ -122,6 +123,21 @@ def create_app(config: Config | None = None):
         finally:
             session.close()
 
+    @app.get("/api/graph/{company_id}")
+    def get_frontend_graph(company_id: str, max_depth: int = 2) -> dict:
+        session = SessionLocal()
+        try:
+            return frontend_graph_service.get_graph(
+                session, company_id, max_depth=max_depth
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to load frontend graph for %s: %s", company_id, exc
+            )
+            raise HTTPException(status_code=500, detail="Failed to load graph") from exc
+        finally:
+            session.close()
+
     @app.post("/v1/articles", status_code=202)
     async def receive_article(request: FastAPIRequest):
         try:
@@ -222,8 +238,11 @@ def create_app(config: Config | None = None):
         article_limit = int(body.get("article_limit", 30))
 
         from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.scraper_adapter import ScuttleCrabAdapter
 
-        orchestrator = PipelineOrchestrator(cfg)
+        scuttle_url = os.environ.get("SCUTTLE_CRAB_URL", "").strip()
+        scraper = ScuttleCrabAdapter(scuttle_url) if scuttle_url else None
+        orchestrator = PipelineOrchestrator(cfg, scraper=scraper)
         run_id = str(uuid.uuid4())
 
         # Create the pipeline_run row synchronously so the ID is available

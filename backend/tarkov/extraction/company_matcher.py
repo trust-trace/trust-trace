@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,7 +16,10 @@ from tarkov.llm.client import LLMClient
 from tarkov.utils.text_utils import normalize_whitespace
 
 
-@dataclass(slots=True)
+_DATACLASS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
+
+
+@dataclass(**_DATACLASS_KWARGS)
 class MatchedCompany:
     company_name: str
     ticker: str | None
@@ -24,7 +28,12 @@ class MatchedCompany:
 
 
 class CompanyMatcher:
-    def __init__(self, db_session: Session, company_reference_path: str, llm_client: LLMClient | None = None):
+    def __init__(
+        self,
+        db_session: Session,
+        company_reference_path: str,
+        llm_client: LLMClient | None = None,
+    ):
         self.firm_repo = FirmRepository(db_session)
         self.company_reference = self._load_company_reference(company_reference_path)
         self.llm_client = llm_client
@@ -75,7 +84,11 @@ class CompanyMatcher:
 
             for alias in aliases + ([name] if name else []):
                 candidate = alias.strip()
-                if candidate and candidate.lower() in lowered and (name, ticker) not in seen:
+                if (
+                    candidate
+                    and candidate.lower() in lowered
+                    and (name, ticker) not in seen
+                ):
                     seen.add((name, ticker))
                     results.append(
                         MatchedCompany(
@@ -89,7 +102,9 @@ class CompanyMatcher:
 
         return results
 
-    def _match_llm(self, text: str, candidates: list[MatchedCompany]) -> list[MatchedCompany]:
+    def _match_llm(
+        self, text: str, candidates: list[MatchedCompany]
+    ) -> list[MatchedCompany]:
         payload = [
             {
                 "company_name": c.company_name,
@@ -161,7 +176,11 @@ class CompanyMatcher:
         if isinstance(aliases, list):
             for alias in aliases:
                 if isinstance(alias, str) and alias.strip():
-                    self.firm_repo.add_alias(firm.id, alias.strip(), "enriched", confidence=0.75)
+                    self.firm_repo.add_alias(
+                        firm.id, alias.strip(), "enriched", confidence=0.75
+                    )
 
-    def add_alias(self, firm: Firm, alias: str, alias_type: str, confidence: float | None = None) -> None:
+    def add_alias(
+        self, firm: Firm, alias: str, alias_type: str, confidence: float | None = None
+    ) -> None:
         self.firm_repo.add_alias(firm.id, alias, alias_type, confidence=confidence)

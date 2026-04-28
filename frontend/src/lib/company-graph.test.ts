@@ -1,35 +1,118 @@
 import { describe, expect, it } from 'vitest';
-import { COMPANY_RELATIONS, COMPANIES } from '@/mocks/data';
-import { buildCompanyGraph } from '@/lib/company-graph';
+import { GRAPH_RESPONSES } from '@/mocks/data';
+import { normalizeEntityGraph } from '@/lib/entity-graph';
 
-describe('buildCompanyGraph', () => {
-  it('returns the selected company with only depth-1 and depth-2 connections', () => {
-    const graph = buildCompanyGraph('allegro', COMPANIES, COMPANY_RELATIONS, 2);
+describe('normalizeEntityGraph', () => {
+  it('preserves ids and sorts nodes by depth then type', () => {
+    const graph = normalizeEntityGraph(GRAPH_RESPONSES.jsw);
 
-    expect(graph.centerId).toBe('allegro');
-    expect(graph.nodes.map((node) => [node.id, node.depth])).toEqual([
-      ['allegro', 0],
-      ['cyfrowy', 1],
-      ['dino', 1],
-      ['lpp', 1],
-      ['asseco', 2],
-      ['orlen', 2],
-      ['pko', 2],
+    expect(graph.rootId).toBe('company:jsw');
+    expect(graph.nodes.map((node) => [node.id, node.depth, node.entityType])).toEqual([
+      ['company:jsw', 0, 'Company'],
+      ['company:orlen', 1, 'Company'],
+      ['person:anna-nowak', 1, 'Person'],
+      ['person:jan-kowalski', 1, 'Person'],
+      ['event:cba-investigation', 1, 'Event'],
+      ['company:tauron', 2, 'Company'],
+      ['event:labour-strike', 2, 'Event'],
     ]);
-    expect(graph.edges.map((edge) => [edge.source, edge.target, edge.type])).toEqual([
-      ['allegro', 'cyfrowy', 'business'],
-      ['allegro', 'dino', 'partnership'],
-      ['allegro', 'lpp', 'person'],
-      ['cyfrowy', 'pko', 'business'],
-      ['dino', 'asseco', 'business'],
-      ['lpp', 'orlen', 'partnership'],
+    expect(graph.nodes[0].summary).toContain('Trust');
+    expect(graph.nodes[2].badge).toBe('44');
+    expect(graph.nodes[2].tintRisk).toBe('medium');
+    expect(graph.nodes[2].summary).toContain('Trust 44');
+  });
+
+  it('maps edge presentation metadata from relationship type', () => {
+    const graph = normalizeEntityGraph(GRAPH_RESPONSES.jsw);
+
+    expect(graph.edges.map((edge) => [edge.relationshipType, edge.dashArray, edge.width > 2])).toEqual([
+      ['CONNECTION', '', true],
+      ['ABOUT', '2 4', false],
+      ['AFFILIATED_WITH', '', false],
+      ['AFFILIATED_WITH', '', false],
+      ['CONNECTION', '', true],
+      ['INVOLVED_IN', '5 4', false],
+      ['INVOLVED_IN', '5 4', false],
     ]);
   });
 
-  it('returns only the center node when no relations exist', () => {
-    const graph = buildCompanyGraph('getin', COMPANIES, COMPANY_RELATIONS, 2);
+  it('handles incomplete optional fields safely', () => {
+    const graph = normalizeEntityGraph({
+      rootId: 'company:test',
+      nodes: [
+        {
+          id: 'company:test',
+          entityType: 'Company',
+          entityId: 'test',
+          depth: 0,
+          label: 'Test',
+          data: {},
+        },
+        {
+          id: 'event:test',
+          entityType: 'Event',
+          entityId: 'evt',
+          depth: 1,
+          label: 'Event',
+          data: {},
+        },
+      ],
+      edges: [
+        {
+          id: 'company:test->event:test:ABOUT:-',
+          source: 'company:test',
+          target: 'event:test',
+          relationshipType: 'ABOUT',
+          connectionType: '',
+          intensity: null,
+          label: '',
+          sourceUrl: '',
+          sourceTitle: '',
+        },
+      ],
+    });
 
-    expect(graph.nodes.map((node) => node.id)).toEqual(['getin']);
-    expect(graph.edges).toEqual([]);
+    expect(graph.nodes[0].summary).toContain('Trust');
+    expect(graph.nodes[1].badge).toBeNull();
+    expect(graph.edges[0].summary).toBe('Publikacja o zdarzeniu');
+  });
+
+  it('uses backend-provided event risk when present', () => {
+    const graph = normalizeEntityGraph({
+      rootId: 'company:test',
+      nodes: [
+        {
+          id: 'company:test',
+          entityType: 'Company',
+          entityId: 'test',
+          depth: 0,
+          label: 'Test',
+          data: {},
+        },
+        {
+          id: 'event:test',
+          entityType: 'Event',
+          entityId: 'evt',
+          depth: 1,
+          label: 'Event',
+          data: { riskLevel: 1, risk: 'high' },
+        },
+      ],
+      edges: [
+        {
+          id: 'company:test->event:test:ABOUT:-',
+          source: 'company:test',
+          target: 'event:test',
+          relationshipType: 'ABOUT',
+          connectionType: '',
+          intensity: null,
+          label: '',
+          sourceUrl: '',
+          sourceTitle: '',
+        },
+      ],
+    });
+
+    expect(graph.nodes[1].tintRisk).toBe('high');
   });
 });

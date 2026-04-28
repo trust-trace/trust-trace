@@ -48,6 +48,35 @@ async fn search_company_rejects_conflicting_flags() {
 }
 
 #[tokio::test]
+async fn scrape_company_endpoint_accepts_optional_registry_ids() {
+    let app = scuttle_crab::http::app(scuttle_crab::app::jobs::JobRegistry::default())
+        .expect("app should build");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/commands/scrape-company")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"query":"Allegro","krs":"0000123456","nip":"1234567890"}"#,
+                ))
+                .expect("request should build"),
+        )
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("body should read");
+    let json: Value = serde_json::from_slice(&body).expect("json should parse");
+    assert_eq!(json["data"]["command"], "scrape-company");
+    assert_eq!(json["data"]["status"], "queued");
+}
+
+#[tokio::test]
 async fn health_endpoint_returns_ok() {
     let app = scuttle_crab::http::app(scuttle_crab::app::jobs::JobRegistry::default())
         .expect("app should build");
