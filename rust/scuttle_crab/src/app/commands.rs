@@ -20,6 +20,9 @@ use crate::crawler::search_discovery::discover_company_article_urls;
 use crate::domain::source::{SourceInfo, load_sources};
 use crate::storage::seen_urls::SeenUrlStore;
 
+const REQUIRED_NEWS_ARTICLES: usize = 10;
+const DISCOVERY_CANDIDATE_LIMIT: usize = 50;
+
 #[derive(Debug, Clone)]
 pub enum CommandRequest {
     Crawl {
@@ -213,7 +216,7 @@ async fn execute_search_company(
     if !registry_only {
         let client = build_http_client()?;
         let search_query = company.as_ref().map(|value| value.name.as_str()).unwrap_or(query);
-        let urls = discover_company_article_urls(&client, search_query, config.company_article_limit()).await?;
+        let urls = discover_company_article_urls(&client, search_query, DISCOVERY_CANDIDATE_LIMIT).await?;
         let mut seen_urls = SeenUrlStore::load(&config.seen_urls_path)?;
         let mut pending_urls = HashSet::new();
 
@@ -240,6 +243,14 @@ async fn execute_search_company(
                 }
                 Err(_) => delivery_failed += 1,
             }
+
+            if delivered >= REQUIRED_NEWS_ARTICLES {
+                break;
+            }
+        }
+
+        if delivered < REQUIRED_NEWS_ARTICLES {
+            bail!("failed to deliver {REQUIRED_NEWS_ARTICLES} news articles after exhausting candidates");
         }
     }
 

@@ -1,7 +1,8 @@
-//! RSS-based company article discovery helpers.
+//! Company article discovery helpers.
 
 use anyhow::Context;
 use feed_rs::parser;
+use scraper::{Html, Selector};
 
 const SEARCH_BASE_URL: &str = "https://www.bing.com/news/search?q=";
 
@@ -20,13 +21,34 @@ pub fn build_search_url(query: &str) -> String {
     )
 }
 
-pub fn parse_result_urls(feed_xml: &str) -> anyhow::Result<Vec<String>> {
+pub fn parse_result_urls(body: &str) -> anyhow::Result<Vec<String>> {
+    if let Ok(rss_urls) = parse_rss_result_urls(body) {
+        if !rss_urls.is_empty() {
+            return Ok(rss_urls);
+        }
+    }
+
+    parse_html_result_urls(body).context("failed to parse search result HTML")
+}
+
+fn parse_rss_result_urls(feed_xml: &str) -> anyhow::Result<Vec<String>> {
     let feed = parser::parse(feed_xml.as_bytes()).context("failed to parse search RSS feed")?;
     Ok(feed
         .entries
         .into_iter()
         .filter_map(|entry| entry.links.into_iter().next())
         .filter_map(|link| unwrap_result_link(&link.href))
+        .collect())
+}
+
+fn parse_html_result_urls(body: &str) -> anyhow::Result<Vec<String>> {
+    let document = Html::parse_document(body);
+    let selector = Selector::parse("a.result__a")
+        .map_err(|error| anyhow::anyhow!("failed to build search result selector: {error}"))?;
+    Ok(document
+        .select(&selector)
+        .filter_map(|element| element.value().attr("href"))
+        .filter_map(unwrap_result_link)
         .collect())
 }
 
@@ -48,21 +70,28 @@ pub async fn discover_company_article_urls(
     query: &str,
     limit: usize,
 ) -> anyhow::Result<Vec<String>> {
-    let url = build_search_url(query);
-    let html = client
-        .get(&url)
-        .send()
-        .await
-        .with_context(|| format!("request failed for {url}"))?
-        .error_for_status()
-        .with_context(|| format!("non-success status for {url}"))?
-        .text()
-        .await
-        .with_context(|| format!("failed to read body for {url}"))?;
+    for candidate_query in [query.to_string(), format!("{query} news"), format!("{query} site:news") ] {
+        let url = build_search_url(&candidate_query);
+        let body = match client.get(&url).send().await {
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => response
+                    .text()
+                    .await
+                    .with_context(|| format!("failed to read body for {url}"))?,
+                Err(_) => continue,
+            },
+            Err(_) => continue,
+        };
 
-    let mut urls = parse_result_urls(&html)?;
-    urls.truncate(limit.max(1));
-    Ok(urls)
+        let urls = parse_result_urls(&body)?;
+        if !urls.is_empty() {
+            let mut urls = urls;
+            urls.truncate(limit.max(1));
+            return Ok(urls);
+        }
+    }
+
+    Ok(Vec::new())
 }
 
 #[cfg(test)]
@@ -102,6 +131,19 @@ mod tests {
                 "https://example.com/article-2".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn extracts_result_links_from_html() {
+        let html = r#"
+        <html><body>
+          <a class="result__a" href="http://example.com/article-1">Article 1</a>
+          <a class="result__a" href="http://example.com/article-2">Article 2</a>
+        </body></html>
+        "#;
+
+        let urls = parse_result_urls(html).expect("html links should parse");
+        assert_eq!(urls, vec!["http://example.com/article-1", "http://example.com/article-2"]);
     }
 
     #[test]
