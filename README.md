@@ -1,40 +1,38 @@
 # trust-trace
 
-This repo contains the Trust Trace services and data pipelines. The Rust crawler lives in `rust/scuttle_crab` and can be run either directly with Cargo or through the root `docker-compose.yml`.
+Trust Trace to repozytorium z pipeline'em do zbierania artykulow, ekstrakcji encji, liczenia scoringu AML i prezentacji wynikow w interfejsie webowym.
 
-## Scuttle Crab Quick Start
+## Moduly
 
-Run the crawler locally:
+- `frontend/` - aplikacja Next.js. Wyswietla liste firm, artykuly, graf powiazan i status uruchomionego pipeline'u.
+- `backend/tarkov/` - glowny backend Stage 2. Przyjmuje artykuly ze `scuttle_crab`, wyciaga firmy, zdarzenia, osoby i zapisuje dane do bazy.
+- `backend/pipeline/` - orkiestrator calego flow end-to-end. Spina scraping, ingest do Tarkova, zbieranie danych i laczenie wynikow scoringu.
+- `backend/eem/` - Event Enrichment Module. Wzbogaca zdarzenia i wylicza trust score firmy.
+- `backend/nsa/` - News Sentiment Analysis. Ocenia sentyment artykulow, wiarygodnosc zrodel i potencjalny impact.
+- `backend/rkr/` - modul klasyfikacji i filtrowania ryzyka na podstawie slow kluczowych oraz tresci artykulow.
+- `backend/trust_web/` - logika grafowa i scoring powiazan miedzy podmiotami.
+- `backend/reasoning/` - zapis i formatowanie reasoning traces do audytu i wyjasnien decyzji modelu.
+- `backend/timeline/` - logika bucketowania czasu do scoringu i wizualizacji historii.
+- `rust/scuttle_crab/` - crawler w Rust. Zbiera artykuly, deduplikuje URL-e, buduje payload i wysyla dane do Tarkova.
+- `db/` - konfiguracja warstwy bazodanowej, w tym Neo4j oraz obrazy pomocnicze do lokalnego srodowiska.
+- `test_crawler/` - dane i materialy pomocnicze do testowania crawlera.
 
-```bash
-cd rust/scuttle_crab
-cargo run -- crawl
-```
+## Jak to sie laczy
 
-Run the crawler locally with a specific JSON input file:
+1. `rust/scuttle_crab` zbiera i normalizuje artykuly.
+2. `backend/tarkov` przetwarza artykuly i zapisuje encje oraz zdarzenia.
+3. `backend/pipeline` uruchamia kolejne etapy scoringu.
+4. Moduly `eem`, `nsa`, `rkr` i `trust_web` dostarczaja sygnaly ryzyka.
+5. `frontend` pokazuje wynik koncowy, artykuly i graf relacji.
 
-```bash
-cd rust/scuttle_crab
-cargo run -- crawl --sources-file data/custom-sources.json
-```
+## Najwazniejsze katalogi pomocnicze
 
-Run the crawler through Docker Compose from the repo root:
+- `AML_SCORING_PIPELINE.md` - opis pipeline'u AML.
+- `HANDOFF.md` - notatki projektowe i przekazanie kontekstu.
 
-```bash
-docker compose up scuttle-crab
-```
-
-Run Docker but still call the CLI explicitly:
-
-```bash
-docker compose run --rm scuttle-crab crawl --sources-file data/custom-sources.json
-docker compose run --rm scuttle-crab fetch-url https://example.com/article
-docker compose run --rm scuttle-crab test-source reuters
-```
-
-Notes:
-- `scuttle-crab` mounts `./rust/scuttle_crab` into the container, so `data/` files are shared with your host machine.
-- `--sources-file` expects an existing JSON file inside `rust/scuttle_crab`, for example `data/custom-sources.json`.
-- The Compose service defaults to the `crawl` command, but `docker compose run --rm scuttle-crab ...` lets you override it with any supported CLI subcommand.
-
-For more detail, see `rust/scuttle_crab/README.md` and `rust/scuttle_crab/docs/USAGE.md`.
+# MOST IMPORTANT DO NOT DELETE BISMILLAH
+- Jakub Mazurek
+- Wiktor Sekreta
+- Szymon Sidor
+- Tymoteusz Mosiołek
+- Marcel Geba

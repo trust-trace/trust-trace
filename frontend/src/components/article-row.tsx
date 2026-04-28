@@ -35,6 +35,7 @@ interface ArticleRowProps {
 export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps) {
   const sc = sentimentColor(article.sentiment);
   const relTime = calcRelativeTime(article.date);
+  const hasSourceUrl = Boolean(article.sourceUrl);
   const [traceOpen, setTraceOpen] = useState(false);
 
   return (
@@ -150,8 +151,23 @@ export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps
               </div>
 
               <div className="tt-art-actions">
-                <button type="button" className="tt-btn-ghost">Otwórz źródło ↗</button>
-                <button type="button" className="tt-btn-ghost">Eksportuj raport</button>
+                {hasSourceUrl ? (
+                  <a
+                    href={article.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tt-btn-ghost"
+                  >
+                    Otwórz źródło ↗
+                  </a>
+                ) : (
+                  <span className="tt-btn-ghost is-disabled" aria-disabled="true">
+                    Źródło niedostępne
+                  </span>
+                )}
+                <span className="tt-btn-ghost is-disabled" aria-disabled="true">
+                  Raport wkrótce
+                </span>
                 <button
                   type="button"
                   className="tt-btn-ghost tt-btn-trace"

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import type { Company, Risk } from '@/lib/data';
 import { AnalysisLauncher } from './analysis-launcher';
+import { hasPendingScore } from './main-panel-helpers';
 import { Sparkline } from './sparkline';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
 
@@ -19,6 +20,8 @@ function riskLabel(risk: Risk): string {
 }
 
 export { riskColor, riskLabel };
+
+const PENDING_COLOR = 'oklch(0.58 0.03 255)';
 
 type SortKey = 'risk' | 'name' | 'recent';
 
@@ -61,7 +64,18 @@ export function Sidebar({
       );
     }
     const sorted = [...list];
-    if (sortBy === 'risk') sorted.sort((a, b) => a.score - b.score);
+    if (sortBy === 'risk') {
+      sorted.sort((a, b) => {
+        const aPending = hasPendingScore(a);
+        const bPending = hasPendingScore(b);
+
+        if (aPending !== bPending) {
+          return aPending ? 1 : -1;
+        }
+
+        return a.score - b.score;
+      });
+    }
     else if (sortBy === 'name') sorted.sort((a, b) => a.short.localeCompare(b.short));
     else sorted.sort((a, b) => b.lastUpdate.localeCompare(a.lastUpdate));
     return sorted;
@@ -69,8 +83,9 @@ export function Sidebar({
 
   const counts = useMemo(
     () => ({
+      pending: companies.filter((c) => hasPendingScore(c)).length,
       high: companies.filter((c) => c.risk === 'high').length,
-      medium: companies.filter((c) => c.risk === 'medium').length,
+      medium: companies.filter((c) => c.risk === 'medium' && !hasPendingScore(c)).length,
       low: companies.filter((c) => c.risk === 'low').length,
     }),
     [companies]
@@ -123,13 +138,16 @@ export function Sidebar({
         </div>
 
         <div className="tt-summary">
-          {(['high', 'medium', 'low'] as const).map((r) => (
-            <div key={r} className="tt-sum-item">
-              <span className="tt-dot" style={{ background: riskColor(r) }} />
-              <span className="tt-sum-num">{counts[r]}</span>
-              <span className="tt-sum-label">
-                {r === 'high' ? 'wysokie' : r === 'medium' ? 'średnie' : 'niskie'}
-              </span>
+          {([
+            { key: 'pending', label: 'w toku', color: PENDING_COLOR },
+            { key: 'high', label: 'wysokie', color: riskColor('high') },
+            { key: 'medium', label: 'średnie', color: riskColor('medium') },
+            { key: 'low', label: 'niskie', color: riskColor('low') },
+          ] as const).map((r) => (
+            <div key={r.key} className="tt-sum-item">
+              <span className="tt-dot" style={{ background: r.color }} />
+              <span className="tt-sum-num">{counts[r.key]}</span>
+              <span className="tt-sum-label">{r.label}</span>
             </div>
           ))}
         </div>
@@ -145,6 +163,9 @@ export function Sidebar({
         )}
         {filtered.map((c, idx) => {
           const isActive = c.id === selectedId;
+          const isPending = hasPendingScore(c);
+          const rowColor = isPending ? PENDING_COLOR : riskColor(c.risk);
+
           return (
             <button
               key={c.id}
@@ -153,28 +174,40 @@ export function Sidebar({
               onClick={() => onSelect(c.id)}
               style={{ animationDelay: `${idx * 14}ms` }}
             >
-              <div className="tt-row-bar" style={{ background: riskColor(c.risk) }} />
+              <div className="tt-row-bar" style={{ background: rowColor }} />
               <div className="tt-row-main">
                 <div className="tt-row-top">
                   <span className="tt-row-name">{c.short}</span>
-                  <span className="tt-row-score" style={{ color: riskColor(c.risk) }}>
-                    {c.score}
-                  </span>
+                  {isPending ? (
+                    <span className="tt-row-pending-pill">scoring…</span>
+                  ) : (
+                    <span className="tt-row-score" style={{ color: rowColor }}>
+                      {c.score}
+                    </span>
+                  )}
                 </div>
                 <div className="tt-row-bot">
                   <span className="tt-row-sector">{c.sector}</span>
-                  <span
-                    className={
-                      'tt-row-trend' +
-                      (c.trend < 0 ? ' is-neg' : c.trend > 0 ? ' is-pos' : '')
-                    }
-                  >
-                    {c.trend > 0 ? '↑' : c.trend < 0 ? '↓' : '·'} {Math.abs(c.trend)}
-                  </span>
+                  {isPending ? (
+                    <span className="tt-row-trend is-pending">Czeka na wynik</span>
+                  ) : (
+                    <span
+                      className={
+                        'tt-row-trend' +
+                        (c.trend < 0 ? ' is-neg' : c.trend > 0 ? ' is-pos' : '')
+                      }
+                    >
+                      {c.trend > 0 ? '↑' : c.trend < 0 ? '↓' : '·'} {Math.abs(c.trend)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="tt-row-spark">
-                <Sparkline data={c.history} color={riskColor(c.risk)} />
+                {isPending ? (
+                  <div className="tt-row-spark-placeholder" aria-hidden="true" />
+                ) : (
+                  <Sparkline data={c.history} color={rowColor} />
+                )}
               </div>
             </button>
           );

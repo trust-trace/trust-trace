@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Company } from '@/lib/data';
-import { getCompanyHistoryForRange, hasCompanyTradingView } from './main-panel-helpers';
+import {
+  getCompanyHistoryForRange,
+  hasCompanyTradingView,
+  hasPendingScore,
+} from './main-panel-helpers';
 
 const baseCompany: Company = {
   id: 'test',
@@ -47,5 +51,31 @@ describe('main-panel-helpers', () => {
     expect(
       hasCompanyTradingView({ ...baseCompany, hasTradingView: true, tradingViewSymbol: 'GPW:TST' })
     ).toBe(true);
+  });
+
+  it('detects the backend placeholder score payload as pending', () => {
+    expect(
+      hasPendingScore({
+        ...baseCompany,
+        score: 50,
+        trend: 0,
+        risk: 'medium',
+        history: [50],
+        keywords: [],
+        lastUpdate: '',
+      })
+    ).toBe(true);
+
+    expect(
+      hasPendingScore({
+        ...baseCompany,
+        score: 50,
+        trend: 0,
+        risk: 'medium',
+        history: [50],
+        keywords: ['audit'],
+        lastUpdate: '',
+      })
+    ).toBe(false);
   });
 });
