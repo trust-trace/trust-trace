@@ -6,11 +6,12 @@ Rust service for collecting news and financial articles and delivering them to T
 
 Current crate state:
 - core dependencies are configured in `Cargo.toml`
-- HTTP endpoints exist for `crawl`, `fetch-url`, `scrape-company`, `search-company`, and `test-source`
+- HTTP job server with endpoints for `crawl`, `fetch-url`, `scrape-company`, `search-company`, and `test-source`
 - outbound payload structs are implemented in `src/domain/`
 - local JSONL writing and seen-URL persistence are implemented in `src/storage/`
-- collection, normalization, deduplication, and payload emission are the main data-flow concerns
-- the full crawler pipeline is still in progress
+- HTTP fetching, HTML extraction, RSS/Atom discovery, and end-to-end crawl pipeline are implemented
+- company registry scraping (`krs`/`nip`) and combined company search are implemented
+- Tarkov delivery is wired into all pipeline paths
 
 The architecture and longer-term MVP decisions are documented in `../SCUTTLE_CRAB.md`. A crate-specific architecture guide now lives in `docs/ARCHITECTURE.md`. This README describes the code that exists today and how to use it.
 
@@ -28,45 +29,66 @@ Build a Rust crawler that:
 ## What Exists Today
 
 Implemented pieces:
-- `src/cli.rs`: command-line interface and subcommands
+- `src/cli.rs`: command-line interface and subcommands (`crawl`, `fetch-url`, `scrape-company`, `search-company`, `test-source`)
 - `src/config.rs`: default file locations for local data
-- `src/domain/company.rs`: company reference records and loader used by the scaffold/config path
-- `src/domain/`: outbound payload and source data models
+- `src/domain/`: outbound payload, source, company reference, and registry data models
 - `src/storage/jsonl.rs`: append one payload per line to a JSONL outbox
 - `src/storage/seen_urls.rs`: persist normalized URL hashes to skip duplicates across runs
 - `src/utils/`: URL normalization and SHA-256 hashing helpers
-- `tests/`: integration tests for CLI parsing, payload contract, JSONL output, company loading, and seen-URL storage
-
-Not implemented yet:
-- HTTP fetching
-- feed or page discovery
-- HTML extraction
-- end-to-end crawl pipeline
-- source-specific extraction rules
+- `src/crawler/discovery.rs`: RSS/Atom feed and curated page link discovery
+- `src/crawler/fetch.rs`: shared HTTP client, HTML extraction, article payload builder
+- `src/crawler/pipeline.rs`: end-to-end feed crawl orchestration with concurrency and dedup
+- `src/crawler/company_pipeline.rs`: official company registry (`krs`/`nip`) scraping and payload emission
+- `src/crawler/search_discovery.rs`: DuckDuckGo-based article URL discovery
+- `src/crawler/search_pipeline.rs`: combined company search orchestration (news + registry)
+- `src/crawler/delivery.rs`: Tarkov HTTP delivery bridge
+- `src/app/`: HTTP job server and in-memory job registry
+- `src/http/`: Axum router and request handlers
+- `tests/`: integration tests for CLI, payload contract, JSONL output, company loading, seen-URL storage, pipeline, search pipeline, company pipeline, and HTTP API
 
 ## Project Layout
 
 ```text
 src/
-  main.rs                # binary entrypoint
-  lib.rs                 # top-level run helpers
-  cli.rs                 # clap CLI definitions
-  config.rs              # default data paths
+  main.rs                    # binary entrypoint
+  lib.rs                     # top-level run and serve helpers
+  cli.rs                     # clap CLI definitions
+  config.rs                  # default data paths and env helpers
+  app/
+    commands.rs              # typed command dispatch for HTTP job server
+    jobs.rs                  # in-memory job registry
+    mod.rs
   crawler/
-    mod.rs               # crawler namespace
+    company_pipeline.rs      # company registry scraping (krs/nip)
+    delivery.rs              # Tarkov HTTP delivery bridge
+    discovery.rs             # RSS/Atom and page link discovery
+    fetch.rs                 # shared HTTP client, HTML extraction, payload builder
+    mod.rs
+    pipeline.rs              # end-to-end feed crawl orchestration
+    search_discovery.rs      # DuckDuckGo article URL discovery
+    search_pipeline.rs       # combined company search orchestration
   domain/
-    article.rs           # outbound payload schema
-    source.rs            # source metadata in outbound payloads
+    article.rs               # outbound payload schema
+    company.rs               # company reference records and loader
+    registry.rs              # registry document models
+    source.rs                # source metadata and CrawlSource definitions
+  http/
+    mod.rs                   # Axum router and request handlers
   storage/
-    jsonl.rs             # JSONL outbox writer
-    seen_urls.rs         # persistent seen-URL store
+    jsonl.rs                 # JSONL outbox writer
+    seen_urls.rs             # persistent seen-URL store
   utils/
-    hash.rs              # SHA-256 helpers
-    url.rs               # URL normalization helpers
+    hash.rs                  # SHA-256 helpers
+    url.rs                   # URL normalization helpers
 tests/
   cli.rs
+  company_loader.rs
+  company_pipeline.rs
+  http_api.rs
   jsonl_outbox.rs
   payload_contract.rs
+  pipeline.rs
+  search_pipeline.rs
   seen_urls.rs
 ```
 

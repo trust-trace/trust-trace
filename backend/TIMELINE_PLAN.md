@@ -85,7 +85,7 @@ The `firm` table currently has `created_at` (row insertion time) but no business
 ```sql
 ALTER TABLE firm ADD COLUMN founded_at DATETIME;
 
--- Backfill: use created_at as a default for existing rows
+
 UPDATE firm SET founded_at = created_at WHERE founded_at IS NULL;
 ```
 
