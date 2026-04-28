@@ -22,6 +22,12 @@ pub struct CompanyScrapeSummary {
     pub msig_documents: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct CompanyScrapeResult {
+    pub summary: CompanyScrapeSummary,
+    pub payloads: Vec<ArticlePayload>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ResolvedCompany {
     display_name: String,
@@ -47,11 +53,24 @@ pub async fn scrape_company_with_config(
     config: &AppConfig,
     query: &str,
 ) -> anyhow::Result<CompanyScrapeSummary> {
+    let result = scrape_company_payloads_with_config(config, query).await?;
+    let outbox = JsonlOutbox::new(&config.outbox_path);
+
+    for payload in result.payloads {
+        append_article_payload(&outbox, payload).await?;
+    }
+
+    Ok(result.summary)
+}
+
+pub async fn scrape_company_payloads_with_config(
+    config: &AppConfig,
+    query: &str,
+) -> anyhow::Result<CompanyScrapeResult> {
     let companies = load_companies_if_exists(&config.companies_path)?;
     let company = resolve_company(query, &companies)?;
     let client = build_registry_http_client()?;
     let fetched_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-    let outbox = JsonlOutbox::new(&config.outbox_path);
 
     let current_value = fetch_krs_document(
         &client,
@@ -71,6 +90,7 @@ pub async fn scrape_company_with_config(
     .with_context(|| format!("failed to fetch full KRS extract for {}", company.krs))?;
 
     let mut summary = CompanyScrapeSummary::default();
+    let mut payloads = Vec::new();
 
     let current_payload = build_krs_payload(
         &company,
@@ -85,7 +105,7 @@ pub async fn scrape_company_with_config(
         "Aktualny odpis KRS dla wskazanej spółki.",
         "krs/current_extract",
     );
-    append_article_payload(&outbox, current_payload).await?;
+    payloads.push(current_payload);
     summary.emitted += 1;
     summary.krs_documents += 1;
 
@@ -102,7 +122,7 @@ pub async fn scrape_company_with_config(
         "Pełna historia zmian KRS dla wskazanej spółki.",
         "krs/full_extract",
     );
-    append_article_payload(&outbox, full_payload).await?;
+    payloads.push(full_payload);
     summary.emitted += 1;
     summary.krs_documents += 1;
 
@@ -110,7 +130,7 @@ pub async fn scrape_company_with_config(
         Ok(msig_payloads) => {
             summary.msig_documents += msig_payloads.len();
             for payload in msig_payloads {
-                append_article_payload(&outbox, payload).await?;
+                payloads.push(payload);
                 summary.emitted += 1;
             }
         }
@@ -119,7 +139,7 @@ pub async fn scrape_company_with_config(
         }
     }
 
-    Ok(summary)
+    Ok(CompanyScrapeResult { summary, payloads })
 }
 
 pub fn resolve_company_record(

@@ -1,18 +1,20 @@
 # scuttle_crab
 
-Rust miniapp for collecting news and financial articles for downstream processing.
+Rust service for collecting news and financial articles and delivering them to Tarkov.
 
 ## Status
 
 Current crate state:
 - core dependencies are configured in `Cargo.toml`
-- CLI scaffolding exists for `crawl`, `fetch-url`, and `test-source`
+- HTTP endpoints exist for `crawl`, `fetch-url`, `scrape-company`, `search-company`, and `test-source`
 - outbound payload structs are implemented in `src/domain/`
 - local JSONL writing and seen-URL persistence are implemented in `src/storage/`
 - collection, normalization, deduplication, and payload emission are the main data-flow concerns
 - the full crawler pipeline is still in progress
 
 The architecture and longer-term MVP decisions are documented in `../SCUTTLE_CRAB.md`. A crate-specific architecture guide now lives in `docs/ARCHITECTURE.md`. This README describes the code that exists today and how to use it.
+
+For a dedicated endpoint-by-endpoint usage guide, see `docs/API.md`.
 
 ## MVP Goal
 
@@ -78,7 +80,7 @@ From this directory:
 cargo build
 ```
 
-Run the binary:
+Run the service:
 
 ```bash
 cargo run
@@ -108,64 +110,57 @@ Fast compile check:
 cargo check
 ```
 
-## CLI Usage
+## API Usage
 
-The binary currently exposes scaffold commands that confirm wiring and default paths.
+The primary runtime is an HTTP app.
 
-Working directory:
-
-```bash
-cd rust/scuttle_crab
-```
-
-Show help:
+Required delivery config:
 
 ```bash
-cargo run -- --help
+export TARKOV_BASE_URL=http://127.0.0.1:8080
 ```
 
-Run the default crawl using `data/sources.json`:
+Optional bind address:
 
 ```bash
-cargo run -- crawl
+export SCUTTLE_BIND_ADDR=127.0.0.1:3000
 ```
 
-Run crawl with an explicit JSON file of source links:
+Start the service:
 
 ```bash
-cargo run -- crawl --sources-file data/custom-sources.json
+cargo run
 ```
 
-The file passed to `--sources-file` must already exist.
-
-Use a custom file when you want to hand the crawler a specific set of pages or feeds without replacing the default `data/sources.json`.
-
-Example output:
-
-```text
-crawl scaffold ready: companies=data/companies.json, seen_urls=data/seen_urls.jsonl, outbox=data/outbox.jsonl
-```
-
-Debug a single URL command shape:
+Health check:
 
 ```bash
-cargo run -- fetch-url https://example.com/article
+curl http://127.0.0.1:3000/api/v1/health
 ```
 
-Test a named source command shape:
+Queue `search-company`:
 
 ```bash
-cargo run -- test-source reuters
+curl -X POST http://127.0.0.1:3000/api/v1/commands/search-company \
+  -H 'content-type: application/json' \
+  -d '{"query":"Allegro"}'
 ```
 
-Supported CLI patterns:
+Queue `crawl` with a custom sources file:
 
 ```bash
-cargo run -- crawl
-cargo run -- crawl --sources-file data/custom-sources.json
-cargo run -- fetch-url https://example.com/article
-cargo run -- test-source reuters
+curl -X POST http://127.0.0.1:3000/api/v1/commands/crawl \
+  -H 'content-type: application/json' \
+  -d '{"sources_file":"data/custom-sources.json"}'
 ```
+
+Poll job status:
+
+```bash
+curl http://127.0.0.1:3000/api/v1/jobs/<job-id>
+```
+
+API mode delivers payloads directly to Tarkov and does not write to `data/outbox.jsonl`.
 
 ## Docker Compose
 

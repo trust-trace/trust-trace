@@ -20,7 +20,7 @@ The crate is still in the foundation stage. The payload contract, persistence he
 ## Current State
 
 Implemented now:
-- CLI scaffolding for `crawl`, `fetch-url`, and `test-source`
+- HTTP job endpoints for `crawl`, `fetch-url`, `scrape-company`, `search-company`, and `test-source`
 - default runtime paths for local data files
 - outbound payload domain models
 - local JSONL outbox writer
@@ -51,14 +51,15 @@ source definitions
     -> record canonical URL in seen-URL store
 ```
 
-Current flow:
+Current primary flow:
 
 ```text
 main.rs
-    -> lib.rs::run()
-    -> clap CLI parsing
-    -> AppConfig::default()
-    -> scaffold response per command
+    -> lib.rs::serve()
+    -> axum router
+    -> in-memory job registry
+    -> typed command execution
+    -> direct Tarkov delivery
 
 supporting modules already provide:
     - payload schema

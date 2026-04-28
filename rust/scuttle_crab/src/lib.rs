@@ -1,9 +1,11 @@
 //! Top-level library entrypoints for the `scuttle_crab` binary.
 
+pub mod app;
 pub mod cli;
 pub mod config;
 pub mod crawler;
 pub mod domain;
+pub mod http;
 pub mod storage;
 pub mod utils;
 
@@ -57,6 +59,15 @@ pub fn format_search_company_output(
         config.companies_path,
         config.outbox_path,
     )
+}
+
+pub async fn serve() -> anyhow::Result<()> {
+    let config = AppConfig::default();
+    let address = config.bind_address();
+    let listener = tokio::net::TcpListener::bind(&address).await?;
+    let app = http::app(app::jobs::JobRegistry::default())?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 /// Run the binary with process arguments and print the command result.
