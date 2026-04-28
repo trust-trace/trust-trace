@@ -7,7 +7,12 @@ use std::path::{Component, Path};
 use anyhow::bail;
 
 use crate::config::AppConfig;
-use crate::crawler::company_pipeline::{resolve_company_record, scrape_company_payloads_with_config};
+use crate::crawler::company_pipeline::{
+    resolve_company_record,
+    resolve_registry_lookup,
+    scrape_company_articles_with_config,
+    scrape_company_payloads_for_company,
+};
 use crate::crawler::delivery::{deliver_to_tarkov, required_tarkov_delivery_config};
 use crate::crawler::discovery::discover_urls;
 use crate::crawler::fetch::{build_http_client, fetch_article_payload, fetch_article_payload_for_source};
@@ -25,6 +30,8 @@ pub enum CommandRequest {
     },
     ScrapeCompany {
         query: String,
+        krs: Option<String>,
+        nip: Option<String>,
     },
     SearchCompany {
         query: String,
@@ -47,7 +54,9 @@ pub async fn execute_command(request: CommandRequest) -> anyhow::Result<CommandS
     match request {
         CommandRequest::Crawl { sources_file } => execute_crawl(sources_file).await,
         CommandRequest::FetchUrl { url } => execute_fetch_url(&url).await,
-        CommandRequest::ScrapeCompany { query } => execute_scrape_company(&query).await,
+        CommandRequest::ScrapeCompany { query, krs, nip } => {
+            execute_scrape_company(&query, krs.as_deref(), nip.as_deref()).await
+        }
         CommandRequest::SearchCompany {
             query,
             news_only,
@@ -127,27 +136,62 @@ async fn execute_fetch_url(url: &str) -> anyhow::Result<CommandSummary> {
     })
 }
 
-async fn execute_scrape_company(query: &str) -> anyhow::Result<CommandSummary> {
+async fn execute_scrape_company(
+    query: &str,
+    request_krs: Option<&str>,
+    request_nip: Option<&str>,
+) -> anyhow::Result<CommandSummary> {
     required_tarkov_delivery_config()?;
-    let result = scrape_company_payloads_with_config(&AppConfig::default(), query).await?;
+    let config = AppConfig::default();
+    let articles_result = match scrape_company_articles_with_config(&config, query).await {
+        Ok(result) => result,
+        Err(_) => crate::crawler::company_pipeline::CompanyScrapeResult {
+            summary: crate::crawler::company_pipeline::CompanyScrapeSummary::default(),
+            payloads: Vec::new(),
+        },
+    };
+    let registry_lookup = resolve_registry_lookup(&config, query, request_krs, request_nip)?;
     let mut delivered = 0;
     let mut delivery_failed = 0;
+    let mut registry_attempted = false;
+    let mut registry_emitted = 0;
 
-    for payload in result.payloads {
+    for payload in articles_result.payloads {
         match deliver_to_tarkov(&payload).await {
             Ok(_) => delivered += 1,
             Err(_) => delivery_failed += 1,
         }
     }
 
-    if delivery_failed > 0 {
-        bail!("failed to deliver one or more registry payloads to Tarkov");
+    if let Some(lookup) = registry_lookup {
+        registry_attempted = true;
+        match scrape_company_payloads_for_company(&config, &lookup.resolved).await {
+            Ok(result) => {
+                registry_emitted = result.summary.emitted;
+                for payload in result.payloads {
+                    match deliver_to_tarkov(&payload).await {
+                        Ok(_) => delivered += 1,
+                        Err(_) => delivery_failed += 1,
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+    }
+
+    if delivered == 0 {
+        bail!("failed to deliver any scrape-company payloads to Tarkov");
     }
 
     Ok(CommandSummary {
         delivered,
         delivery_failed,
-        message: format!("scrape-company finished: delivered={delivered}"),
+        message: format!(
+            "scrape-company finished: article_emitted={}, registry_attempted={}, registry_emitted={}, delivered={delivered}",
+            articles_result.summary.emitted,
+            registry_attempted,
+            registry_emitted,
+        ),
     })
 }
 
@@ -201,12 +245,18 @@ async fn execute_search_company(
 
     if !news_only {
         let lookup = company.ok_or_else(|| anyhow::anyhow!("company is missing krs and nip for registry lookup"))?;
-        let lookup_query = lookup.krs.clone().or(lookup.nip.clone()).ok_or_else(|| anyhow::anyhow!("company is missing krs and nip for registry lookup"))?;
-        let result = scrape_company_payloads_with_config(&config, &lookup_query).await?;
-        for payload in result.payloads {
-            match deliver_to_tarkov(&payload).await {
-                Ok(_) => delivered += 1,
-                Err(_) => delivery_failed += 1,
+        if let Some(krs) = lookup.krs.clone() {
+            let result = scrape_company_payloads_for_company(&config, &crate::crawler::company_pipeline::ResolvedCompany {
+                display_name: lookup.official_name.clone().unwrap_or_else(|| lookup.name.clone()),
+                krs,
+                nip: lookup.nip.clone(),
+                regon: lookup.regon.clone(),
+            }).await?;
+            for payload in result.payloads {
+                match deliver_to_tarkov(&payload).await {
+                    Ok(_) => delivered += 1,
+                    Err(_) => delivery_failed += 1,
+                }
             }
         }
     }
