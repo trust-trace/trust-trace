@@ -201,6 +201,45 @@ async def _generate_trajectory_explanation(
     return explanation
 
 
+_tables_verified = False
+
+
+def _ensure_tables(pg_session: Session) -> None:
+    """Idempotently create trustweb_run / trustweb_score_timeline if missing.
+
+    Guards against migration 003 not having been applied to the live DB.
+    """
+    global _tables_verified
+    if _tables_verified:
+        return
+    pg_session.execute(text(
+        "CREATE TABLE IF NOT EXISTS trustweb_run ("
+        "  run_id UUID PRIMARY KEY,"
+        "  firm_id BIGINT NOT NULL REFERENCES firm(id) ON DELETE CASCADE,"
+        "  explanation TEXT,"
+        "  computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+        ")"
+    ))
+    pg_session.execute(text(
+        "CREATE TABLE IF NOT EXISTS trustweb_score_timeline ("
+        "  id SERIAL PRIMARY KEY,"
+        "  firm_id BIGINT NOT NULL REFERENCES firm(id) ON DELETE CASCADE,"
+        "  run_id UUID NOT NULL,"
+        "  bucket_index SMALLINT NOT NULL,"
+        "  bucket_start TIMESTAMP NOT NULL,"
+        "  bucket_end TIMESTAMP NOT NULL,"
+        "  score DECIMAL(4,3) NOT NULL CHECK (score BETWEEN 0 AND 1),"
+        "  node_count INT,"
+        "  edge_count INT,"
+        "  max_depth_used INT,"
+        "  computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+        "  UNIQUE(run_id, bucket_index)"
+        ")"
+    ))
+    pg_session.commit()
+    _tables_verified = True
+
+
 def _persist_timeline(
     firm_id: int,
     run_id: str,
@@ -209,6 +248,7 @@ def _persist_timeline(
 ) -> None:
     """Write timeline rows and run-level explanation to Postgres."""
     try:
+        _ensure_tables(pg_session)
         # Write run-level row
         pg_session.execute(
             text(

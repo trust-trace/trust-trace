@@ -96,6 +96,7 @@ services:
       - "3000:3000"
     volumes:
       - ./rust/scuttle_crab:/workspace/scuttle_crab
+      - ./test_crawler:/workspace/test_crawler:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
