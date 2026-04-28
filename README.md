@@ -38,3 +38,12 @@ Notes:
 - The Compose service defaults to the `crawl` command, but `docker compose run --rm scuttle-crab ...` lets you override it with any supported CLI subcommand.
 
 For more detail, see `rust/scuttle_crab/README.md` and `rust/scuttle_crab/docs/USAGE.md`.
+
+
+
+# MOST IMPORTANT DO NOT DELETE BISMILLAH
+- Jakub Mazurek
+- Wiktor Sekreta
+- Szymon Sidor
+- Tymoteusz Mosiołek
+- Marcel Geba
