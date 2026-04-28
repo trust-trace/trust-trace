@@ -22,7 +22,7 @@ from eem import EEMTimelineEntry, enrich_firm as eem_enrich_firm
 from pipeline.firm_enricher import FirmEnricher
 from pipeline.models import FinalScoreTimeline, PipelineRun
 from pipeline.score_merger import ScoreMerger
-from pipeline.scraper_adapter import MockScraperAdapter, ScraperAdapter
+from pipeline.scraper_adapter import MockScraperAdapter, ScraperAdapter, ScrapeResult
 from tarkov.config import Config as TarkovConfig
 from tarkov.database.models import Firm, IngestionJob
 from tarkov.database.repositories.ingestion_job_repo import IngestionJobRepository
@@ -89,16 +89,29 @@ class PipelineOrchestrator:
     async def _execute(self, run_id: str, query: str, article_limit: int) -> None:
         # Phase 2: Scraping
         self._update_phase(run_id, "scraping")
-        articles = await self._scraper.scrape(query, article_limit)
-        self._update_field(run_id, "articles_scraped", len(articles))
+        result = await self._scraper.scrape(query, article_limit)
 
-        # Phase 3+4: Ingesting (RKR + Tarkov, via ingestion jobs)
-        self._update_phase(run_id, "ingesting")
-        job_ids = self._enqueue_articles(run_id, articles)
-        await self._wait_for_ingestion(run_id, job_ids)
+        if result.delivered_directly:
+            # Scuttle Crab already pushed articles to Tarkov — skip
+            # manual enqueue and go straight to waiting for ingestion.
+            self._update_field(run_id, "articles_scraped", result.delivered_count)
+            self._update_phase(run_id, "ingesting")
+            job_ids: list[str] = []
+        else:
+            self._update_field(run_id, "articles_scraped", len(result.articles))
+            # Phase 3+4: Ingesting (RKR + Tarkov, via ingestion jobs)
+            self._update_phase(run_id, "ingesting")
+            job_ids = self._enqueue_articles(run_id, result.articles)
 
-        # Collect firm IDs from completed jobs
-        firm_ids = self._collect_firm_ids(job_ids)
+        if result.delivered_directly:
+            # Articles were pushed to Tarkov by Scuttle Crab.  Give Tarkov
+            # time to ingest, then collect all firms that have events.
+            if result.delivered_count > 0:
+                await asyncio.sleep(min(result.delivered_count * 2.0, 30.0))
+            firm_ids = self._collect_all_firm_ids()
+        else:
+            await self._wait_for_ingestion(run_id, job_ids)
+            firm_ids = self._collect_firm_ids(job_ids)
         self._update_field(run_id, "firm_ids", json.dumps(firm_ids))
 
         if not firm_ids:
@@ -209,6 +222,18 @@ class PipelineOrchestrator:
         finally:
             session.close()
         return sorted(firm_ids)
+
+    def _collect_all_firm_ids(self) -> list[int]:
+        """Return all firm IDs that have at least one event row."""
+        session = SessionLocal()
+        try:
+            from sqlalchemy import text
+            rows = session.execute(
+                text("SELECT DISTINCT firm_id FROM event WHERE firm_id IS NOT NULL"),
+            ).fetchall()
+            return sorted({r.firm_id for r in rows})
+        finally:
+            session.close()
 
     # ── Phase 5: Gathering ───────────────────────────────────────────────
 

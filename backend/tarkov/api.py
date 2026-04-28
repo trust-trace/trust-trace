@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 
 from sqlalchemy import text
@@ -237,8 +238,11 @@ def create_app(config: Config | None = None):
         article_limit = int(body.get("article_limit", 30))
 
         from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.scraper_adapter import ScuttleCrabAdapter
 
-        orchestrator = PipelineOrchestrator(cfg)
+        scuttle_url = os.environ.get("SCUTTLE_CRAB_URL", "").strip()
+        scraper = ScuttleCrabAdapter(scuttle_url) if scuttle_url else None
+        orchestrator = PipelineOrchestrator(cfg, scraper=scraper)
         run_id = str(uuid.uuid4())
 
         # Create the pipeline_run row synchronously so the ID is available
