@@ -1,6 +1,6 @@
 import { HttpResponse, http } from 'msw';
 
-import { ARTICLES, COMPANIES, COMPANY_RELATIONS, GRAPH_RESPONSES } from '@/mocks/data';
+import { ARTICLES, COMPANIES, COMPANY_RELATIONS, GRAPH_RESPONSES, generateMockTraces } from '@/mocks/data';
 
 const pipelineRuns = new Map<string, number>();
 
@@ -51,5 +51,16 @@ export const handlers = [
       created_at: '2026-04-28T10:00:00.000Z',
       completed_at: attempt > 1 ? '2026-04-28T10:02:00.000Z' : null,
     });
+  }),
+  http.get('*/api/traces/company/:companySlug', ({ params }) => {
+    return HttpResponse.json(generateMockTraces(String(params.companySlug)));
+  }),
+  http.get('*/api/traces/correlation/:correlationId', ({ params }) => {
+    return HttpResponse.json(generateMockTraces(String(params.correlationId)));
+  }),
+  http.get('*/api/traces/:classifier/:entityId', ({ params }) => {
+    return HttpResponse.json(
+      generateMockTraces(String(params.entityId), String(params.classifier))
+    );
   }),
 ];

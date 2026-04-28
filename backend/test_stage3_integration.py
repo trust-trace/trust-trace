@@ -4,7 +4,6 @@ import json
 import sys
 from reasoning.collectors.eem_collector import EEMTraceCollector
 from reasoning.collectors.nsa_collector import NSATraceCollector
-from reasoning.collectors.rkr_collector import RKRTraceCollector
 from reasoning.collectors.tarkov_collector import TarkovTraceCollector
 from reasoning.collectors.market_collector import MarketTraceCollector
 from eem._types import _EventFields
@@ -61,33 +60,6 @@ def test_nsa_collector():
     assert trace.aggregation_logic.raw_score == 0.686
     assert len(trace.scoring_breakdown) == 1
     print("✓ NSA collector test passed")
-
-
-def test_rkr_collector():
-    """Test RKR trace collection."""
-    collector = RKRTraceCollector("article_123")
-    collector.record_language("en")
-    
-    collector.record_keyword_match(
-        keyword="money laundering",
-        category="financial_crime",
-        weight=0.8,
-        in_title=True,
-        context_snippet="suspected money laundering scheme",
-        occurrences=1,
-    )
-    
-    collector.record_score_calculation(
-        raw_sum=1.2,
-        final_risk_score=0.4,
-    )
-    
-    collector.record_threshold_decision(threshold=0.3, passed=True)
-    
-    trace = collector.collect()
-    assert trace.threshold_decision.passed
-    assert trace.score_calculation.final_risk_score == 0.4
-    print("✓ RKR collector test passed")
 
 
 def test_tarkov_collector():
@@ -160,7 +132,6 @@ def test_market_collector():
 if __name__ == "__main__":
     test_eem_collector()
     test_nsa_collector()
-    test_rkr_collector()
     test_tarkov_collector()
     test_market_collector()
     print("\n✅ All Stage 3 integration tests passed!")

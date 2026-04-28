@@ -168,13 +168,12 @@ Buckets with no events get the **neutral score of 50** (same as current behavior
 
 ### 4.6 Cumulative vs. Snapshot Scoring
 
-**Decision: Cumulative.** Each bucket's score is computed from **all events up to and including that bucket**, not just events within that bucket. This gives a trajectory where the score evolves as evidence accumulates, matching how an analyst would assess trust over time.
+**Decision: Snapshot.** Each bucket's score is computed from **only the events that occurred within that bucket**, not from all prior events. An event belongs to exactly one bucket (determined by its `occurred_at` timestamp) and is never duplicated across buckets. Buckets with no events receive the neutral score of 50.
 
 ```python
 for i, bucket in enumerate(buckets):
-    # All events from founding through end of this bucket
-    cumulative_events = [e for e in events if e.occurred_at < bucket.end]
-    bucket_impacts = [impact_map[e.event_id] for e in cumulative_events]
+    events_in_bucket = [e for e in events if bucket.start <= e.occurred_at < bucket.end]
+    bucket_impacts = [impact_map[e.event_id] for e in events_in_bucket]
     score_i = _compute_score(bucket_impacts, ...)
 ```
 
@@ -509,7 +508,7 @@ T7      2025-04 → 2026-04       0.672     11     15
 
 ## 10. Key Design Decisions
 
-1. **Cumulative scoring** — each bucket considers all evidence up to that point, not just events within the bucket. This produces a monotonically-informed trajectory (more data over time).
+1. **Snapshot scoring** — each bucket considers only events that occurred within that bucket. Events are never duplicated across buckets. Buckets with no events get a neutral score of 50.
 
 2. **Graph built once, filtered per bucket** — Neo4j graph construction is expensive (LLM calls). We build it once from all data, then filter the subgraph in Python per bucket. This avoids 8× LLM cost.
 

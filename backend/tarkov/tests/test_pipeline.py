@@ -31,18 +31,20 @@ class EventClassifierStub:
 
 
 def test_process_article_full_flow(tmp_path):
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
-
     engine = init_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
 
+    from tarkov.database.models import Firm, FirmAlias
     from tarkov.database.session import SessionLocal
 
     db = SessionLocal()
+    firm = Firm(full_name="Acme Corp", country="PL", market_ticker="ACME")
+    db.add(firm)
+    db.flush()
+    db.add(FirmAlias(firm_id=firm.id, alias="Acme Corp", alias_type="name", confidence=1.0, is_primary=True))
+    db.add(FirmAlias(firm_id=firm.id, alias="ACME", alias_type="ticker", confidence=1.0))
+    db.flush()
+
     config = Config(
         database_url="sqlite+pysqlite:///:memory:",
         log_level="INFO",
@@ -51,7 +53,6 @@ def test_process_article_full_flow(tmp_path):
         llm_model="gpt-4o-mini",
         article_input_source="jsonl",
         article_input_path="",
-        company_reference_path=str(companies),
         keywords_file_path="",
         dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
         api_host="127.0.0.1",
@@ -93,7 +94,6 @@ def test_stage3_result_emitter_registers_nsa_dispatch(tmp_path):
         llm_model="gpt-4o-mini",
         article_input_source="jsonl",
         article_input_path="",
-        company_reference_path=str(tmp_path / "companies.json"),
         keywords_file_path="",
         dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
         api_host="127.0.0.1",

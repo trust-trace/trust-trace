@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getGraph } from '@/lib/api';
-import type { Article, Company, GraphResponse, HistoryRangeKey } from '@/lib/data';
+import { getGraph, getCompanyTraces } from '@/lib/api';
+import type { Article, Company, GraphResponse, HistoryRangeKey, ReasoningTrace } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
@@ -10,6 +10,7 @@ import { CompanyGraph } from './company-graph';
 import { getCompanyHistoryForRange, hasCompanyTradingView } from './main-panel-helpers';
 import { riskColor, riskLabel } from './sidebar';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
+import { TraceDrawer, traceHeadline, traceMethodBadge } from './trace-drawer';
 
 function relativeTime(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -20,7 +21,8 @@ function relativeTime(iso: string): string {
 }
 
 type FilterKey = 'all' | 'neg' | 'pos' | 'high';
-type MainPanelView = 'overview' | 'graph';
+type MainPanelView = 'overview' | 'graph' | 'traces';
+type TraceFilterKey = 'all' | 'EEM' | 'NSA' | 'Tarkov' | 'Market';
 
 interface MainPanelProps {
   company: Company;
@@ -82,11 +84,7 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
         <div className="tt-section-head">
           <div>
             <div className="tt-section-title">Historia scoringu</div>
-            <div className="tt-section-sub">
-              {displayedHistory
-                ? `Zakres ${activeTab} · dane z backendu`
-                : `Zakres ${activeTab} · brak zhydratowanych danych z backendu`}
-            </div>
+            <div className="tt-section-sub">Zakres {activeTab} · dane z backendu</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: tradingViewAvailable ? 'pointer' : 'not-allowed', fontSize: 11, color: tradingViewAvailable ? 'oklch(0.55 0.01 260)' : 'oklch(0.7 0.01 260)', fontFamily: 'var(--font-jetbrains-mono), monospace', letterSpacing: '0.04em' }}>
@@ -108,13 +106,7 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
           </div>
         )}
         <div style={{ position: 'relative' }}>
-          {displayedHistory ? (
-            <ScoreChart history={displayedHistory} color={accentColor} range={activeTab} />
-          ) : (
-            <div className="tt-empty" style={{ padding: 40 }}>
-              Timeline scoringu nie jest jeszcze dostępny z backendu dla tego zakresu.
-            </div>
-          )}
+          <ScoreChart history={displayedHistory} color={accentColor} range={activeTab} />
           {showTVChart && company.tradingViewSymbol && <TradingViewWidget symbol={company.tradingViewSymbol} />}
         </div>
       </section>
@@ -167,6 +159,160 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
         </div>
       </section>
     </>
+  );
+}
+
+const CLASSIFIER_COLORS: Record<string, string> = {
+  EEM: 'oklch(0.65 0.13 70)',
+  NSA: 'oklch(0.55 0.18 25)',
+  Tarkov: 'oklch(0.55 0.16 250)',
+  Market: 'oklch(0.55 0.13 155)',
+};
+
+const CLASSIFIER_LABELS: Record<string, string> = {
+  EEM: 'Ocena zdarzeń',
+  NSA: 'Scoring osób',
+  Tarkov: 'Ekstrakcja zdarzeń',
+  Market: 'Dane rynkowe',
+};
+
+function formatTraceTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}.${mm}.${d.getFullYear()} · ${hh}:${min}`;
+}
+
+interface TracesPanelProps {
+  company: Company;
+}
+
+function TracesPanel({ company }: TracesPanelProps) {
+  const [traces, setTraces] = useState<ReasoningTrace[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<TraceFilterKey>('all');
+  const [drawerTrace, setDrawerTrace] = useState<ReasoningTrace | null>(null);
+  const [lastCompanyId, setLastCompanyId] = useState(company.id);
+
+  if (lastCompanyId !== company.id) {
+    setLastCompanyId(company.id);
+    setLoading(true);
+    setError(null);
+    setTraces([]);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    getCompanyTraces(company.id)
+      .then((data) => {
+        if (!cancelled) {
+          data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setTraces(data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Nieznany błąd');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [company.id]);
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return traces;
+    return traces.filter((t) => t.classifier_name === filter);
+  }, [traces, filter]);
+
+  const filterTabs: ToggleOption<TraceFilterKey>[] = [
+    { value: 'all', label: 'Wszystkie' },
+    { value: 'EEM', label: 'EEM' },
+    { value: 'NSA', label: 'NSA' },
+    { value: 'Tarkov', label: 'Tarkov' },
+    { value: 'Market', label: 'Market' },
+  ];
+
+  return (
+    <section className="tt-trace-tab">
+      <div className="tt-section-head">
+        <div>
+          <div className="tt-section-title">Ścieżki decyzyjne</div>
+          <div className="tt-section-sub">
+            Trace klasyfikatorów dla {company.short} · {filtered.length} z {traces.length}
+          </div>
+        </div>
+        <ToggleGroup options={filterTabs} value={filter} onChange={setFilter} size="sm" />
+      </div>
+
+      {loading && (
+        <div className="tt-empty" style={{ padding: 40 }}>
+          Ładowanie trace dla {company.short}…
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="tt-trace-error" style={{ padding: 40 }}>
+          <div className="tt-trace-error-msg">Nie udało się pobrać trace</div>
+          <div className="tt-trace-error-detail">{error}</div>
+        </div>
+      )}
+
+      {!loading && !error && filtered.length === 0 && (
+        <div className="tt-empty" style={{ padding: 40 }}>
+          Brak danych trace {filter !== 'all' ? `dla klasyfikatora ${filter}` : ''}.
+        </div>
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
+        <div className="tt-trace-table">
+          <div className="tt-trace-table-head">
+            <div>KLASYFIKATOR</div>
+            <div>OPIS</div>
+            <div>METODA</div>
+            <div>DATA</div>
+          </div>
+          {filtered.map((trace) => {
+            const color = CLASSIFIER_COLORS[trace.classifier_name] ?? 'var(--tt-fg-mute)';
+            const headline = traceHeadline(trace);
+            const method = traceMethodBadge(trace);
+            return (
+              <button
+                key={`${trace.classifier_name}-${trace.entity_id}-${trace.created_at}`}
+                type="button"
+                className="tt-trace-table-row"
+                onClick={() => setDrawerTrace(trace)}
+              >
+                <div>
+                  <span className="tt-trace-badge" style={{ background: color }}>
+                    {trace.classifier_name}
+                  </span>
+                </div>
+                <div className="tt-trace-table-cell tt-trace-table-desc">{headline}</div>
+                <div className="tt-trace-table-cell">
+                  {method && <span className="tt-trace-method">{method}</span>}
+                  {!method && <span className="tt-trace-type-pill">{trace.entity_type}</span>}
+                </div>
+                <div className="tt-trace-table-cell tt-mono">
+                  {formatTraceTimestamp(trace.created_at)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {drawerTrace && (
+        <TraceDrawer
+          open={!!drawerTrace}
+          onClose={() => setDrawerTrace(null)}
+          initialTrace={drawerTrace}
+          title={`Ścieżka decyzyjna — ${CLASSIFIER_LABELS[drawerTrace.classifier_name] ?? drawerTrace.classifier_name}`}
+        />
+      )}
+    </section>
   );
 }
 
@@ -319,6 +465,7 @@ export function MainPanel({
           options={[
             { value: 'overview' as MainPanelView, label: 'Overview' },
             { value: 'graph' as MainPanelView, label: 'Graph' },
+            { value: 'traces' as MainPanelView, label: 'Traces' },
           ]}
           value={activeView}
           onChange={setActiveView}
@@ -328,7 +475,7 @@ export function MainPanel({
         />
       </section>
 
-      {activeView === 'overview' ? (
+      {activeView === 'overview' && (
         <OverviewPanel
           key={company.id}
           company={company}
@@ -337,7 +484,8 @@ export function MainPanel({
           error={articleError}
           accentColor={accentColor}
         />
-      ) : (
+      )}
+      {activeView === 'graph' && (
         <section className="tt-graph-view">
           <div className="tt-section-head">
             <div>
@@ -356,6 +504,9 @@ export function MainPanel({
             onSelectCompany={onSelectCompany}
           />
         </section>
+      )}
+      {activeView === 'traces' && (
+        <TracesPanel key={company.id} company={company} />
       )}
     </main>
   );

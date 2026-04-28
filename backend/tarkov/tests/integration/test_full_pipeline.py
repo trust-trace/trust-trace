@@ -3,25 +3,26 @@
 from __future__ import annotations
 
 from tarkov.config import Config
-from tarkov.database.models import ArticleMetadata, Event, Firm, Source
+from tarkov.database.models import ArticleMetadata, Event, Firm, FirmAlias, Source
 from tarkov.database.session import Base, init_engine
 from tarkov.pipeline.processor import ArticleProcessor
 from tarkov.tests.fixtures.sample_articles import SAMPLE_ARTICLE_1
 
 
 def test_full_pipeline_with_sample_article(tmp_path):
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
-
     engine = init_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
 
     from tarkov.database.session import SessionLocal
 
     db = SessionLocal()
+    firm = Firm(full_name="Acme Corp", country="PL", market_ticker="ACME")
+    db.add(firm)
+    db.flush()
+    db.add(FirmAlias(firm_id=firm.id, alias="Acme Corp", alias_type="name", confidence=1.0, is_primary=True))
+    db.add(FirmAlias(firm_id=firm.id, alias="ACME", alias_type="ticker", confidence=1.0))
+    db.flush()
+
     config = Config(
         database_url="sqlite+pysqlite:///:memory:",
         log_level="INFO",
@@ -30,7 +31,6 @@ def test_full_pipeline_with_sample_article(tmp_path):
         llm_model="gpt-4o-mini",
         article_input_source="jsonl",
         article_input_path="",
-        company_reference_path=str(companies),
         keywords_file_path="",
         dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
         api_host="127.0.0.1",

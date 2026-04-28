@@ -35,7 +35,7 @@ class EventExtraction(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     source_text: str
     source_reference: SourceReference
-    reasoning_trace: Optional[TarkovReasoningTrace] = None  # NEW: Optional reasoning trace
+    reasoning_trace: Optional[TarkovReasoningTrace] = None
 
 
 class PersonExtraction(BaseModel):

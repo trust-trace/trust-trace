@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Optional, Union
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -112,58 +112,6 @@ class NSAReasoningTrace(BaseModel):
     scoring_breakdown: list[NSAScoringBreakdownItem]
     aggregation_logic: NSAAggregationLogic
     person_context: NSAPersonContext
-
-
-# ============================================================================
-# RKR Reasoning Trace
-# ============================================================================
-
-
-class RKRKeywordMatch(BaseModel):
-    """Details of a single keyword match for RKR."""
-
-    keyword: str
-    category: str
-    weight: float
-    in_title: bool
-    context_snippet: str
-    occurrences: int
-    contribution_to_score: float
-
-
-class RKRScoreCalculation(BaseModel):
-    """Score calculation breakdown for RKR."""
-
-    raw_sum: float
-    normalization_divisor: float
-    final_risk_score: float
-    capped_at_1_0: bool
-
-
-class RKRCategoriesAggregated(BaseModel):
-    """Category aggregation for RKR."""
-
-    unique_categories: list[str]
-    category_hit_counts: dict[str, int]
-
-
-class RKRThresholdDecision(BaseModel):
-    """Threshold decision logic for RKR."""
-
-    threshold_applied: float
-    risk_score: float
-    passed: bool
-    margin: float  # risk_score - threshold
-
-
-class RKRReasoningTrace(BaseModel):
-    """Domain-specific reasoning trace for RKR classifier."""
-
-    language_detected: str
-    keyword_matches: list[RKRKeywordMatch]
-    score_calculation: RKRScoreCalculation
-    categories_aggregated: RKRCategoriesAggregated
-    threshold_decision: RKRThresholdDecision
 
 
 # ============================================================================
@@ -322,7 +270,6 @@ class MarketReasoningTrace(BaseModel):
 ReasoningTraceData = Union[
     EEMReasoningTrace,
     NSAReasoningTrace,
-    RKRReasoningTrace,
     TarkovReasoningTrace,
     MarketReasoningTrace,
 ]

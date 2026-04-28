@@ -55,7 +55,11 @@ def compute_timeline_buckets(
     return buckets
 
 
-def _strip_tz(dt: datetime) -> datetime:
+def _strip_tz(dt: datetime | str) -> datetime:
+    # Handle string inputs by converting to datetime first
+    if isinstance(dt, str):
+        from datetime import datetime as dt_class
+        dt = dt_class.fromisoformat(dt)
     if dt.tzinfo is not None:
         return dt.replace(tzinfo=None)
     return dt

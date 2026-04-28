@@ -14,7 +14,8 @@ from urllib.parse import urlparse
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from eem.database.models import EventEnrichment, FirmScore
+from eem.database.models import EventEnrichment, FirmScore, FirmScoreTimeline
+from pipeline.models import FinalScoreTimeline
 from tarkov.config import Config
 from tarkov.database.models import (
     ConnectionEntity,
@@ -33,6 +34,7 @@ _LEGAL_SUFFIX_RE = re.compile(
 )
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _DATACLASS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
+_HISTORY_RANGE_LENGTHS = {"12M": 12, "6M": 6, "3M": 3, "30D": 30}
 
 
 @dataclass(**_DATACLASS_KWARGS)
@@ -66,6 +68,8 @@ class FrontendGraphService:
         ]
         firms = self._load_firms(db, company_ids)
         scores = self._load_scores(db, company_ids)
+        final_timelines = self._load_final_score_timelines(db, company_ids)
+        eem_timelines = self._load_eem_score_timelines(db, company_ids)
         article_stats = self._load_article_stats(db, company_ids)
 
         companies: list[dict[str, Any]] = []
@@ -76,10 +80,17 @@ class FrontendGraphService:
 
             firm = firms.get(firm_id)
             full_name = self._pick_company_name(row, firm)
-            score_payload = self._build_score_payload(db, firm_id, scores.get(firm_id))
+            score_payload = self._build_score_payload(
+                db,
+                firm_id,
+                scores.get(firm_id),
+                final_timelines.get(firm_id, []),
+                eem_timelines.get(firm_id, []),
+            )
             stats = article_stats.get(
                 firm_id, CompanyArticleStats(article_count=0, last_update=None)
             )
+            tradingview_payload = self._build_tradingview_payload(firm)
 
             companies.append(
                 {
@@ -96,7 +107,10 @@ class FrontendGraphService:
                         stats.last_update or (firm.updated_at if firm else None)
                     ),
                     "history": score_payload["history"],
+                    "historyByRange": score_payload["historyByRange"],
                     "keywords": score_payload["keywords"],
+                    "tradingViewSymbol": tradingview_payload["tradingViewSymbol"],
+                    "hasTradingView": tradingview_payload["hasTradingView"],
                 }
             )
 
@@ -291,6 +305,8 @@ class FrontendGraphService:
 
         firms = self._load_firms(db, sorted(company_ids))
         scores = self._load_scores(db, sorted(company_ids))
+        final_timelines = self._load_final_score_timelines(db, sorted(company_ids))
+        eem_timelines = self._load_eem_score_timelines(db, sorted(company_ids))
         article_stats = self._load_article_stats(db, sorted(company_ids))
         people = self._load_people(db, sorted(person_ids))
         person_stats = self._load_person_event_stats(db, sorted(person_ids))
@@ -352,7 +368,11 @@ class FrontendGraphService:
                     {"name": node_props.get("name")}, firm_row
                 )
                 score_payload = self._build_score_payload(
-                    db, firm_id, scores.get(firm_id)
+                    db,
+                    firm_id,
+                    scores.get(firm_id),
+                    final_timelines.get(firm_id, []),
+                    eem_timelines.get(firm_id, []),
                 )
                 stats = article_stats.get(
                     firm_id, CompanyArticleStats(article_count=0, last_update=None)
@@ -964,6 +984,46 @@ class FrontendGraphService:
         )
         return {score.firm_id: score for score in scores}
 
+    def _load_final_score_timelines(
+        self, db: Session, firm_ids: list[int]
+    ) -> dict[int, list[FinalScoreTimeline]]:
+        if not firm_ids:
+            return {}
+        rows = (
+            db.execute(
+                select(FinalScoreTimeline)
+                .where(FinalScoreTimeline.firm_id.in_(firm_ids))
+                .order_by(
+                    FinalScoreTimeline.firm_id,
+                    FinalScoreTimeline.run_id,
+                    FinalScoreTimeline.bucket_index,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return self._latest_timeline_rows_by_firm(rows)
+
+    def _load_eem_score_timelines(
+        self, db: Session, firm_ids: list[int]
+    ) -> dict[int, list[FirmScoreTimeline]]:
+        if not firm_ids:
+            return {}
+        rows = (
+            db.execute(
+                select(FirmScoreTimeline)
+                .where(FirmScoreTimeline.firm_id.in_(firm_ids))
+                .order_by(
+                    FirmScoreTimeline.firm_id,
+                    FirmScoreTimeline.run_id,
+                    FirmScoreTimeline.bucket_index,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return self._latest_timeline_rows_by_firm(rows)
+
     def _load_article_stats(
         self, db: Session, firm_ids: list[int]
     ) -> dict[int, CompanyArticleStats]:
@@ -1109,23 +1169,38 @@ class FrontendGraphService:
         )
 
     def _build_score_payload(
-        self, db: Session, firm_id: int, score_row: FirmScore | None
+        self,
+        db: Session,
+        firm_id: int,
+        score_row: FirmScore | None,
+        final_timeline_rows: list[FinalScoreTimeline],
+        eem_timeline_rows: list[FirmScoreTimeline],
     ) -> dict[str, Any]:
+        score = int(score_row.score) if score_row is not None else None
+        trend = int(score_row.trend) if score_row is not None else None
+        risk = (
+            score_row.risk
+            if score_row is not None and score_row.risk in {"high", "medium", "low"}
+            else None
+        )
+        keywords = (
+            self._load_json_list(score_row.keywords) if score_row is not None else []
+        )
+
         if score_row is not None:
-            history = [
-                int(value)
-                for value in self._load_json_list(score_row.score_history)
-                if isinstance(value, (int, float))
-            ]
-            history = history or [int(score_row.score)]
+            history_payload = self._build_history_payload(
+                score=int(score_row.score),
+                score_history=self._load_json_list(score_row.score_history),
+                final_timeline_rows=final_timeline_rows,
+                eem_timeline_rows=eem_timeline_rows,
+            )
             return {
-                "score": int(score_row.score),
-                "trend": int(score_row.trend),
-                "risk": score_row.risk
-                if score_row.risk in {"high", "medium", "low"}
-                else self._risk_from_score(int(score_row.score)),
-                "history": history,
-                "keywords": self._load_json_list(score_row.keywords),
+                "score": score,
+                "trend": trend,
+                "risk": risk or self._risk_from_score(score),
+                "history": history_payload["history"],
+                "historyByRange": history_payload["historyByRange"],
+                "keywords": keywords,
             }
 
         fallback_score = 50
@@ -1144,13 +1219,140 @@ class FrontendGraphService:
         except Exception:
             pass
 
+        history_payload = self._build_history_payload(
+            score=fallback_score,
+            score_history=[],
+            final_timeline_rows=final_timeline_rows,
+            eem_timeline_rows=eem_timeline_rows,
+        )
+
         return {
             "score": fallback_score,
             "trend": fallback_trend,
             "risk": self._risk_from_score(fallback_score),
-            "history": [fallback_score],
+            "history": history_payload["history"],
+            "historyByRange": history_payload["historyByRange"],
             "keywords": [],
         }
+
+    def _build_history_payload(
+        self,
+        *,
+        score: int,
+        score_history: list[Any],
+        final_timeline_rows: list[FinalScoreTimeline],
+        eem_timeline_rows: list[FirmScoreTimeline],
+    ) -> dict[str, list[int] | dict[str, list[int]]]:
+        final_history = self._normalize_timeline_scores(
+            final_timeline_rows,
+            value_getter=lambda row: row.final_score,
+        )
+        if final_history:
+            return {
+                "history": final_history,
+                "historyByRange": self._history_by_range_from_series(final_history),
+            }
+
+        eem_history = self._normalize_timeline_scores(
+            eem_timeline_rows,
+            value_getter=lambda row: row.score,
+        )
+        if eem_history:
+            return {
+                "history": eem_history,
+                "historyByRange": self._history_by_range_from_series(eem_history),
+            }
+
+        score_history_values = self._normalize_score_series(score_history)
+        if score_history_values:
+            return {
+                "history": score_history_values,
+                "historyByRange": self._history_by_range_from_series(
+                    score_history_values
+                ),
+            }
+
+        return self._generated_history_payload(score)
+
+    def _build_tradingview_payload(self, firm: Firm | None) -> dict[str, str | bool]:
+        exchange = self._as_string(firm.market_exchange if firm is not None else None)
+        ticker = self._as_string(firm.market_ticker if firm is not None else None)
+        if exchange and ticker:
+            return {
+                "tradingViewSymbol": f"{exchange}:{ticker}",
+                "hasTradingView": True,
+            }
+        return {"tradingViewSymbol": "", "hasTradingView": False}
+
+    def _generated_history_payload(
+        self, score: int
+    ) -> dict[str, list[int] | dict[str, list[int]]]:
+        history_by_range = {
+            range_key: [score] * length
+            for range_key, length in _HISTORY_RANGE_LENGTHS.items()
+        }
+        return {
+            "history": history_by_range["12M"],
+            "historyByRange": history_by_range,
+        }
+
+    def _history_by_range_from_series(self, history: list[int]) -> dict[str, list[int]]:
+        if not history:
+            return self._generated_history_payload(50)["historyByRange"]
+        return {
+            range_key: history[-min(len(history), length) :]
+            for range_key, length in _HISTORY_RANGE_LENGTHS.items()
+        }
+
+    def _normalize_timeline_scores(
+        self,
+        rows: list[Any],
+        *,
+        value_getter: Any,
+    ) -> list[int]:
+        ordered_rows = sorted(
+            rows,
+            key=lambda row: (
+                self._coerce_int(getattr(row, "bucket_index", 0)) or 0,
+                getattr(row, "bucket_start", None) or getattr(row, "computed_at", None),
+            ),
+        )
+        return self._normalize_score_series([value_getter(row) for row in ordered_rows])
+
+    def _normalize_score_series(self, values: list[Any]) -> list[int]:
+        normalized: list[int] = []
+        for value in values:
+            numeric = self._coerce_float(value)
+            if numeric is None:
+                continue
+            normalized.append(max(0, min(100, int(round(numeric)))))
+        return normalized
+
+    def _latest_timeline_rows_by_firm(self, rows: list[Any]) -> dict[int, list[Any]]:
+        grouped: dict[int, dict[str, list[Any]]] = {}
+        for row in rows:
+            grouped.setdefault(int(row.firm_id), {}).setdefault(
+                str(row.run_id), []
+            ).append(row)
+
+        latest_rows: dict[int, list[Any]] = {}
+        for firm_id, runs in grouped.items():
+            latest_run_rows = max(
+                runs.values(),
+                key=lambda run_rows: (
+                    max(
+                        (
+                            getattr(row, "bucket_end", None)
+                            or getattr(row, "computed_at", None)
+                            or datetime.min
+                        )
+                        for row in run_rows
+                    ),
+                    str(run_rows[0].run_id),
+                ),
+            )
+            latest_rows[firm_id] = latest_run_rows
+        return latest_rows
 
     def _find_firm_by_slug(self, db: Session, company_id: str) -> Firm | None:
         firms = db.execute(select(Firm).order_by(Firm.id)).scalars().all()
