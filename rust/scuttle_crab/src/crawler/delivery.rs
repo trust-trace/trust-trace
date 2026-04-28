@@ -102,6 +102,7 @@ pub async fn maybe_deliver_to_tarkov(payload: &ArticlePayload) -> anyhow::Result
 
 #[cfg(test)]
 mod tests {
+    use super::TarkovDeliveryConfig;
     use crate::domain::article::{ArticlePayload, ArticleSection, ArticleText, MetadataSection};
     use crate::domain::source::SourceInfo;
     use std::io::{Read, Write};

@@ -27,6 +27,15 @@ impl AppConfig {
 
         Ok(self)
     }
+
+    /// Maximum number of article results to fetch for company search.
+    pub fn company_article_limit(&self) -> usize {
+        std::env::var("SCUTTLE_COMPANY_ARTICLE_LIMIT")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .map(|value| value.clamp(1, 50))
+            .unwrap_or(10)
+    }
 }
 
 impl Default for AppConfig {

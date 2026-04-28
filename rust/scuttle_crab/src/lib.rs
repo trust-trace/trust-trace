@@ -10,6 +10,7 @@ pub mod utils;
 use clap::Parser;
 use cli::{Cli, Command};
 use config::AppConfig;
+use crawler::company_pipeline::resolve_company_record;
 use crawler::delivery::maybe_deliver_to_tarkov;
 use crawler::company_pipeline::scrape_company_with_config;
 use crawler::fetch::fetch_article_payload;
@@ -32,6 +33,29 @@ pub fn format_company_scrape_output(
         config.outbox_path,
         config.krs_api_base_url,
         config.msig_api_base_url
+    )
+}
+
+pub fn format_search_company_output(
+    query: &str,
+    summary: &crawler::search_pipeline::SearchCompanySummary,
+    registry_identifiers_found: bool,
+    config: &AppConfig,
+) -> String {
+    format!(
+        "search company complete: query={}, news_discovered={}, news_skipped={}, news_emitted={}, news_failed={}, registry_emitted={}, registry_failed={}, delivered={}, delivery_failed={}, registry_identifiers_found={}, companies={}, outbox={}",
+        query,
+        summary.news_discovered,
+        summary.news_skipped,
+        summary.news_emitted,
+        summary.news_failed,
+        summary.registry_emitted,
+        summary.registry_failed,
+        summary.delivered,
+        summary.delivery_failed,
+        registry_identifiers_found,
+        config.companies_path,
+        config.outbox_path,
     )
 }
 
@@ -92,6 +116,24 @@ where
             let config = AppConfig::default();
             let summary = scrape_company_with_config(&config, &query).await?;
             format_company_scrape_output(&query, &summary, &config)
+        }
+        Command::SearchCompany {
+            query,
+            news_only,
+            registry_only,
+        } => {
+            let config = AppConfig::default();
+            let registry_identifiers_found = resolve_company_record(&config, &query)?
+                .map(|company| company.krs.is_some() || company.nip.is_some())
+                .unwrap_or(false);
+            let summary = crawler::search_pipeline::search_company_with_config(
+                &config,
+                &query,
+                news_only,
+                registry_only,
+            )
+            .await?;
+            format_search_company_output(&query, &summary, registry_identifiers_found, &config)
         }
         Command::TestSource { source } => format!("test-source scaffold ready: {source}"),
     };

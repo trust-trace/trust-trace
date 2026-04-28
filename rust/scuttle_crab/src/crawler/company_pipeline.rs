@@ -122,6 +122,16 @@ pub async fn scrape_company_with_config(
     Ok(summary)
 }
 
+pub fn resolve_company_record(
+    config: &AppConfig,
+    query: &str,
+) -> anyhow::Result<Option<CompanyRecord>> {
+    let companies = load_companies_if_exists(&config.companies_path)?;
+    Ok(companies
+        .into_iter()
+        .find(|company| company.matches_query(query)))
+}
+
 async fn append_article_payload(outbox: &JsonlOutbox, payload: ArticlePayload) -> anyhow::Result<()> {
     outbox.append(&payload)?;
     if let Err(error) = maybe_deliver_to_tarkov(&payload).await {

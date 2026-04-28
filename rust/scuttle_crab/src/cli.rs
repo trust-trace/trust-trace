@@ -24,6 +24,14 @@ pub enum Command {
     FetchUrl { url: String },
     /// Scrape official company registry data for one company.
     ScrapeCompany { query: String },
+    /// Search company news and optional official registry records.
+    SearchCompany {
+        query: String,
+        #[arg(long, conflicts_with = "registry_only")]
+        news_only: bool,
+        #[arg(long, conflicts_with = "news_only")]
+        registry_only: bool,
+    },
     /// Validate one configured source.
     TestSource { source: String },
 }
