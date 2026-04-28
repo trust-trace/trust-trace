@@ -1,0 +1,44 @@
+[
+  {
+    "event_id": "aaa-bbb-001",
+    "firm_id": 1,
+    "event_type": "corruption",
+    "title": "CBA zatrzymało trzech członków zarządu spółki",
+    "risk_level": 9,
+    "occurred_at": "2024-03-15T08:14:00",
+    "source_text_quote": "Funkcjonariusze CBA przeprowadzili akcję w siedzibie spółki.",
+    "sources": [
+      {
+        "title": "Rzeczpospolita",
+        "url": "https://rzeczpospolita.pl/artykul/001",
+        "published_at": "2024-03-15T09:00:00",
+        "content_excerpt": "Funkcjonariusze CBA przeprowadzili w czwartek rano akcję w siedzibie spółki. Zatrzymanym przedstawiono zarzuty przyjęcia korzyści majątkowej."
+      }
+    ],
+    "people": [
+      {
+        "name": "Jan Kowalski",
+        "role": "CEO",
+        "role_in_event": "suspect"
+      }
+    ]
+  },
+  {
+    "event_id": "aaa-bbb-002",
+    "firm_id": 1,
+    "event_type": "money_laundering",
+    "title": "Spółka oskarżona o pranie pieniędzy w transakcjach z Rosją",
+    "risk_level": 8,
+    "occurred_at": "2024-01-10T10:00:00",
+    "source_text_quote": null,
+    "sources": [
+      {
+        "title": "Parkiet",
+        "url": "https://parkiet.com/artykul/002",
+        "published_at": "2024-01-10T11:00:00",
+        "content_excerpt": "Prokuratura postawiła zarzuty spółce w związku z podejrzanymi transferami środków do podmiotów rosyjskich."
+      }
+    ],
+    "people": []
+  }
+]
