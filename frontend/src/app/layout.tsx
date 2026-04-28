@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter_Tight, Instrument_Serif, JetBrains_Mono } from "next/font/google";
-import { MswProvider } from '@/components/msw-provider';
 import "./globals.css";
 
 const interTight = Inter_Tight({
@@ -39,7 +38,7 @@ export default function RootLayout({
     >
       {/* suppressHydrationWarning: browser extensions (wallets etc.) inject attributes into <body> */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <MswProvider>{children}</MswProvider>
+        {children}
       </body>
     </html>
   );

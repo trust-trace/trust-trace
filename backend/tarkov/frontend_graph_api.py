@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 
 from eem.database.models import EventEnrichment, FirmScore
 from tarkov.config import Config
-from tarkov.database.models import Event, Firm, Person, PersonEvent, Source
+from tarkov.database.models import (
+    ConnectionEntity,
+    Event,
+    Firm,
+    Person,
+    PersonEvent,
+    Source,
+)
 from tarkov.database.session import get_neo4j_driver, get_neo4j_session, init_neo4j
 
 
@@ -41,7 +48,15 @@ class FrontendGraphService:
         self._config = config
 
     def list_companies(self, db: Session) -> list[dict[str, Any]]:
-        graph_rows = self._query_company_nodes()
+        try:
+            graph_rows = self._query_company_nodes()
+        except Exception:
+            graph_rows = []
+
+        graph_rows = self._merge_company_rows(
+            graph_rows, self._query_company_rows_from_sql(db)
+        )
+
         if not graph_rows:
             return []
 
@@ -89,10 +104,19 @@ class FrontendGraphService:
         return companies
 
     def list_relations(self, db: Session) -> list[dict[str, Any]]:
-        del db  # reserved for future SQL enrichments
+        try:
+            relation_rows = self._query_company_relations()
+        except Exception:
+            relation_rows = []
+
+        relation_rows = [
+            *relation_rows,
+            *self._query_relation_rows_from_sql(db),
+        ]
+
         grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
 
-        for row in self._query_company_relations():
+        for row in relation_rows:
             left_id = self._coerce_int(row.get("source_company_id"))
             right_id = self._coerce_int(row.get("target_company_id"))
             if left_id is None or right_id is None or left_id == right_id:
@@ -122,7 +146,7 @@ class FrontendGraphService:
 
             key = (source_slug, target_slug, relation_type)
             current = grouped.get(key)
-            if current is None or strength > current["_strength"]:
+            if current is None:
                 grouped[key] = {
                     "sourceCompanyId": source_slug,
                     "targetCompanyId": target_slug,
@@ -130,6 +154,15 @@ class FrontendGraphService:
                     "label": label,
                     "_strength": strength,
                 }
+                continue
+
+            if strength > current["_strength"]:
+                current["_strength"] = strength
+            if label and (
+                not current.get("label")
+                or len(label) > len(str(current.get("label") or ""))
+            ):
+                current["label"] = label
 
         relations = []
         for relation in grouped.values():
@@ -203,7 +236,10 @@ class FrontendGraphService:
     def get_graph(
         self, db: Session, company_id: str, max_depth: int = 2
     ) -> dict[str, Any]:
-        graph_company = self._find_graph_company_by_slug(company_id)
+        try:
+            graph_company = self._find_graph_company_by_slug(company_id)
+        except Exception:
+            graph_company = None
         firm = self._find_firm_by_slug(db, company_id)
 
         graph_company_id = graph_company["firm_id"] if graph_company else None
@@ -212,8 +248,24 @@ class FrontendGraphService:
         if root_company_id is None:
             return {"rootId": "", "nodes": [], "edges": []}
 
-        node_rows = self._query_graph_nodes(root_company_id, max_depth)
-        edge_rows = self._query_graph_edges(root_company_id, max_depth)
+        try:
+            node_rows = self._query_graph_nodes(root_company_id, max_depth)
+        except Exception:
+            node_rows = []
+
+        try:
+            edge_rows = self._query_graph_edges(root_company_id, max_depth)
+        except Exception:
+            edge_rows = []
+
+        node_rows = [
+            *node_rows,
+            *self._query_graph_nodes_from_sql(db, root_company_id, max_depth),
+        ]
+        edge_rows = [
+            *edge_rows,
+            *self._query_graph_edges_from_sql(db, root_company_id, max_depth),
+        ]
 
         company_ids: set[int] = set()
         person_ids: set[int] = set()
@@ -284,6 +336,8 @@ class FrontendGraphService:
 
             depth = self._coerce_int(row.get("depth")) or 0
             node_key = self._typed_node_id(node_type, entity_id)
+            if node_key in seen_node_ids:
+                continue
             node_payload = {
                 "id": node_key,
                 "entityType": node_type,
@@ -466,6 +520,7 @@ class FrontendGraphService:
 
         edges: list[dict[str, Any]] = []
         seen_edges: set[str] = set()
+        edge_index: dict[str, int] = {}
         for row in edge_rows:
             source_type = self._graph_node_type(row.get("source_labels"))
             target_type = self._graph_node_type(row.get("target_labels"))
@@ -482,27 +537,50 @@ class FrontendGraphService:
                 self._as_string(row.get("relationship_type")) or "CONNECTION",
                 self._as_string(row.get("connection_type")),
             )
-            if edge_id in seen_edges:
-                continue
-            seen_edges.add(edge_id)
-
             relationship_type = (
                 self._as_string(row.get("relationship_type")) or "CONNECTION"
             )
             label = self._graph_edge_label(relationship_type, row)
+            source_node_id = self._typed_node_id(source_type, source_id)
+            target_node_id = self._typed_node_id(target_type, target_id)
+            if (
+                source_node_id not in seen_node_ids
+                or target_node_id not in seen_node_ids
+            ):
+                continue
+            connection_type = self._as_string(row.get("connection_type"))
+            intensity = self._coerce_float(row.get("intensity"))
+            source_url = self._as_string(row.get("source_url"))
+            source_title = self._as_string(row.get("source_title"))
+            if edge_id in seen_edges:
+                existing = edges[edge_index[edge_id]]
+                if connection_type and not existing["connectionType"]:
+                    existing["connectionType"] = connection_type
+                if intensity is not None and existing["intensity"] is None:
+                    existing["intensity"] = intensity
+                if label and len(label) > len(str(existing["label"] or "")):
+                    existing["label"] = label
+                if source_url and not existing["sourceUrl"]:
+                    existing["sourceUrl"] = source_url
+                if source_title and not existing["sourceTitle"]:
+                    existing["sourceTitle"] = source_title
+                continue
+
+            seen_edges.add(edge_id)
             edges.append(
                 {
                     "id": edge_id,
-                    "source": self._typed_node_id(source_type, source_id),
-                    "target": self._typed_node_id(target_type, target_id),
+                    "source": source_node_id,
+                    "target": target_node_id,
                     "relationshipType": relationship_type,
-                    "connectionType": self._as_string(row.get("connection_type")),
-                    "intensity": self._coerce_float(row.get("intensity")),
+                    "connectionType": connection_type,
+                    "intensity": intensity,
                     "label": label,
-                    "sourceUrl": self._as_string(row.get("source_url")),
-                    "sourceTitle": self._as_string(row.get("source_title")),
+                    "sourceUrl": source_url,
+                    "sourceTitle": source_title,
                 }
             )
+            edge_index[edge_id] = len(edges) - 1
 
         for person in people.values():
             person_node_id = self._typed_node_id("Person", str(person.id))
@@ -608,6 +686,28 @@ class FrontendGraphService:
             """
         )
 
+    def _query_company_rows_from_sql(self, db: Session) -> list[dict[str, Any]]:
+        firms = (
+            db.execute(select(Firm).order_by(Firm.full_name, Firm.id)).scalars().all()
+        )
+        return [{"company_id": str(firm.id), "name": firm.full_name} for firm in firms]
+
+    def _merge_company_rows(
+        self, graph_rows: list[dict[str, Any]], sql_rows: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        merged: dict[str, dict[str, Any]] = {}
+        for row in sql_rows:
+            company_id = self._as_string(row.get("company_id"))
+            if company_id:
+                merged[company_id] = dict(row)
+
+        for row in graph_rows:
+            company_id = self._as_string(row.get("company_id"))
+            if company_id:
+                merged[company_id] = {**merged.get(company_id, {}), **row}
+
+        return list(merged.values())
+
     def _query_company_relations(self) -> list[dict[str, Any]]:
         return self._run_graph_query(
             """
@@ -625,6 +725,43 @@ class FrontendGraphService:
             """
         )
 
+    def _query_relation_rows_from_sql(self, db: Session) -> list[dict[str, Any]]:
+        firms = db.execute(select(Firm).order_by(Firm.id)).scalars().all()
+        firm_names = {firm.id: firm.full_name for firm in firms}
+        rows = []
+
+        for connection in db.execute(
+            select(ConnectionEntity).order_by(ConnectionEntity.id)
+        ).scalars():
+            if (
+                connection.entity_1_type != "company"
+                or connection.entity_2_type != "company"
+            ):
+                continue
+
+            left_id = self._coerce_int(connection.entity_1_id)
+            right_id = self._coerce_int(connection.entity_2_id)
+            if left_id is None or right_id is None or left_id == right_id:
+                continue
+
+            rows.append(
+                {
+                    "source_company_id": str(left_id),
+                    "source_name": connection.entity_1_name
+                    or firm_names.get(left_id)
+                    or f"Company {left_id}",
+                    "target_company_id": str(right_id),
+                    "target_name": connection.entity_2_name
+                    or firm_names.get(right_id)
+                    or f"Company {right_id}",
+                    "connection_type": connection.connection_type,
+                    "description": connection.relationship_description or "",
+                    "intensity": connection.confidence,
+                }
+            )
+
+        return rows
+
     def _query_graph_nodes(self, firm_id: int, max_depth: int) -> list[dict[str, Any]]:
         depth = max(0, int(max_depth))
         return self._run_graph_query(
@@ -635,6 +772,87 @@ class FrontendGraphService:
             """,
             company_id=str(firm_id),
         )
+
+    def _query_graph_nodes_from_sql(
+        self, db: Session, firm_id: int, max_depth: int
+    ) -> list[dict[str, Any]]:
+        root_firm = db.get(Firm, firm_id)
+        if root_firm is None:
+            return []
+
+        rows = [
+            {
+                "node": {"company_id": str(root_firm.id), "name": root_firm.full_name},
+                "labels": ["Company"],
+                "depth": 0,
+            }
+        ]
+        if max_depth < 1:
+            return rows
+
+        related_company_ids: set[int] = set()
+        connection_stmt = select(ConnectionEntity).where(
+            (
+                (ConnectionEntity.entity_1_type == "company")
+                & (ConnectionEntity.entity_1_id == str(firm_id))
+            )
+            | (
+                (ConnectionEntity.entity_2_type == "company")
+                & (ConnectionEntity.entity_2_id == str(firm_id))
+            )
+        )
+        for connection in db.execute(connection_stmt).scalars():
+            if connection.entity_1_type == "company" and connection.entity_1_id != str(
+                firm_id
+            ):
+                related_id = self._coerce_int(connection.entity_1_id)
+            elif (
+                connection.entity_2_type == "company"
+                and connection.entity_2_id != str(firm_id)
+            ):
+                related_id = self._coerce_int(connection.entity_2_id)
+            else:
+                related_id = None
+
+            if related_id is not None:
+                related_company_ids.add(related_id)
+
+        for related_firm in db.execute(
+            select(Firm)
+            .where(Firm.id.in_(related_company_ids))
+            .order_by(Firm.full_name, Firm.id)
+        ).scalars():
+            rows.append(
+                {
+                    "node": {
+                        "company_id": str(related_firm.id),
+                        "name": related_firm.full_name,
+                    },
+                    "labels": ["Company"],
+                    "depth": 1,
+                }
+            )
+
+        event_stmt = (
+            select(Event)
+            .where(Event.firm_id == firm_id)
+            .order_by(Event.occurred_at.desc(), Event.unique_id.desc())
+        )
+        for event in db.execute(event_stmt).scalars():
+            rows.append(
+                {
+                    "node": {
+                        "event_id": event.unique_id,
+                        "title": event.title,
+                        "event_type": event.event_type,
+                        "risk_level": event.risk_level,
+                    },
+                    "labels": ["Event"],
+                    "depth": 1,
+                }
+            )
+
+        return rows
 
     def _query_graph_edges(self, firm_id: int, max_depth: int) -> list[dict[str, Any]]:
         depth = max(1, int(max_depth))
@@ -657,6 +875,73 @@ class FrontendGraphService:
             """,
             company_id=str(firm_id),
         )
+
+    def _query_graph_edges_from_sql(
+        self, db: Session, firm_id: int, max_depth: int
+    ) -> list[dict[str, Any]]:
+        if max_depth < 1:
+            return []
+
+        event_sources = self._load_event_sources_for_firm(db, firm_id)
+        edges: list[dict[str, Any]] = []
+
+        for event in db.execute(
+            select(Event)
+            .where(Event.firm_id == firm_id)
+            .order_by(Event.occurred_at.desc(), Event.unique_id.desc())
+        ).scalars():
+            source = event_sources.get(event.unique_id)
+            edges.append(
+                {
+                    "relationship_type": "ABOUT",
+                    "source_labels": ["Company"],
+                    "source_node": {"company_id": str(firm_id)},
+                    "target_labels": ["Event"],
+                    "target_node": {"event_id": event.unique_id},
+                    "connection_type": "",
+                    "intensity": None,
+                    "description": "",
+                    "source_url": source.url if source else "",
+                    "source_title": source.title if source and source.title else "",
+                }
+            )
+
+        connection_stmt = select(ConnectionEntity).where(
+            (
+                (ConnectionEntity.entity_1_type == "company")
+                & (ConnectionEntity.entity_1_id == str(firm_id))
+            )
+            | (
+                (ConnectionEntity.entity_2_type == "company")
+                & (ConnectionEntity.entity_2_id == str(firm_id))
+            )
+        )
+        for connection in db.execute(connection_stmt).scalars():
+            if (
+                connection.entity_1_type != "company"
+                or connection.entity_2_type != "company"
+            ):
+                continue
+            if connection.entity_1_id == connection.entity_2_id:
+                continue
+
+            source = self._load_connection_source(db, connection.connection_event_id)
+            edges.append(
+                {
+                    "relationship_type": "CONNECTION",
+                    "source_labels": ["Company"],
+                    "source_node": {"company_id": connection.entity_1_id},
+                    "target_labels": ["Company"],
+                    "target_node": {"company_id": connection.entity_2_id},
+                    "connection_type": connection.connection_type,
+                    "intensity": connection.confidence,
+                    "description": connection.relationship_description or "",
+                    "source_url": source.url if source else "",
+                    "source_title": source.title if source and source.title else "",
+                }
+            )
+
+        return edges
 
     def _run_graph_query(self, cypher: str, **params: Any) -> list[dict[str, Any]]:
         self._ensure_neo4j()
@@ -798,6 +1083,30 @@ class FrontendGraphService:
         for source in db.execute(stmt).scalars():
             sources.setdefault(source.event_id, source)
         return sources
+
+    def _load_event_sources_for_firm(
+        self, db: Session, firm_id: int
+    ) -> dict[str, Source]:
+        event_ids = (
+            db.execute(select(Event.unique_id).where(Event.firm_id == firm_id))
+            .scalars()
+            .all()
+        )
+        return self._load_event_sources(db, list(event_ids))
+
+    def _load_connection_source(self, db: Session, event_id: str) -> Source | None:
+        return (
+            db.execute(
+                select(Source)
+                .where(Source.event_id == event_id, Source.source_category == "article")
+                .order_by(
+                    func.coalesce(Source.published_at, Source.created_at).desc(),
+                    Source.id.desc(),
+                )
+            )
+            .scalars()
+            .first()
+        )
 
     def _build_score_payload(
         self, db: Session, firm_id: int, score_row: FirmScore | None
