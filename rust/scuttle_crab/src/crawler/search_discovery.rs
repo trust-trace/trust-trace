@@ -3,6 +3,7 @@
 use anyhow::Context;
 use feed_rs::parser;
 use scraper::{Html, Selector};
+use std::collections::HashSet;
 
 const SEARCH_BASE_URL: &str = "https://www.bing.com/news/search?q=";
 
@@ -70,7 +71,10 @@ pub async fn discover_company_article_urls(
     query: &str,
     limit: usize,
 ) -> anyhow::Result<Vec<String>> {
-    for candidate_query in [query.to_string(), format!("{query} news"), format!("{query} site:news") ] {
+    let mut collected = Vec::new();
+    let mut seen = HashSet::new();
+
+    for candidate_query in [query.to_string(), format!("{query} news"), format!("{query} site:news")] {
         let url = build_search_url(&candidate_query);
         let body = match client.get(&url).send().await {
             Ok(response) => match response.error_for_status() {
@@ -83,15 +87,23 @@ pub async fn discover_company_article_urls(
             Err(_) => continue,
         };
 
-        let urls = parse_result_urls(&body)?;
-        if !urls.is_empty() {
-            let mut urls = urls;
-            urls.truncate(limit.max(1));
-            return Ok(urls);
+        let urls = match parse_result_urls(&body) {
+            Ok(urls) => urls,
+            Err(_) => continue,
+        };
+
+        for url in urls {
+            if seen.insert(url.clone()) {
+                collected.push(url);
+            }
+
+            if collected.len() >= limit.max(1) {
+                return Ok(collected);
+            }
         }
     }
 
-    Ok(Vec::new())
+    Ok(collected)
 }
 
 #[cfg(test)]

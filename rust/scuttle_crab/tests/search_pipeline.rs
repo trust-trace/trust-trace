@@ -62,7 +62,7 @@ fn search_company_news_only_emits_articles_to_outbox() {
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_search_server(listener, 3, false);
+    let server = spawn_search_server(listener, 5, false);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -155,7 +155,7 @@ fn search_company_fails_when_news_results_never_produce_ten_articles() {
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_registry_server(listener, 4);
+    let server = spawn_registry_server(listener, 6);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -177,7 +177,7 @@ fn search_company_fails_when_news_results_never_produce_ten_articles() {
     server.join().expect("server should finish");
 
     assert!(summary.news_failed >= 1);
-    assert!(summary.registry_failed >= 1);
+    assert!(summary.registry_emitted >= 2);
 
     fs::remove_dir_all(&root).ok();
 }
@@ -191,7 +191,7 @@ fn search_company_counts_tarkov_delivery_failures_without_losing_outbox_records(
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_search_server(listener, 2, false);
+    let server = spawn_search_server(listener, 4, false);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -236,7 +236,7 @@ fn search_company_delivers_exactly_ten_news_articles_when_candidates_are_availab
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_contract_server(listener, 12, 2);
+    let server = spawn_contract_server(listener, 12, 2, 15);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -274,7 +274,7 @@ fn search_company_fails_when_fewer_than_ten_valid_news_articles_exist() {
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let address = listener.local_addr().expect("listener should have address");
-    let server = spawn_contract_server(listener, 9, 0);
+    let server = spawn_contract_server(listener, 9, 0, 12);
 
     let config = config_for_root(&root, &address.to_string());
 
@@ -368,9 +368,10 @@ fn spawn_contract_server(
     listener: TcpListener,
     total_results: usize,
     dead_results: usize,
+    expected_requests: usize,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        for _ in 0..(1 + total_results) {
+        for _ in 0..expected_requests {
             let (mut stream, _) = listener.accept().expect("request should arrive");
             let request = read_request(&mut stream);
             let path = request_path(&request);
