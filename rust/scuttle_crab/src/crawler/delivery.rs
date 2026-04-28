@@ -85,6 +85,10 @@ impl TarkovDeliveryConfig {
     }
 }
 
+pub fn required_tarkov_delivery_config() -> anyhow::Result<TarkovDeliveryConfig> {
+    TarkovDeliveryConfig::from_env().ok_or_else(|| anyhow::anyhow!("TARKOV_BASE_URL must be configured for API execution"))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeliveryOutcome {
     pub correlation_id: String,
@@ -100,8 +104,13 @@ pub async fn maybe_deliver_to_tarkov(payload: &ArticlePayload) -> anyhow::Result
     Ok(Some(config.deliver(payload).await?))
 }
 
+pub async fn deliver_to_tarkov(payload: &ArticlePayload) -> anyhow::Result<DeliveryOutcome> {
+    required_tarkov_delivery_config()?.deliver(payload).await
+}
+
 #[cfg(test)]
 mod tests {
+    use super::TarkovDeliveryConfig;
     use crate::domain::article::{ArticlePayload, ArticleSection, ArticleText, MetadataSection};
     use crate::domain::source::SourceInfo;
     use std::io::{Read, Write};

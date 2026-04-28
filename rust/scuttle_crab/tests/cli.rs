@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use scuttle_crab::cli::{Cli, Command};
 use scuttle_crab::config::AppConfig;
 use scuttle_crab::crawler::company_pipeline::CompanyScrapeSummary;
+use scuttle_crab::crawler::search_pipeline::SearchCompanySummary;
 use scuttle_crab::{format_company_scrape_output, run_with_args};
 
 fn temp_file_path(name: &str) -> PathBuf {
@@ -58,6 +59,42 @@ fn parses_scrape_company_subcommand() {
     match cli.command {
         Command::ScrapeCompany { query } => assert_eq!(query, "Allegro"),
         _ => panic!("expected scrape-company command"),
+    }
+}
+
+#[test]
+fn parses_search_company_subcommand() {
+    let cli = Cli::parse_from(["scuttle_crab", "search-company", "Allegro"]);
+
+    match cli.command {
+        Command::SearchCompany {
+            query,
+            news_only,
+            registry_only,
+        } => {
+            assert_eq!(query, "Allegro");
+            assert!(!news_only);
+            assert!(!registry_only);
+        }
+        _ => panic!("expected search-company command"),
+    }
+}
+
+#[test]
+fn parses_search_company_news_only_flag() {
+    let cli = Cli::parse_from(["scuttle_crab", "search-company", "Allegro", "--news-only"]);
+
+    match cli.command {
+        Command::SearchCompany {
+            query,
+            news_only,
+            registry_only,
+        } => {
+            assert_eq!(query, "Allegro");
+            assert!(news_only);
+            assert!(!registry_only);
+        }
+        _ => panic!("expected search-company command"),
     }
 }
 
@@ -149,4 +186,31 @@ fn scrape_company_output_includes_extended_summary_fields() {
     assert!(output.contains("outbox=data/outbox.jsonl"));
     assert!(output.contains("krs_api=https://api-krs.ms.gov.pl/api"));
     assert!(output.contains("msig_api=https://wyszukiwarka-msig.ms.gov.pl/api"));
+}
+
+#[test]
+fn search_company_output_includes_branch_counters() {
+    let summary = SearchCompanySummary {
+        news_discovered: 4,
+        news_skipped: 1,
+        news_emitted: 2,
+        news_failed: 1,
+        registry_emitted: 3,
+        registry_failed: 0,
+        delivered: 4,
+        delivery_failed: 1,
+    };
+
+    let output = scuttle_crab::format_search_company_output(
+        "Allegro",
+        &summary,
+        true,
+        &AppConfig::default(),
+    );
+
+    assert!(output.contains("query=Allegro"));
+    assert!(output.contains("news_discovered=4"));
+    assert!(output.contains("registry_emitted=3"));
+    assert!(output.contains("delivery_failed=1"));
+    assert!(output.contains("registry_identifiers_found=true"));
 }

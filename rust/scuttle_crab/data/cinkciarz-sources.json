@@ -1,0 +1,83 @@
+[
+  {
+    "name": "Cinkciarz.pl homepage",
+    "page_url": "https://cinkciarz.pl/",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["cinkciarz.pl"],
+    "credibility_score": 0.95,
+    "credibility_label": "high"
+  },
+  {
+    "name": "Cinkciarz.pl careers",
+    "page_url": "https://praca.cinkciarz.pl/",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["cinkciarz.pl"],
+    "credibility_score": 0.9,
+    "credibility_label": "high"
+  },
+  {
+    "name": "Cinkciarz.pl media article",
+    "page_url": "https://cinkciarz.pl/o-nas/dla-mediow/artykuly-prasowe/nie-chcecie-polakow-to-bedziecie-mieli-slabego-funta-analiza-cinkciarz-pl",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["cinkciarz.pl"],
+    "credibility_score": 0.9,
+    "credibility_label": "high"
+  },
+  {
+    "name": "Cinkciarz Invest analysis",
+    "page_url": "https://invest.cinkciarz.pl/analizy-inwestycyjne/komentarze/srednie-kroczace-sma-jak-wykorzystac-je-w-inwestycjach-teoria-powrotu-do-sredniej",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["cinkciarz.pl"],
+    "credibility_score": 0.88,
+    "credibility_label": "high"
+  },
+  {
+    "name": "Government prosecutor statement on Cinkciarz.pl",
+    "page_url": "https://www.gov.pl/web/pr-poznan/kolejne-zatrzymania-w-sledztwie-dotyczacym-spolki-cinkciarzpl",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["gov.pl"],
+    "credibility_score": 0.98,
+    "credibility_label": "high"
+  },
+  {
+    "name": "Business Insider on KNF and UOKiK",
+    "page_url": "https://businessinsider.com.pl/wiadomosci/cinkciarzpl-pod-lupa-uokik-i-knf-firma-odnosi-sie-do-zarzutow/3hnxtec",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["businessinsider.com.pl"],
+    "credibility_score": 0.86,
+    "credibility_label": "high"
+  },
+  {
+    "name": "Finance Magnates on banking license dispute",
+    "page_url": "https://www.financemagnates.com/fintech/cinkciarzpl-aims-for-banking-future-after-license-loss-but-regulator-pushes-back/",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["financemagnates.com"],
+    "credibility_score": 0.84,
+    "credibility_label": "medium"
+  },
+  {
+    "name": "Dudkowiak blog on bankruptcy",
+    "page_url": "https://www.dudkowiak.com/blog/court-declares-bankruptcy-of-cinkciarz-pl-whats-next/",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["dudkowiak.com"],
+    "credibility_score": 0.8,
+    "credibility_label": "medium"
+  },
+  {
+    "name": "RMF24 on investigation and arrests",
+    "page_url": "https://www.rmf24.pl/regiony/poznan/newsamp-afera-z-cinkciarz-pl-sa-kolejne-zatrzymania,nId,8066488",
+    "max_depth": 0,
+    "include_page_url": true,
+    "allowed_domains": ["rmf24.pl"],
+    "credibility_score": 0.82,
+    "credibility_label": "medium"
+  }
+]

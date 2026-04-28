@@ -92,6 +92,7 @@ async def build_graph_for_firm(
             entity_type="Event",
             name=event.title,
             context=f"type={event.event_type}, category={event.event_category}, risk_level={event.risk_level}",
+            occurred_at=event.occurred_at,
         ))
         firm_event_ids.append(event.unique_id)
 
@@ -180,6 +181,7 @@ async def build_graph_for_firm(
                     entity_type="Event",
                     name=evt.title,
                     context=f"type={evt.event_type}, category={evt.event_category}, risk_level={evt.risk_level}",
+                    occurred_at=evt.occurred_at,
                 ))
             nf_event_ids.append(evt.unique_id)
 
@@ -291,11 +293,13 @@ def _merge_node(entity: EntityForDiscovery) -> None:
                 if "=" in part:
                     k, v = part.split("=", 1)
                     parts[k] = v
+            occurred_str = entity.occurred_at.isoformat() if entity.occurred_at else None
             g.run(queries.MERGE_EVENT_NODE,
                   event_id=entity.entity_id,
                   title=entity.name,
                   risk_level=int(parts.get("risk_level", 0)),
-                  event_type=parts.get("type", "unknown"))
+                  event_type=parts.get("type", "unknown"),
+                  occurred_at=occurred_str)
 
 
 def _write_edge(
@@ -315,6 +319,13 @@ def _write_edge(
     elif src.entity_type == "Event":
         source_url, source_title = _get_source_article(src.entity_id, pg_session)
 
+    # Resolve the event's occurred_at for the edge
+    event_occurred_at = None
+    for ent in (tgt, src):
+        if ent.entity_type == "Event" and ent.occurred_at:
+            event_occurred_at = ent.occurred_at.isoformat()
+            break
+
     with get_neo4j_session() as g:
         if edge.relationship_type == "CONNECTION":
             label_a, id_prop_a = _label_and_id(src.entity_type)
@@ -331,7 +342,8 @@ def _write_edge(
                   intensity=edge.intensity,
                   llm_description=edge.description,
                   source_url=source_url or "",
-                  source_title=source_title or "")
+                  source_title=source_title or "",
+                  event_occurred_at=event_occurred_at)
         elif edge.relationship_type == "ABOUT":
             g.run(queries.MERGE_ABOUT_EDGE,
                   firm_id=edge.source_entity_id,

@@ -8,7 +8,7 @@ import click
 from sqlalchemy import select, text
 
 import eem.config as config
-from eem import FirmNotFoundError, enrich_firm
+from eem import EEMTimelineEntry, FirmNotFoundError, enrich_firm
 from eem.database._repos import _EventReader
 from eem.database.models import FirmScore
 from eem.database.session import get_db, init_engine
@@ -25,7 +25,7 @@ def cli() -> None:
 @click.option("--firm-id", type=int, default=None, help="Firm PK from firm table")
 @click.option("--firm-name", default=None, help="Partial firm name (ILIKE match)")
 def enrich(firm_id: int | None, firm_name: str | None) -> None:
-    """Enrich classical events for a firm and compute its AML score."""
+    """Enrich classical events for a firm and compute its timeline AML score."""
     if firm_id is None and firm_name is None:
         click.echo("Provide --firm-id or --firm-name", err=True)
         sys.exit(1)
@@ -34,8 +34,8 @@ def enrich(firm_id: int | None, firm_name: str | None) -> None:
         firm_id = _resolve_firm_id(firm_name)
 
     try:
-        score = enrich_firm(firm_id)
-        click.echo(f"firm_id={firm_id}  score={score:.1f}")
+        timeline = enrich_firm(firm_id)
+        _print_timeline(firm_id, timeline)
     except FirmNotFoundError as exc:
         click.echo(str(exc), err=True)
         sys.exit(1)
@@ -54,8 +54,8 @@ def enrich_all() -> None:
 
     for fid in firm_ids:
         try:
-            score = enrich_firm(fid)
-            click.echo(f"firm_id={fid}  score={score:.1f}")
+            timeline = enrich_firm(fid)
+            _print_timeline(fid, timeline)
         except FirmNotFoundError as exc:
             click.echo(f"firm_id={fid}  SKIPPED: {exc}", err=True)
         except Exception as exc:
@@ -82,6 +82,15 @@ def status(firm_id: int) -> None:
     click.echo(f"history={history}")
     click.echo(f"keywords={keywords}")
     click.echo(f"computed_at={row.computed_at}")
+
+
+def _print_timeline(firm_id: int, timeline: list[EEMTimelineEntry]) -> None:
+    click.echo(f"\nEEM Timeline — firm_id={firm_id}")
+    click.echo(f"{'Bucket':<8} {'Period':<24} {'Score':>5}  {'Risk':<8} {'Events':>6}")
+    click.echo("─" * 60)
+    for e in timeline:
+        period = f"{e.bucket_start.strftime('%Y-%m')} → {e.bucket_end.strftime('%Y-%m')}"
+        click.echo(f"T{e.bucket_index:<7} {period:<24} {e.score:>5}  {e.risk:<8} {e.event_count:>6}")
 
 
 def _resolve_firm_id(name: str) -> int:

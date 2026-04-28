@@ -42,6 +42,7 @@ class Firm(Base):
     regon: Mapped[Optional[str]] = mapped_column(String(14), unique=True)
     krs: Mapped[Optional[str]] = mapped_column(String(10), unique=True)
     country: Mapped[str] = mapped_column(String(3), nullable=False, default="PL")
+    founded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

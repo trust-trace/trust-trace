@@ -1,5 +1,6 @@
-use scuttle_crab::run;
+use scuttle_crab::serve;
 
-fn main() -> anyhow::Result<()> {
-    run()
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    serve().await
 }

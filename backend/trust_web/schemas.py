@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from timeline.buckets import TimelineBucket
+
 
 # ── LLM edge discovery ─────────────────────────────────────────────────────
 
@@ -16,6 +18,7 @@ class EntityForDiscovery(BaseModel):
     entity_type: str  # "Company" | "Person" | "Event"
     name: str
     context: str = ""  # role, event_type, risk_level, etc.
+    occurred_at: Optional[datetime] = None
 
 
 class LLMEdge(BaseModel):
@@ -53,6 +56,7 @@ class SubgraphNode(BaseModel):
     name: str
     depth: int
     risk_level: Optional[float] = None
+    occurred_at: Optional[datetime] = None
 
 
 class SubgraphEdge(BaseModel):
@@ -64,6 +68,7 @@ class SubgraphEdge(BaseModel):
     llm_description: Optional[str] = None
     source_url: Optional[str] = None
     source_title: Optional[str] = None
+    event_occurred_at: Optional[datetime] = None
 
 
 class SubgraphData(BaseModel):
@@ -107,4 +112,23 @@ class TrustWebResult(BaseModel):
     subgraph_summary: SubgraphSummary = Field(default_factory=SubgraphSummary)
     connections_scored: int = 0
     max_depth_used: int = 0
+    computed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ── Timeline result types ──────────────────────────────────────────────────
+
+class TrustWebTimelineEntry(BaseModel):
+    bucket_index: int
+    bucket_start: datetime
+    bucket_end: datetime
+    score: float = Field(ge=0.0, le=1.0)
+    node_count: int = 0
+    edge_count: int = 0
+    max_depth_used: int = 0
+
+
+class TrustWebTimelineResult(BaseModel):
+    firm_id: int
+    entries: list[TrustWebTimelineEntry]
+    explanation: str = ""
     computed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -7,6 +7,8 @@ use serde_json::Value;
 
 use crate::config::AppConfig;
 use crate::crawler::delivery::maybe_deliver_to_tarkov;
+use crate::crawler::fetch::fetch_article_payload;
+use crate::crawler::search_discovery::discover_company_article_urls;
 use crate::domain::article::{ArticlePayload, ArticleSection, ArticleText, MetadataSection};
 use crate::domain::company::{CompanyRecord, load_companies_if_exists};
 use crate::domain::source::SourceInfo;
@@ -22,12 +24,24 @@ pub struct CompanyScrapeSummary {
     pub msig_documents: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct CompanyScrapeResult {
+    pub summary: CompanyScrapeSummary,
+    pub payloads: Vec<ArticlePayload>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct ResolvedCompany {
-    display_name: String,
-    krs: String,
-    nip: Option<String>,
-    regon: Option<String>,
+pub struct ResolvedCompany {
+    pub display_name: String,
+    pub krs: String,
+    pub nip: Option<String>,
+    pub regon: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegistryLookup {
+    pub query: String,
+    pub resolved: ResolvedCompany,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,11 +61,93 @@ pub async fn scrape_company_with_config(
     config: &AppConfig,
     query: &str,
 ) -> anyhow::Result<CompanyScrapeSummary> {
+    let result = scrape_company_payloads_with_config(config, query).await?;
+    let outbox = JsonlOutbox::new(&config.outbox_path);
+
+    for payload in result.payloads {
+        append_article_payload(&outbox, payload).await?;
+    }
+
+    Ok(result.summary)
+}
+
+pub async fn scrape_company_articles_with_config(
+    config: &AppConfig,
+    query: &str,
+) -> anyhow::Result<CompanyScrapeResult> {
+    let client = build_registry_http_client()?;
+    let urls = discover_company_article_urls(&client, query, config.company_article_limit()).await?;
+    let mut summary = CompanyScrapeSummary::default();
+    let mut payloads = Vec::new();
+
+    for url in urls {
+        match fetch_article_payload(&url).await {
+            Ok(payload) => {
+                payloads.push(payload);
+                summary.emitted += 1;
+            }
+            Err(_) => {
+                summary.failed += 1;
+            }
+        }
+    }
+
+    Ok(CompanyScrapeResult { summary, payloads })
+}
+
+pub fn resolve_registry_lookup(
+    config: &AppConfig,
+    query: &str,
+    request_krs: Option<&str>,
+    request_nip: Option<&str>,
+) -> anyhow::Result<Option<RegistryLookup>> {
+    let companies = load_companies_if_exists(&config.companies_path)?;
+    let local_company = companies.iter().find(|company| company.matches_query(query));
+    let local_krs = local_company.and_then(|company| company.krs.clone());
+    let local_nip = local_company.and_then(|company| company.nip.clone());
+
+    let krs = request_krs.map(str::to_string).or(local_krs);
+    let nip = request_nip.map(str::to_string).or(local_nip);
+
+    if krs.is_none() && nip.is_none() {
+        return Ok(None);
+    }
+
+    let display_name = local_company
+        .and_then(|company| company.official_name.clone().or_else(|| Some(company.name.clone())))
+        .unwrap_or_else(|| query.to_string());
+    let lookup_query = request_krs
+        .map(str::to_string)
+        .or_else(|| request_nip.map(str::to_string))
+        .or_else(|| krs.clone())
+        .or_else(|| nip.clone())
+        .unwrap_or_else(|| query.to_string());
+
+    let resolved = ResolvedCompany {
+        display_name,
+        krs: krs.clone().unwrap_or_else(|| lookup_query.clone()),
+        nip,
+        regon: local_company.and_then(|company| company.regon.clone()),
+    };
+
+    Ok(Some(RegistryLookup { query: lookup_query, resolved }))
+}
+
+pub async fn scrape_company_payloads_with_config(
+    config: &AppConfig,
+    query: &str,
+) -> anyhow::Result<CompanyScrapeResult> {
     let companies = load_companies_if_exists(&config.companies_path)?;
     let company = resolve_company(query, &companies)?;
+    scrape_company_payloads_for_company(config, &company).await
+}
+
+pub async fn scrape_company_payloads_for_company(
+    config: &AppConfig,
+    company: &ResolvedCompany,
+) -> anyhow::Result<CompanyScrapeResult> {
     let client = build_registry_http_client()?;
     let fetched_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-    let outbox = JsonlOutbox::new(&config.outbox_path);
 
     let current_value = fetch_krs_document(
         &client,
@@ -71,6 +167,7 @@ pub async fn scrape_company_with_config(
     .with_context(|| format!("failed to fetch full KRS extract for {}", company.krs))?;
 
     let mut summary = CompanyScrapeSummary::default();
+    let mut payloads = Vec::new();
 
     let current_payload = build_krs_payload(
         &company,
@@ -85,7 +182,7 @@ pub async fn scrape_company_with_config(
         "Aktualny odpis KRS dla wskazanej spółki.",
         "krs/current_extract",
     );
-    append_article_payload(&outbox, current_payload).await?;
+    payloads.push(current_payload);
     summary.emitted += 1;
     summary.krs_documents += 1;
 
@@ -102,7 +199,7 @@ pub async fn scrape_company_with_config(
         "Pełna historia zmian KRS dla wskazanej spółki.",
         "krs/full_extract",
     );
-    append_article_payload(&outbox, full_payload).await?;
+    payloads.push(full_payload);
     summary.emitted += 1;
     summary.krs_documents += 1;
 
@@ -110,7 +207,7 @@ pub async fn scrape_company_with_config(
         Ok(msig_payloads) => {
             summary.msig_documents += msig_payloads.len();
             for payload in msig_payloads {
-                append_article_payload(&outbox, payload).await?;
+                payloads.push(payload);
                 summary.emitted += 1;
             }
         }
@@ -119,7 +216,17 @@ pub async fn scrape_company_with_config(
         }
     }
 
-    Ok(summary)
+    Ok(CompanyScrapeResult { summary, payloads })
+}
+
+pub fn resolve_company_record(
+    config: &AppConfig,
+    query: &str,
+) -> anyhow::Result<Option<CompanyRecord>> {
+    let companies = load_companies_if_exists(&config.companies_path)?;
+    Ok(companies
+        .into_iter()
+        .find(|company| company.matches_query(query)))
 }
 
 async fn append_article_payload(outbox: &JsonlOutbox, payload: ArticlePayload) -> anyhow::Result<()> {
@@ -348,8 +455,19 @@ fn render_registry_text(value: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_company;
+    use super::{resolve_company, resolve_registry_lookup};
+    use crate::config::AppConfig;
     use crate::domain::company::CompanyRecord;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn temp_root(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        std::env::temp_dir().join(format!("scuttle_crab_{name}_{nanos}"))
+    }
 
     #[test]
     fn resolves_company_by_alias() {
@@ -371,5 +489,55 @@ mod tests {
         assert_eq!(resolved.krs, "0000635012");
         assert_eq!(resolved.nip.as_deref(), Some("5252674798"));
         assert!(resolved.display_name.contains("ALLEGRO"));
+    }
+
+    #[test]
+    fn registry_lookup_prefers_request_identifiers_and_skips_without_any() {
+        let root = temp_root("registry_lookup");
+        fs::create_dir_all(&root).expect("temp dir should be created");
+        fs::write(
+            root.join("companies.json"),
+            r#"[
+              {
+                "name": "Allegro",
+                "ticker": "ALE",
+                "aliases": ["allegro"],
+                "official_name": "ALLEGRO SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+                "krs": "0000635012",
+                "nip": "5252674798"
+              }
+            ]"#,
+        )
+        .expect("companies file should be written");
+
+        let config = AppConfig {
+            companies_path: root.join("companies.json").display().to_string(),
+            sources_path: root.join("sources.json").display().to_string(),
+            seen_urls_path: root.join("seen_urls.jsonl").display().to_string(),
+            outbox_path: root.join("outbox.jsonl").display().to_string(),
+            krs_api_base_url: "http://127.0.0.1:1".to_string(),
+            msig_api_base_url: "http://127.0.0.1:1".to_string(),
+            concurrency: 1,
+        };
+
+        let lookup = resolve_registry_lookup(&config, "allegro", Some("1111111111"), None)
+            .expect("lookup should resolve")
+            .expect("lookup should exist");
+        assert_eq!(lookup.query, "1111111111");
+        assert_eq!(lookup.resolved.krs, "1111111111");
+        assert_eq!(lookup.resolved.nip.as_deref(), Some("5252674798"));
+
+        let nip_only_lookup = resolve_registry_lookup(&config, "allegro", None, Some("9999999999"))
+            .expect("lookup should resolve")
+            .expect("lookup should exist");
+        assert_eq!(nip_only_lookup.query, "9999999999");
+        assert_eq!(nip_only_lookup.resolved.krs, "0000635012");
+        assert_eq!(nip_only_lookup.resolved.nip.as_deref(), Some("9999999999"));
+
+        let skipped = resolve_registry_lookup(&config, "free text company", None, None)
+            .expect("lookup should resolve");
+        assert!(skipped.is_none());
+
+        fs::remove_dir_all(&root).ok();
     }
 }

@@ -27,6 +27,22 @@ impl AppConfig {
 
         Ok(self)
     }
+
+    /// Maximum number of article results to fetch for company search.
+    pub fn company_article_limit(&self) -> usize {
+        std::env::var("SCUTTLE_COMPANY_ARTICLE_LIMIT")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .map(|value| value.clamp(1, 50))
+            .unwrap_or(10)
+    }
+
+    pub fn bind_address(&self) -> String {
+        std::env::var("SCUTTLE_BIND_ADDR")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "127.0.0.1:3000".to_string())
+    }
 }
 
 impl Default for AppConfig {
