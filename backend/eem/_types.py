@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
+from reasoning.schemas import EEMReasoningTrace
+
 
 class FirmNotFoundError(Exception):
     pass
@@ -45,4 +47,4 @@ class _EventFields:
     keywords: list[str]
     excerpt: str
     entities: list[str]
-    reasoning_trace_id: Optional[int] = None  # NEW: ID to reasoning trace in database
+    reasoning_trace: Optional[EEMReasoningTrace] = None

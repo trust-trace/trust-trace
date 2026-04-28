@@ -80,7 +80,6 @@ def _run(firm_id: int) -> list[EEMTimelineEntry]:
             try:
                 fields, trace = _analyze_event(event, firm_name)
                 enrichment_repo.upsert(event.event_id, fields, config.EEM_MODEL)
-                # Store reasoning trace
                 trace_repo.save(
                     classifier_name="EEM",
                     entity_type="event",
@@ -88,6 +87,7 @@ def _run(firm_id: int) -> list[EEMTimelineEntry]:
                     trace_data=trace.model_dump(),
                     correlation_id=None,
                 )
+                fields.reasoning_trace = trace
                 impact_map[event.event_id] = (fields.impact, fields.keywords)
             except _ParseError as exc:
                 logger.warning("Skipping event %s — parse error: %s", event.event_id, exc)

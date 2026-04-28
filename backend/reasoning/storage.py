@@ -132,6 +132,29 @@ class ReasoningTraceRepository:
 
         return [self._model_to_storage(m) for m in models]
 
+    def get_by_classifier_and_entity_id(
+        self, classifier_name: str, entity_id: str
+    ) -> list[ReasoningTraceStorageModel]:
+        """Retrieve reasoning traces by classifier and entity ID.
+
+        Args:
+            classifier_name: Name of the classifier (e.g., "EEM", "NSA", "Tarkov")
+            entity_id: The ID of the entity being traced
+
+        Returns:
+            List of matching ReasoningTraceStorageModel records.
+        """
+        models = self._db.execute(
+            select(ReasoningTraceModel)
+            .where(
+                (ReasoningTraceModel.classifier_name == classifier_name)
+                & (ReasoningTraceModel.entity_id == entity_id)
+            )
+            .order_by(ReasoningTraceModel.created_at.desc())
+        ).scalars()
+
+        return [self._model_to_storage(m) for m in models]
+
     def get_by_classifier_and_entity_type(
         self, classifier_name: str, entity_type: str, limit: int = 100, offset: int = 0
     ) -> list[ReasoningTraceStorageModel]:

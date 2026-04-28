@@ -12,7 +12,6 @@ from reasoning.schemas import (
     EEMReasoningTrace,
     MarketReasoningTrace,
     NSAReasoningTrace,
-    RKRReasoningTrace,
     ReasoningTraceStorageModel,
     TarkovReasoningTrace,
 )
@@ -32,7 +31,6 @@ __all__ = [
     "ReasoningTraceStorageModel",
     "EEMReasoningTrace",
     "NSAReasoningTrace",
-    "RKRReasoningTrace",
     "TarkovReasoningTrace",
     "MarketReasoningTrace",
     # Base classes

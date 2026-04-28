@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from nsa.schemas.api import ScoreCompanyResponse
+from nsa.schemas.api import PersonScoreSummary, ScoreCompanyResponse
 from nsa.schemas.domain import PersonEvidence, PersonScoreInput
 from nsa.scoring.rules import score_person
 from reasoning.storage import ReasoningTraceRepository
@@ -18,10 +18,11 @@ class NSAService:
         object.__setattr__(self, "repository", repository)
         object.__setattr__(self, "fetchers", tuple(fetchers))
 
-    def score_company(self, firm_id: int, correlation_id: str, db_session: Any = None) -> ScoreCompanyResponse:
+    def score_company(self, firm_id: int, correlation_id: str, db_session: Any = None, include_reasoning: bool = True) -> ScoreCompanyResponse:
         company_context: Any = self.repository.load_company_context(firm_id)
         people_payload: list[dict] = []
         person_scores: list[float] = []
+        people_summaries: list[PersonScoreSummary] = []
         evidence_count = 0
         trace_repo = ReasoningTraceRepository(db_session) if db_session else None
 
@@ -48,7 +49,6 @@ class NSAService:
             )
             result, trace = score_person(person_input)
             
-            # Store trace if database session is provided
             if trace_repo:
                 trace_repo.save(
                     classifier_name="NSA",
@@ -57,8 +57,14 @@ class NSAService:
                     trace_data=trace.model_dump(),
                     correlation_id=correlation_id,
                 )
-            
+
             person_scores.append(result.person_risk_score)
+            people_summaries.append(PersonScoreSummary(
+                person_id=person.id,
+                person_name=getattr(person, "name", ""),
+                risk_score=result.person_risk_score,
+                reasoning_trace=trace if include_reasoning else None,
+            ))
             people_payload.append(
                 {
                     "person_id": person.id,
@@ -90,4 +96,5 @@ class NSAService:
             company_risk_score=company_risk_score,
             people_scored=len(people_payload),
             evidence_count=evidence_count,
+            people_summaries=people_summaries or None,
         )

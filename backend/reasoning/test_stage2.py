@@ -21,7 +21,6 @@ from reasoning import (
     ReasoningTraceRepository,
     EEMReasoningTrace,
     NSAReasoningTrace,
-    RKRReasoningTrace,
     TarkovReasoningTrace,
     MarketReasoningTrace,
     ReasoningTraceStorageModel,
@@ -38,10 +37,6 @@ from reasoning.schemas import (
     NSAScoringBreakdownItem,
     NSAAggregationLogic,
     NSAPersonContext,
-    RKRKeywordMatch,
-    RKRScoreCalculation,
-    RKRCategoriesAggregated,
-    RKRThresholdDecision,
     TarkovKeywordMatching,
     TarkovConfidenceCalculation,
     TarkovRiskLevelAssignment,
@@ -124,43 +119,6 @@ def test_nsa_trace():
         ),
     )
     print(f"  [PASS] Created trace for person: {trace.person_context.person_name}")
-    return trace
-
-
-def test_rkr_trace():
-    """Test RKR reasoning trace creation."""
-    print("Testing RKR Reasoning Trace...")
-    trace = RKRReasoningTrace(
-        language_detected="en",
-        keyword_matches=[
-            RKRKeywordMatch(
-                keyword="money laundering",
-                category="financial_crime",
-                weight=0.8,
-                in_title=True,
-                context_snippet="...suspected money laundering scheme...",
-                occurrences=2,
-                contribution_to_score=1.2,
-            )
-        ],
-        score_calculation=RKRScoreCalculation(
-            raw_sum=3.8,
-            normalization_divisor=3.0,
-            final_risk_score=0.633,
-            capped_at_1_0=False,
-        ),
-        categories_aggregated=RKRCategoriesAggregated(
-            unique_categories=["financial_crime"],
-            category_hit_counts={"financial_crime": 2},
-        ),
-        threshold_decision=RKRThresholdDecision(
-            threshold_applied=0.3,
-            risk_score=0.633,
-            passed=True,
-            margin=0.333,
-        ),
-    )
-    print(f"  [PASS] Created trace: language={trace.language_detected}, passed={trace.threshold_decision.passed}")
     return trace
 
 
@@ -268,18 +226,18 @@ def test_database_operations():
 
         # Test save
         trace_id = repo.save(
-            classifier_name="RKR",
-            entity_type="article",
+            classifier_name="EEM",
+            entity_type="event",
             entity_id="article_123",
             correlation_id="corr_456",
-            trace_data={"language": "en", "risk_score": 0.7},
+            trace_data={"model_used": "llm", "final_impact": 0.7},
         )
         print(f"  [PASS] Saved trace with ID: {trace_id}")
 
         # Test get_by_id
         trace = repo.get_by_id(trace_id)
         assert trace is not None, "Failed to retrieve saved trace"
-        assert trace.classifier_name == "RKR", "Classifier name mismatch"
+        assert trace.classifier_name == "EEM", "Classifier name mismatch"
         print(f"  [PASS] Retrieved trace by ID")
 
         # Test get_by_entity_id
@@ -293,7 +251,7 @@ def test_database_operations():
         print(f"  [PASS] Retrieved trace by correlation_id")
 
         # Test get_by_classifier
-        traces = repo.get_by_classifier("RKR")
+        traces = repo.get_by_classifier("EEM")
         assert len(traces) >= 1, "Failed to retrieve trace by classifier"
         print(f"  [PASS] Retrieved trace by classifier (got {len(traces)} records)")
 
@@ -310,7 +268,6 @@ def main():
         # Test schema creation
         test_eem_trace()
         test_nsa_trace()
-        test_rkr_trace()
         test_tarkov_trace()
         test_market_trace()
 

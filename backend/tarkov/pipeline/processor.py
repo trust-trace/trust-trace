@@ -97,8 +97,8 @@ class ArticleProcessor:
             
             events, event_traces = self.event_extractor.extract_events_keyword_based(article)
             print(f"[PROCESSOR] events     : {[(e.event_type, e.risk_level) for e in events]}")
-            
-            # Store event extraction traces
+
+            # Store event extraction traces and embed in EventExtraction objects
             trace_repo = ReasoningTraceRepository(self.db_session)
             for event_type, trace in event_traces.items():
                 trace_repo.save(
@@ -108,6 +108,9 @@ class ArticleProcessor:
                     trace_data=trace.model_dump(),
                     correlation_id=correlation_id,
                 )
+            for event in events:
+                if event.event_type in event_traces:
+                    event.reasoning_trace = event_traces[event.event_type]
             
             people = self.person_extractor.extract_people(article, [e.description for e in events])
             print(f"[PROCESSOR] people     : {[p.name for p in people]}")

@@ -4,10 +4,13 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from reasoning.schemas import NSAReasoningTrace
+
 
 class ScoreCompanyRequest(BaseModel):
     firm_id: int = Field(gt=0)
     correlation_id: str
+    include_reasoning: bool = False
 
 
 class PersonScoreSummary(BaseModel):
@@ -15,7 +18,7 @@ class PersonScoreSummary(BaseModel):
     person_id: int
     person_name: str
     risk_score: float = Field(ge=0.0, le=1.0)
-    reasoning_trace_id: Optional[int] = None  # NEW: ID to reasoning trace in database
+    reasoning_trace: Optional[NSAReasoningTrace] = None
 
 
 class ScoreCompanyResponse(BaseModel):

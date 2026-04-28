@@ -21,7 +21,7 @@ class MarketFetcher:
         self._repo = MarketRepository(db)
         self._db = db
 
-    def fetch_company(self, firm_id: int, firm_name: str, days: int = 365) -> tuple[FetchResult, dict]:
+    def fetch_company(self, firm_id: int, firm_name: str, days: int = 365) -> FetchResult:
         collector = MarketTraceCollector(firm_name, firm_id)
         trace_repo = ReasoningTraceRepository(self._db)
         
@@ -44,7 +44,7 @@ class MarketFetcher:
         if not listings:
             logger.info("No listing found for firm_id=%d name=%r", firm_id, firm_name)
             trace = collector.collect()
-            return FetchResult(firm_id=firm_id, firm_name=firm_name, found=False, charts=[]), trace.model_dump()
+            return FetchResult(firm_id=firm_id, firm_name=firm_name, found=False, charts=[], reasoning_trace=trace)
 
         charts: list[ChartData] = []
         for listing in listings:
@@ -99,11 +99,8 @@ class MarketFetcher:
         )
 
         self._db.commit()
-        
-        result = FetchResult(firm_id=firm_id, firm_name=firm_name, found=True, charts=charts)
+
         trace = collector.collect()
-        
-        # Store trace
         trace_repo.save(
             classifier_name="Market",
             entity_type="company",
@@ -112,5 +109,5 @@ class MarketFetcher:
             correlation_id=None,
         )
         self._db.commit()
-        
-        return result, trace.model_dump()
+
+        return FetchResult(firm_id=firm_id, firm_name=firm_name, found=True, charts=charts, reasoning_trace=trace)
