@@ -83,10 +83,7 @@ class LLMClient:
                 article_text=article_text,
             )
         )
-        try:
-            return json.loads(response) if response.strip() else {}
-        except Exception:
-            return {}
+        return self._parse_json_object_response(response)
 
     def extract_people_hybrid(self, article_text: str, event_context: str, candidates: list[dict]):
         response = self._complete(
@@ -159,8 +156,17 @@ class LLMClient:
         title = os.environ.get("OPENROUTER_X_TITLE", self.openrouter_x_title)
         base_url = os.environ.get("OPENROUTER_BASE_URL", self.openrouter_base_url)
         model = self.model
-        if self.web_search_enabled and not model.endswith(":online"):
-            model = f"{model}:online"
+        payload: dict[str, object] = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+        }
+        if self.web_search_enabled:
+            payload = {
+                **payload,
+                "model": "openrouter/auto",
+                "plugins": [{"id": "web"}],
+            }
 
         try:
             with httpx.Client(timeout=60.0) as client:
@@ -172,11 +178,7 @@ class LLMClient:
                         "HTTP-Referer": referer,
                         "X-Title": title,
                     },
-                    json={
-                        "model": model,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.1,
-                    },
+                    json=payload,
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -190,3 +192,26 @@ class LLMClient:
             return json.loads(response)
         except Exception:
             return []
+
+    @staticmethod
+    def _parse_json_object_response(response: str):
+        text = response.strip()
+        if not text:
+            return {}
+
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.startswith("json"):
+                text = text[4:].strip()
+
+        try:
+            return json.loads(text)
+        except Exception:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start >= 0 and end > start:
+                try:
+                    return json.loads(text[start : end + 1])
+                except Exception:
+                    return {}
+            return {}

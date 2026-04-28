@@ -81,6 +81,37 @@ def test_process_article_full_flow(tmp_path):
     assert metadata.word_count is None
 
 
+def test_stage3_result_emitter_registers_nsa_dispatch(tmp_path):
+    from tarkov.config import Config
+    from tarkov.pipeline.stage3_dispatch import build_stage3_result_emitter
+
+    config = Config(
+        database_url="sqlite+pysqlite:///:memory:",
+        log_level="INFO",
+        llm_provider="openai",
+        llm_api_key="",
+        llm_model="gpt-4o-mini",
+        article_input_source="jsonl",
+        article_input_path="",
+        company_reference_path=str(tmp_path / "companies.json"),
+        keywords_file_path="",
+        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
+        api_host="127.0.0.1",
+        api_port=8081,
+        enable_stage3_dispatch=True,
+        event_classifier_url="http://localhost:8082",
+        nsa_url="http://localhost:8092",
+        trustweb_url="",
+        enable_ingest_contract_headers=False,
+        enforce_payload_version_header=False,
+        expected_payload_version="1",
+    )
+
+    emitter = build_stage3_result_emitter(config)
+
+    assert len(emitter.async_handlers) == 1
+
+
 def test_stage3_event_handler_dispatches_nsa_with_firm_ids() -> None:
     from tarkov.pipeline.event_handlers import AMLScoringEventHandler
 

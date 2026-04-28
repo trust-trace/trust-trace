@@ -14,10 +14,8 @@ from tarkov.config import Config
 from tarkov.database.models import RkrScore
 from tarkov.database.repositories.ingestion_job_repo import IngestionJobRepository
 from tarkov.database.session import SessionLocal
-from tarkov.pipeline.event_handlers import AMLScoringEventHandler
 from tarkov.pipeline.processor import ArticleProcessor
-from tarkov.pipeline.result_emitter import ResultEmitter
-from tarkov.pipeline.stage3_clients import EventClassifierClient, NSAClient
+from tarkov.pipeline.stage3_dispatch import build_stage3_result_emitter
 from tarkov.schemas.article import ArticleIn
 from tarkov.utils.logger import get_logger
 from rkr.pipeline.processor import ArticleProcessor as RkrArticleProcessor
@@ -128,17 +126,11 @@ class IngestionWorker:
                 session.commit()
                 return
 
-            emitter = ResultEmitter()
-            if self.config.enable_stage3_dispatch:
-                handler = AMLScoringEventHandler(
-                    event_classifier_client=EventClassifierClient(self.config.event_classifier_url),
-                    nsa_client=NSAClient(self.config.nsa_url),
-                )
-                emitter.register_async_handler(handler.handle_parsed_event)
-
-            result = ArticleProcessor(session, self.config, result_emitter=emitter).process_article(
-                article, correlation_id=job.correlation_id
-            )
+            result = ArticleProcessor(
+                session,
+                self.config,
+                result_emitter=build_stage3_result_emitter(self.config),
+            ).process_article(article, correlation_id=job.correlation_id)
 
             if result is None:
                 repo.mark_skipped(job)

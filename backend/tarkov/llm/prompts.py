@@ -90,6 +90,7 @@ Article:
 FIRM_ENRICHMENT_PROMPT = """
 You are enriching a company master record.
 Use the article context and web search if needed to fill missing company data.
+Prefer official registry, exchange, or company sources when verifying identifiers.
 
 Return ONLY a JSON object with any of these keys when you can verify them:
 - nip

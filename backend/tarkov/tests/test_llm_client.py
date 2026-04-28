@@ -76,4 +76,5 @@ def test_openrouter_transport_enables_web_search(monkeypatch):
     client = LLMClient(provider="openrouter", model="openai/gpt-4o-mini", api_key="", web_search_enabled=True)
     client._complete("test prompt")
 
-    assert captured["json"]["model"] == "openai/gpt-4o-mini:online"
+    assert captured["json"]["model"] == "openrouter/auto"
+    assert captured["json"]["plugins"] == [{"id": "web"}]
