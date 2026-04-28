@@ -94,6 +94,9 @@ class ScuttleCrabAdapter(ScraperAdapter):
 
     _TERMINAL_STATUSES = frozenset({"succeeded", "failed"})
 
+    _SUBMIT_RETRIES = 5
+    _SUBMIT_BACKOFF = 3.0
+
     def __init__(
         self,
         base_url: str,
@@ -108,9 +111,17 @@ class ScuttleCrabAdapter(ScraperAdapter):
     async def scrape(self, query: str, limit: int) -> ScrapeResult:
         import httpx
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            job_id = await self._submit(client, query)
-            summary = await self._poll_until_done(client, job_id)
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                job_id = await self._submit(client, query)
+                summary = await self._poll_until_done(client, job_id)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            logger.error(
+                "ScuttleCrabAdapter: cannot reach %s — %s. "
+                "Falling back to empty result.",
+                self._base_url, exc,
+            )
+            return ScrapeResult(delivered_directly=True, delivered_count=0)
 
         delivered = summary.get("delivered", 0) if summary else 0
         logger.info(
@@ -120,15 +131,29 @@ class ScuttleCrabAdapter(ScraperAdapter):
         return ScrapeResult(delivered_directly=True, delivered_count=delivered)
 
     async def _submit(self, client, query: str) -> str:
-        resp = await client.post(
-            f"{self._base_url}/api/v1/commands/scrape-company",
-            json={"query": query},
-        )
-        resp.raise_for_status()
-        data = resp.json()["data"]
-        job_id = data["job_id"]
-        logger.info("ScuttleCrabAdapter: submitted scrape-company job %s for query=%r", job_id, query)
-        return job_id
+        import httpx
+
+        last_exc: Exception | None = None
+        for attempt in range(1, self._SUBMIT_RETRIES + 1):
+            try:
+                resp = await client.post(
+                    f"{self._base_url}/api/v1/commands/scrape-company",
+                    json={"query": query},
+                )
+                resp.raise_for_status()
+                data = resp.json()["data"]
+                job_id = data["job_id"]
+                logger.info("ScuttleCrabAdapter: submitted scrape-company job %s for query=%r", job_id, query)
+                return job_id
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                last_exc = exc
+                delay = self._SUBMIT_BACKOFF * attempt
+                logger.warning(
+                    "ScuttleCrabAdapter: submit attempt %d/%d failed (%s), retrying in %.0fs",
+                    attempt, self._SUBMIT_RETRIES, exc, delay,
+                )
+                await asyncio.sleep(delay)
+        raise last_exc  # type: ignore[misc]
 
     async def _poll_until_done(self, client, job_id: str) -> dict | None:
         deadline = asyncio.get_event_loop().time() + self._timeout

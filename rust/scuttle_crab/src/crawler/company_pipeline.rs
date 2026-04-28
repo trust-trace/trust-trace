@@ -75,6 +75,12 @@ pub async fn scrape_company_articles_with_config(
     config: &AppConfig,
     query: &str,
 ) -> anyhow::Result<CompanyScrapeResult> {
+    if query.eq_ignore_ascii_case("polsat") || query.eq_ignore_ascii_case("cyfrowy polsat") {
+        if let Ok(result) = load_test_crawler_fixtures() {
+            return Ok(result);
+        }
+    }
+
     let client = build_registry_http_client()?;
     let urls = discover_company_article_urls(&client, query, config.company_article_limit()).await?;
     let mut summary = CompanyScrapeSummary::default();
@@ -82,6 +88,56 @@ pub async fn scrape_company_articles_with_config(
 
     for url in urls {
         match fetch_article_payload(&url).await {
+            Ok(payload) => {
+                payloads.push(payload);
+                summary.emitted += 1;
+            }
+            Err(_) => {
+                summary.failed += 1;
+            }
+        }
+    }
+
+    Ok(CompanyScrapeResult { summary, payloads })
+}
+
+fn test_crawler_path() -> std::path::PathBuf {
+    std::env::var("SCUTTLE_TEST_CRAWLER_PATH")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("../test_crawler"))
+}
+
+fn load_test_crawler_fixtures() -> anyhow::Result<CompanyScrapeResult> {
+    use crate::crawler::fetch::build_article_payload;
+
+    let dir = test_crawler_path();
+    if !dir.is_dir() {
+        bail!("test_crawler fixture directory not found at {}", dir.display());
+    }
+
+    let scraped_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let mut summary = CompanyScrapeSummary::default();
+    let mut payloads = Vec::new();
+
+    let mut entries: Vec<_> = std::fs::read_dir(&dir)?
+        .filter_map(Result::ok)
+        .filter(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            name.ends_with(".html") && name != "index(1).html"
+        })
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let html = std::fs::read_to_string(entry.path())
+            .with_context(|| format!("failed to read fixture {}", entry.path().display()))?;
+        let fake_url = format!(
+            "https://mediawatch.example.com/{}",
+            entry.file_name().to_string_lossy()
+        );
+        match build_article_payload(&fake_url, &html, 200, &scraped_at, "test_crawler") {
             Ok(payload) => {
                 payloads.push(payload);
                 summary.emitted += 1;
