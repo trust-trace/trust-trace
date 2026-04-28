@@ -112,6 +112,21 @@ def create_app(config: Config | None = None):
         finally:
             session.close()
 
+    @app.get("/api/graph/{company_id}")
+    def get_frontend_graph(company_id: str, max_depth: int = 2) -> dict:
+        session = SessionLocal()
+        try:
+            return frontend_graph_service.get_graph(
+                session, company_id, max_depth=max_depth
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to load frontend graph for %s: %s", company_id, exc
+            )
+            raise HTTPException(status_code=500, detail="Failed to load graph") from exc
+        finally:
+            session.close()
+
     @app.post("/v1/articles", status_code=202)
     async def receive_article(request: FastAPIRequest):
         try:

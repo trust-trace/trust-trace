@@ -4,20 +4,21 @@ import { useEffect, useState } from 'react';
 import { Topbar } from '@/components/topbar';
 import { Sidebar } from '@/components/sidebar';
 import { MainPanel } from '@/components/main-panel';
-import { getCompanies, getCompanyArticles, getCompanyRelations } from '@/lib/api';
-import type { Article, Company, CompanyRelation } from '@/lib/data';
+import { getCompanies, getCompanyArticles } from '@/lib/api';
+import type { Article, Company } from '@/lib/data';
 
 export default function Home() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [relations, setRelations] = useState<CompanyRelation[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [selectedId, setSelectedId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingCompanies, setLoadingCompanies] = useState(true);
+  const [loadingArticles, setLoadingArticles] = useState(false);
+  const [companyError, setCompanyError] = useState<string | null>(null);
+  const [articleError, setArticleError] = useState<string | null>(null);
 
   function handleSelectCompany(nextCompanyId: string) {
     setArticles([]);
-    setError(null);
+    setArticleError(null);
     setSelectedId(nextCompanyId);
   }
 
@@ -25,19 +26,15 @@ export default function Home() {
     let cancelled = false;
 
     async function loadInitialData() {
-      setLoading(true);
-      setError(null);
+      setLoadingCompanies(true);
+      setCompanyError(null);
 
       try {
-        const [nextCompanies, nextRelations] = await Promise.all([
-          getCompanies(),
-          getCompanyRelations(),
-        ]);
+        const nextCompanies = await getCompanies();
 
         if (cancelled) return;
 
         setCompanies(nextCompanies);
-        setRelations(nextRelations);
 
         const defaultSelectedId = nextCompanies.some((company) => company.id === 'jsw')
           ? 'jsw'
@@ -46,11 +43,11 @@ export default function Home() {
         setSelectedId(defaultSelectedId);
       } catch (nextError) {
         if (!cancelled) {
-          setError(nextError instanceof Error ? nextError.message : 'Unknown error');
+          setCompanyError(nextError instanceof Error ? nextError.message : 'Unknown error');
         }
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setLoadingCompanies(false);
         }
       }
     }
@@ -70,7 +67,8 @@ export default function Home() {
     let cancelled = false;
 
     async function loadArticles() {
-      setError(null);
+      setLoadingArticles(true);
+      setArticleError(null);
 
       try {
         const nextArticles = await getCompanyArticles(selectedId);
@@ -80,7 +78,12 @@ export default function Home() {
         }
       } catch (nextError) {
         if (!cancelled) {
-          setError(nextError instanceof Error ? nextError.message : 'Unknown error');
+          setArticles([]);
+          setArticleError(nextError instanceof Error ? nextError.message : 'Unknown error');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingArticles(false);
         }
       }
     }
@@ -94,7 +97,7 @@ export default function Home() {
 
   const company = companies.find((currentCompany) => currentCompany.id === selectedId) ?? companies[0] ?? null;
 
-  if (loading) {
+  if (loadingCompanies) {
     return (
       <div className="tt-root">
         <div className="tt-empty" style={{ padding: 40 }}>Ładowanie danych…</div>
@@ -102,11 +105,11 @@ export default function Home() {
     );
   }
 
-  if (error && !company) {
+  if (companyError && !company) {
     return (
       <div className="tt-root">
         <div className="tt-empty" style={{ padding: 40 }}>
-          <p>Nie udało się załadować danych: {error}</p>
+          <p>Nie udało się załadować danych: {companyError}</p>
           <button type="button" onClick={() => window.location.reload()}>
             Spróbuj ponownie
           </button>
@@ -118,9 +121,9 @@ export default function Home() {
   return (
     <div className="tt-root">
       <Topbar />
-      {error && company && (
+      {companyError && company && (
         <div className="tt-empty" style={{ margin: '0 24px', padding: 16 }}>
-          Nie udało się pobrać części danych: {error}
+          Nie udało się pobrać części danych: {companyError}
         </div>
       )}
       <div className="tt-app-body">
@@ -132,9 +135,9 @@ export default function Home() {
         {company && (
           <MainPanel
             company={company}
-            companies={companies}
             articles={articles}
-            relations={relations}
+            articlesLoading={loadingArticles}
+            articleError={articleError}
             onSelectCompany={handleSelectCompany}
           />
         )}

@@ -1,4 +1,4 @@
-import type { Article, Company, CompanyRelation } from '@/lib/data';
+import type { Article, Company, CompanyRelation, GraphResponse } from '@/lib/data';
 
 function toRequestUrl(input: string): URL | string {
   if (/^https?:\/\//.test(input)) {
@@ -29,4 +29,8 @@ export function getCompanyArticles(companyId: string) {
 
 export function getCompanyRelations() {
   return readJson<CompanyRelation[]>('/api/relations');
+}
+
+export function getGraph(companyId: string) {
+  return readJson<GraphResponse>(`/api/graph/${companyId}`);
 }

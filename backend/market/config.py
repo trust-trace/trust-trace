@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)
+_DATACLASS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
+
+
+@dataclass(**_DATACLASS_KWARGS)
 class MarketConfig:
     database_url: str
     finnhub_api_key: str

@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { Article, Company, CompanyRelation } from '@/lib/data';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getGraph } from '@/lib/api';
+import type { Article, Company, GraphResponse } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
@@ -22,23 +23,29 @@ type MainPanelView = 'overview' | 'graph';
 
 interface MainPanelProps {
   company: Company;
-  companies: Company[];
   articles: Article[];
-  relations: CompanyRelation[];
+  articlesLoading: boolean;
+  articleError: string | null;
   onSelectCompany: (id: string) => void;
 }
 
 interface OverviewPanelProps {
   company: Company;
   articles: Article[];
+  loading: boolean;
+  error: string | null;
   accentColor: string;
 }
 
-function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
+function OverviewPanel({ company, articles, loading, error, accentColor }: OverviewPanelProps) {
   const [openId, setOpenId] = useState<string | null>(articles[0]?.id ?? null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [activeTab, setActiveTab] = useState('12M');
   const [showTVChart, setShowTVChart] = useState(false);
+
+  useEffect(() => {
+    setOpenId(articles[0]?.id ?? null);
+  }, [articles]);
 
   const filtered = useMemo(() => {
     if (filter === 'neg') return articles.filter((article) => article.sentiment <= -0.2);
@@ -108,7 +115,17 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
         </div>
 
         <div className="tt-art-list">
-          {filtered.map((article, idx) => (
+          {loading && (
+            <div className="tt-empty" style={{ padding: 40 }}>
+              Ładowanie publikacji dla {company.short}…
+            </div>
+          )}
+          {!loading && error && (
+            <div className="tt-empty" style={{ padding: 40 }}>
+              Nie udało się pobrać publikacji: {error}
+            </div>
+          )}
+          {!loading && !error && filtered.map((article, idx) => (
             <ArticleRow
               key={article.id}
               article={article}
@@ -117,7 +134,7 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
               idx={idx}
             />
           ))}
-          {filtered.length === 0 && (
+          {!loading && !error && filtered.length === 0 && (
             <div className="tt-empty" style={{ padding: 40 }}>
               Brak artykułów spełniających kryteria.
             </div>
@@ -128,9 +145,94 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
   );
 }
 
-export function MainPanel({ company, companies, articles, relations, onSelectCompany }: MainPanelProps) {
+interface GraphPanelProps {
+  company: Company;
+  graph: GraphResponse | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onSelectCompany: (id: string) => void;
+}
+
+function GraphPanel({ company, graph, loading, error, onRetry, onSelectCompany }: GraphPanelProps) {
+  if (loading && !graph) {
+    return (
+      <div className="tt-graph-shell tt-graph-empty-state">
+        <div className="tt-empty">Ładowanie mapy powiązań…</div>
+      </div>
+    );
+  }
+
+  if (error && !graph) {
+    return (
+      <div className="tt-graph-shell tt-graph-empty-state">
+        <div className="tt-graph-feedback">
+          <div className="tt-graph-feedback-title">Nie udało się pobrać mapy powiązań</div>
+          <div className="tt-graph-feedback-sub">{error}</div>
+          <button type="button" className="tt-graph-clear" onClick={onRetry}>
+            Spróbuj ponownie
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!graph) {
+    return (
+      <div className="tt-graph-shell tt-graph-empty-state">
+        <div className="tt-empty">Brak danych grafu dla {company.short}.</div>
+      </div>
+    );
+  }
+
+  return <CompanyGraph company={company} graph={graph} onSelectCompany={onSelectCompany} />;
+}
+
+export function MainPanel({
+  company,
+  articles,
+  articlesLoading,
+  articleError,
+  onSelectCompany,
+}: MainPanelProps) {
   const [activeView, setActiveView] = useState<MainPanelView>('overview');
+  const [graphCache, setGraphCache] = useState<Record<string, GraphResponse>>({});
+  const [graphLoadingById, setGraphLoadingById] = useState<Record<string, boolean>>({});
+  const [graphErrorById, setGraphErrorById] = useState<Record<string, string | null>>({});
   const accentColor = riskColor(company.risk);
+
+  const loadGraph = useCallback(async (companyId: string, force = false) => {
+    if (!force && graphCache[companyId]) {
+      return;
+    }
+
+    setGraphLoadingById((current) => ({ ...current, [companyId]: true }));
+    setGraphErrorById((current) => ({ ...current, [companyId]: null }));
+
+    try {
+      const graph = await getGraph(companyId);
+      setGraphCache((current) => ({ ...current, [companyId]: graph }));
+    } catch (nextError) {
+      setGraphErrorById((current) => ({
+        ...current,
+        [companyId]: nextError instanceof Error ? nextError.message : 'Unknown error',
+      }));
+    } finally {
+      setGraphLoadingById((current) => ({ ...current, [companyId]: false }));
+    }
+  }, [graphCache]);
+
+  useEffect(() => {
+    if (activeView !== 'graph') {
+      return;
+    }
+
+    void loadGraph(company.id);
+  }, [activeView, company.id, loadGraph]);
+
+  const graph = graphCache[company.id] ?? null;
+  const graphLoading = graphLoadingById[company.id] ?? false;
+  const graphError = graphErrorById[company.id] ?? null;
 
   return (
     <main className="tt-main">
@@ -206,22 +308,26 @@ export function MainPanel({ company, companies, articles, relations, onSelectCom
           key={company.id}
           company={company}
           articles={articles}
+          loading={articlesLoading}
+          error={articleError}
           accentColor={accentColor}
         />
       ) : (
         <section className="tt-graph-view">
           <div className="tt-section-head">
             <div>
-              <div className="tt-section-title">Mapa relacji firmowych</div>
+              <div className="tt-section-title">Mapa powiązań</div>
               <div className="tt-section-sub">
-                Węzły reprezentują spółki, a połączenia wynikają z osób, współpracy i relacji biznesowych do głębokości 2.
+                Spółki, osoby i zdarzenia renderowane bezpośrednio z grafu backendowego.
               </div>
             </div>
           </div>
-          <CompanyGraph
+          <GraphPanel
             company={company}
-            companies={companies}
-            relations={relations}
+            graph={graph}
+            loading={graphLoading}
+            error={graphError}
+            onRetry={() => void loadGraph(company.id, true)}
             onSelectCompany={onSelectCompany}
           />
         </section>
