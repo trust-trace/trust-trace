@@ -85,6 +85,30 @@ class FirmRepository:
 
         return obj
 
+    def update_missing_fields(
+        self,
+        firm_id: int,
+        *,
+        nip: str | None = None,
+        regon: str | None = None,
+        krs: str | None = None,
+        country: str | None = None,
+    ) -> Firm | None:
+        firm = self.db.get(Firm, firm_id)
+        if firm is None:
+            return None
+
+        changed = False
+        for field_name, value in (("nip", nip), ("regon", regon), ("krs", krs), ("country", country)):
+            if value and not getattr(firm, field_name):
+                setattr(firm, field_name, str(value).strip())
+                changed = True
+
+        if changed:
+            self.db.flush()
+
+        return firm
+
     def find_by_alias(self, alias: str) -> Optional[Firm]:
         stmt = (
             select(Firm)
