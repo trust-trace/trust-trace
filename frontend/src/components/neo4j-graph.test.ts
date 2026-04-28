@@ -1,9 +1,22 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Neo4jGraphView } from '@/components/neo4j-graph';
 import type { Neo4jGraphPayload } from '@/lib/neo4j-graph';
+
+vi.mock('cytoscape', () => ({
+  default: vi.fn(() => ({
+    fit: vi.fn(),
+    on: vi.fn(),
+    $: vi.fn(() => ({ removeClass: vi.fn(), forEach: vi.fn() })),
+    getElementById: vi.fn(),
+  })),
+}));
+
+vi.mock('cytoscape-fcose', () => ({
+  default: vi.fn(),
+}));
 
 const graph: Neo4jGraphPayload = {
   nodes: [
@@ -34,7 +47,13 @@ const graph: Neo4jGraphPayload = {
 describe('Neo4jGraphView', () => {
   it('renders loading state', () => {
     const html = renderToStaticMarkup(
-      createElement(Neo4jGraphView, { status: 'loading', graph: null, error: null })
+      createElement(Neo4jGraphView, {
+        status: 'loading',
+        graph: null,
+        error: null,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+      })
     );
 
     expect(html).toContain('Ładowanie grafu');
@@ -46,6 +65,8 @@ describe('Neo4jGraphView', () => {
         status: 'success',
         graph: { nodes: [], edges: [] },
         error: null,
+        selectedNodeId: null,
+        selectedEdgeId: null,
       })
     );
 
@@ -58,6 +79,8 @@ describe('Neo4jGraphView', () => {
         status: 'error',
         graph: null,
         error: 'network down',
+        selectedNodeId: null,
+        selectedEdgeId: null,
       })
     );
 
@@ -65,12 +88,17 @@ describe('Neo4jGraphView', () => {
     expect(html).toContain('network down');
   });
 
-  it('renders node labels for graph data', () => {
+  it('renders the Cytoscape container for graph data', () => {
     const html = renderToStaticMarkup(
-      createElement(Neo4jGraphView, { status: 'success', graph, error: null })
+      createElement(Neo4jGraphView, {
+        status: 'success',
+        graph,
+        error: null,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+      })
     );
 
-    expect(html).toContain('Polsat Media Sp. z o.o.');
-    expect(html).toContain('Marek Kowalski');
+    expect(html).toContain('tt-cytoscape-container');
   });
 });

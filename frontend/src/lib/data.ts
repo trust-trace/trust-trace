@@ -441,6 +441,30 @@ export const COMPANY_RELATIONS: CompanyRelation[] = [
     type: 'person',
     label: 'Former executive overlap',
   },
+  {
+    sourceCompanyId: 'jsw',
+    targetCompanyId: 'kghm',
+    type: 'business',
+    label: 'Wspólny dostęp do rynków eksportowych',
+  },
+  {
+    sourceCompanyId: 'jsw',
+    targetCompanyId: 'orlen',
+    type: 'business',
+    label: 'Umowy dostawy paliwa',
+  },
+  {
+    sourceCompanyId: 'jsw',
+    targetCompanyId: 'tauron',
+    type: 'partnership',
+    label: 'Wspólne projekty energetyczne',
+  },
+  {
+    sourceCompanyId: 'jsw',
+    targetCompanyId: 'pko',
+    type: 'person',
+    label: 'Wspólni członkowie rad nadzorczych',
+  },
 ];
 
 // Deterministic "jitter" based on company id and article index — no Math.random()

@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { Article, Company, CompanyRelation } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
-import { Neo4jGraph } from './neo4j-graph';
+import { CompanyGraph } from './company-graph';
 import { riskColor, riskLabel } from './sidebar';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
 
@@ -128,9 +128,32 @@ function OverviewPanel({ company, articles, accentColor }: OverviewPanelProps) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- onSelectCompany kept for API parity; graph uses local refocus
 export function MainPanel({ company, companies, articles, relations, onSelectCompany }: MainPanelProps) {
   const [activeView, setActiveView] = useState<MainPanelView>('overview');
   const accentColor = riskColor(company.risk);
+
+  // Local graph center: stores { baseId, centerId } so we can detect when the
+  // global company changes and auto-reset without an effect or ref.
+  const [graphFocus, setGraphFocus] = useState<{ baseId: string; centerId: string }>({
+    baseId: company.id,
+    centerId: company.id,
+  });
+
+  // Derive the actual center. If the global company changed since we last set
+  // the focus, fall back to the new company (reset on external selection change).
+  const graphCenterId = graphFocus.baseId === company.id
+    ? graphFocus.centerId
+    : company.id;
+
+  const graphCenterCompany = useMemo(
+    () => companies.find((c) => c.id === graphCenterId) ?? company,
+    [companies, graphCenterId, company],
+  );
+
+  const handleGraphNodeClick = useCallback((nodeId: string) => {
+    setGraphFocus({ baseId: company.id, centerId: nodeId });
+  }, [company.id]);
 
   return (
     <main className="tt-main">
@@ -214,11 +237,16 @@ export function MainPanel({ company, companies, articles, relations, onSelectCom
             <div>
               <div className="tt-section-title">Mapa relacji firmowych</div>
               <div className="tt-section-sub">
-                Węzły reprezentują firmy, osoby i zdarzenia, a połączenia pochodzą bezposrednio z grafu Neo4j.
+                Kliknij węzeł, aby przenieść na niego fokus grafu.
               </div>
             </div>
           </div>
-          <Neo4jGraph />
+          <CompanyGraph
+            company={graphCenterCompany}
+            companies={companies}
+            relations={relations}
+            onSelectCompany={handleGraphNodeClick}
+          />
         </section>
       )}
     </main>
