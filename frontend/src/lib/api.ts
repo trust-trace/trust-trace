@@ -46,3 +46,9 @@ export function getTraces(classifier: string, entityId: string) {
     `/api/traces/${encodeURIComponent(classifier)}/${encodeURIComponent(entityId)}`
   );
 }
+
+export function getCompanyTraces(companySlug: string) {
+  return readJson<ReasoningTrace[]>(
+    `/api/traces/company/${encodeURIComponent(companySlug)}`
+  );
+}

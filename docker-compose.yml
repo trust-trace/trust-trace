@@ -14,20 +14,25 @@ services:
       TARKOV_API_HOST: 0.0.0.0
       TARKOV_API_PORT: 8081
       LOG_LEVEL: INFO
-      LLM_PROVIDER: none
-      COMPANY_REFERENCE_PATH: /app/tarkov/data/companies.json
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in .env or environment}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.4-nano}
       KEYWORDS_FILE_PATH: /app/tarkov/data/aml_keywords.json
       DEAD_LETTER_PATH: /tmp/tarkov_dead_letters.jsonl
       SCUTTLE_CRAB_URL: http://scuttle-crab:3000
     ports:
-      - '8081:8081'
+      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
       neo4j:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8081/health\")" || exit 1']
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8081/health\")" || exit 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -46,12 +51,12 @@ services:
       NEO4J_server_memory_heap_max__size: 1G
       NEO4J_dbms_memory_pagecache_size: 512m
     ports:
-      - '7474:7474'
-      - '7687:7687'
+      - "7474:7474"
+      - "7687:7687"
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q --spider http://localhost:7474 || exit 1']
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -69,11 +74,11 @@ services:
       POSTGRES_HOST_AUTH_METHOD: md5
       PGPASSWORD: trusttrace
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U trusttrace -d trusttrace_db']
+      test: ["CMD-SHELL", "pg_isready -U trusttrace -d trusttrace_db"]
       interval: 5s
       timeout: 5s
       retries: 10

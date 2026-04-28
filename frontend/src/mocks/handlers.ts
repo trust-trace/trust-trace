@@ -17,6 +17,9 @@ export const handlers = [
     const companyId = String(params.companyId);
     return HttpResponse.json(GRAPH_RESPONSES[companyId] ?? null);
   }),
+  http.get('*/api/traces/company/:companySlug', ({ params }) => {
+    return HttpResponse.json(generateMockTraces(String(params.companySlug)));
+  }),
   http.get('*/api/traces/correlation/:correlationId', ({ params }) => {
     return HttpResponse.json(generateMockTraces(String(params.correlationId)));
   }),

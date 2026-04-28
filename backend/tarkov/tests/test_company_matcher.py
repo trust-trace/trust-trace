@@ -2,46 +2,51 @@
 
 from __future__ import annotations
 
-import json
-
+from tarkov.database.models import Firm, FirmAlias
 from tarkov.extraction.company_matcher import CompanyMatcher
 from tarkov.tests.conftest import create_test_session
 
 
-def test_exact_ticker_match(tmp_path):
-    reference = [
-        {"name": "Apple", "ticker": "AAPL", "aliases": ["Apple", "Apple Inc."]},
-    ]
-    path = tmp_path / "companies.json"
-    path.write_text(json.dumps(reference), encoding="utf-8")
+def _seed_firm(db, name, ticker=None, aliases=None):
+    """Insert a Firm + FirmAlias rows so the DB-backed matcher can find them."""
+    firm = Firm(full_name=name, country="PL", market_ticker=ticker)
+    db.add(firm)
+    db.flush()
+    db.add(FirmAlias(firm_id=firm.id, alias=name, alias_type="name", confidence=1.0, is_primary=True))
+    if ticker:
+        db.add(FirmAlias(firm_id=firm.id, alias=ticker, alias_type="ticker", confidence=1.0))
+    for alias in aliases or []:
+        if alias != name and alias != ticker:
+            db.add(FirmAlias(firm_id=firm.id, alias=alias, alias_type="name", confidence=1.0))
+    db.flush()
+    return firm
 
+
+def test_exact_ticker_match():
     db = create_test_session()
-    matcher = CompanyMatcher(db, str(path))
+    _seed_firm(db, "Apple", ticker="AAPL", aliases=["Apple", "Apple Inc."])
+
+    matcher = CompanyMatcher(db)
     matches = matcher.match_companies("AAPL announced earnings")
 
     assert len(matches) == 1
     assert matches[0].company_name == "Apple"
 
 
-def test_company_name_alias_match(tmp_path):
-    reference = [{"name": "Apple", "ticker": "AAPL", "aliases": ["Apple Inc."]}]
-    path = tmp_path / "companies.json"
-    path.write_text(json.dumps(reference), encoding="utf-8")
-
+def test_company_name_alias_match():
     db = create_test_session()
-    matcher = CompanyMatcher(db, str(path))
+    _seed_firm(db, "Apple", ticker="AAPL", aliases=["Apple Inc."])
+
+    matcher = CompanyMatcher(db)
     matches = matcher.match_companies("Apple Inc. is under investigation")
 
     assert len(matches) == 1
     assert matches[0].ticker == "AAPL"
 
 
-def test_get_or_create_firm(tmp_path):
-    path = tmp_path / "companies.json"
-    path.write_text("[]", encoding="utf-8")
-
+def test_get_or_create_firm():
     db = create_test_session()
-    matcher = CompanyMatcher(db, str(path))
+    matcher = CompanyMatcher(db)
     firm_1 = matcher.get_or_create_firm("Acme Corp", "ACME")
     firm_2 = matcher.get_or_create_firm("Acme Corp", "ACME")
 
@@ -49,10 +54,9 @@ def test_get_or_create_firm(tmp_path):
     assert firm_1.market_ticker == "ACME"
 
 
-def test_enrich_firm_profile_fills_missing_fields_and_aliases(tmp_path):
-    reference = [{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp"]}]
-    path = tmp_path / "companies.json"
-    path.write_text(json.dumps(reference), encoding="utf-8")
+def test_enrich_firm_profile_fills_missing_fields_and_aliases():
+    db = create_test_session()
+    _seed_firm(db, "Acme Corp", ticker="ACME", aliases=["Acme Corp"])
 
     class FakeLLMClient:
         has_api_key = True
@@ -66,8 +70,7 @@ def test_enrich_firm_profile_fills_missing_fields_and_aliases(tmp_path):
                 "aliases": ["Acme Holdings"],
             }
 
-    db = create_test_session()
-    matcher = CompanyMatcher(db, str(path), llm_client=FakeLLMClient())
+    matcher = CompanyMatcher(db, llm_client=FakeLLMClient())
     firm = matcher.get_or_create_firm("Acme Corp", "ACME")
 
     matcher.enrich_firm_profile(firm, "Acme Corp is based in Poland")
@@ -81,10 +84,9 @@ def test_enrich_firm_profile_fills_missing_fields_and_aliases(tmp_path):
     assert any(alias.alias == "Acme Holdings" for alias in refreshed.aliases)
 
 
-def test_enrich_firm_profile_does_not_overwrite_existing_market_fields(tmp_path):
-    reference = [{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp"]}]
-    path = tmp_path / "companies.json"
-    path.write_text(json.dumps(reference), encoding="utf-8")
+def test_enrich_firm_profile_does_not_overwrite_existing_market_fields():
+    db = create_test_session()
+    _seed_firm(db, "Acme Corp", ticker="ACME", aliases=["Acme Corp"])
 
     class FakeLLMClient:
         has_api_key = True
@@ -96,8 +98,7 @@ def test_enrich_firm_profile_does_not_overwrite_existing_market_fields(tmp_path)
                 "market_exchange": "",
             }
 
-    db = create_test_session()
-    matcher = CompanyMatcher(db, str(path), llm_client=FakeLLMClient())
+    matcher = CompanyMatcher(db, llm_client=FakeLLMClient())
     firm = matcher.get_or_create_firm("Acme Corp", "ACME")
     firm.market_exchange = "NASDAQ"
     db.flush()
@@ -108,3 +109,32 @@ def test_enrich_firm_profile_does_not_overwrite_existing_market_fields(tmp_path)
     assert refreshed is not None
     assert refreshed.market_ticker == "ACME"
     assert refreshed.market_exchange == "NASDAQ"
+
+
+def test_discover_companies_creates_new_firms():
+    db = create_test_session()
+
+    class FakeLLMClient:
+        has_api_key = True
+
+        def discover_companies(self, article_text: str):
+            return [
+                {
+                    "company_name": "Zondacrypto sp. z o.o.",
+                    "ticker": None,
+                    "matched_text": "Zondacrypto",
+                    "confidence": 0.85,
+                    "aliases": ["Zonda Crypto", "Zondacrypto"],
+                }
+            ]
+
+    matcher = CompanyMatcher(db, llm_client=FakeLLMClient())
+    matches = matcher.match_companies("Zondacrypto faces investigation for fraud")
+
+    assert len(matches) == 1
+    assert matches[0].company_name == "Zondacrypto sp. z o.o."
+
+    firm = db.query(Firm).filter_by(full_name="Zondacrypto sp. z o.o.").one()
+    alias_names = [a.alias for a in firm.aliases]
+    assert "Zonda Crypto" in alias_names
+    assert "Zondacrypto" in alias_names

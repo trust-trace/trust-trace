@@ -42,7 +42,6 @@ def build_config() -> Config:
         llm_model="gpt-4o-mini",
         article_input_source="jsonl",
         article_input_path="",
-        company_reference_path="",
         keywords_file_path="",
         dead_letter_path="",
         api_host="127.0.0.1",

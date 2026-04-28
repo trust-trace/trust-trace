@@ -39,6 +39,12 @@ def _apply_schema_migrations() -> None:
         if "founded_at" not in firm_cols:
             conn.execute(text("ALTER TABLE firm ADD COLUMN founded_at TIMESTAMP NULL"))
             logger.info("migrated: added firm.founded_at column")
+        if "market_ticker" not in firm_cols:
+            conn.execute(text("ALTER TABLE firm ADD COLUMN market_ticker VARCHAR(32) NULL"))
+            logger.info("migrated: added firm.market_ticker column")
+        if "market_exchange" not in firm_cols:
+            conn.execute(text("ALTER TABLE firm ADD COLUMN market_exchange VARCHAR(32) NULL"))
+            logger.info("migrated: added firm.market_exchange column")
 
 
 def _prepare_eem_schema() -> None:
@@ -299,6 +305,20 @@ def create_app(config: Config | None = None):
         try:
             repo = ReasoningTraceRepository(session)
             traces = repo.get_by_correlation_id(correlation_id)
+            return [t.model_dump(mode="json") for t in traces]
+        finally:
+            session.close()
+
+    @app.get("/api/v1/traces/company/{company_slug}")
+    def get_traces_for_company(company_slug: str) -> list[dict]:
+        from reasoning.storage import ReasoningTraceRepository
+        session = SessionLocal()
+        try:
+            firm = frontend_graph_service._find_firm_by_slug(session, company_slug)
+            if firm is None:
+                raise HTTPException(status_code=404, detail="Company not found")
+            repo = ReasoningTraceRepository(session)
+            traces = repo.get_all_for_firm(firm.id)
             return [t.model_dump(mode="json") for t in traces]
         finally:
             session.close()

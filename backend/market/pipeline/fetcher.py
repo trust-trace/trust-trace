@@ -106,7 +106,7 @@ class MarketFetcher:
             entity_type="company",
             entity_id=str(firm_id),
             trace_data=trace.model_dump(),
-            correlation_id=None,
+            correlation_id=str(firm_id),
         )
         self._db.commit()
 

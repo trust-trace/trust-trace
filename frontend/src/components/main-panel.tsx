@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getGraph, getTracesByCorrelation } from '@/lib/api';
+import { getGraph, getCompanyTraces } from '@/lib/api';
 import type { Article, Company, GraphResponse, HistoryRangeKey, ReasoningTrace } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
@@ -10,7 +10,7 @@ import { CompanyGraph } from './company-graph';
 import { getCompanyHistoryForRange, hasCompanyTradingView } from './main-panel-helpers';
 import { riskColor, riskLabel } from './sidebar';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
-import { TraceDrawer } from './trace-drawer';
+import { TraceDrawer, traceHeadline, traceMethodBadge } from './trace-drawer';
 
 function relativeTime(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -169,6 +169,13 @@ const CLASSIFIER_COLORS: Record<string, string> = {
   Market: 'oklch(0.55 0.13 155)',
 };
 
+const CLASSIFIER_LABELS: Record<string, string> = {
+  EEM: 'Ocena zdarzeń',
+  NSA: 'Scoring osób',
+  Tarkov: 'Ekstrakcja zdarzeń',
+  Market: 'Dane rynkowe',
+};
+
 function formatTraceTimestamp(iso: string): string {
   const d = new Date(iso);
   const dd = String(d.getDate()).padStart(2, '0');
@@ -199,7 +206,7 @@ function TracesPanel({ company }: TracesPanelProps) {
 
   useEffect(() => {
     let cancelled = false;
-    getTracesByCorrelation(company.id)
+    getCompanyTraces(company.id)
       .then((data) => {
         if (!cancelled) {
           data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -263,12 +270,14 @@ function TracesPanel({ company }: TracesPanelProps) {
         <div className="tt-trace-table">
           <div className="tt-trace-table-head">
             <div>KLASYFIKATOR</div>
-            <div>TYP ENCJI</div>
-            <div>ID ENCJI</div>
+            <div>OPIS</div>
+            <div>METODA</div>
             <div>DATA</div>
           </div>
           {filtered.map((trace) => {
             const color = CLASSIFIER_COLORS[trace.classifier_name] ?? 'var(--tt-fg-mute)';
+            const headline = traceHeadline(trace);
+            const method = traceMethodBadge(trace);
             return (
               <button
                 key={`${trace.classifier_name}-${trace.entity_id}-${trace.created_at}`}
@@ -281,8 +290,11 @@ function TracesPanel({ company }: TracesPanelProps) {
                     {trace.classifier_name}
                   </span>
                 </div>
-                <div className="tt-trace-table-cell">{trace.entity_type}</div>
-                <div className="tt-trace-table-cell tt-mono">{trace.entity_id}</div>
+                <div className="tt-trace-table-cell tt-trace-table-desc">{headline}</div>
+                <div className="tt-trace-table-cell">
+                  {method && <span className="tt-trace-method">{method}</span>}
+                  {!method && <span className="tt-trace-type-pill">{trace.entity_type}</span>}
+                </div>
                 <div className="tt-trace-table-cell tt-mono">
                   {formatTraceTimestamp(trace.created_at)}
                 </div>
@@ -296,8 +308,8 @@ function TracesPanel({ company }: TracesPanelProps) {
         <TraceDrawer
           open={!!drawerTrace}
           onClose={() => setDrawerTrace(null)}
-          classifier={drawerTrace.classifier_name}
-          entityId={drawerTrace.entity_id}
+          initialTrace={drawerTrace}
+          title={`Ścieżka decyzyjna — ${CLASSIFIER_LABELS[drawerTrace.classifier_name] ?? drawerTrace.classifier_name}`}
         />
       )}
     </section>

@@ -17,6 +17,7 @@ from tarkov.database.models import (
     ConnectionEntity,
     Event,
     Firm,
+    FirmAlias,
     IngestionJob,
     RkrScore,
 )
@@ -46,16 +47,8 @@ def sqlite_url(path):
     return f"sqlite+pysqlite:///{path.as_posix()}"
 
 
-def test_article_ingestion_endpoint_processes_payload(tmp_path):
-    pytest.importorskip("uvicorn")
-
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
-
-    config = Config(
+def _make_config(tmp_path, **overrides):
+    defaults = dict(
         database_url=sqlite_url(tmp_path / "db.sqlite"),
         log_level="INFO",
         llm_provider="openai",
@@ -63,7 +56,6 @@ def test_article_ingestion_endpoint_processes_payload(tmp_path):
         llm_model="gpt-4o-mini",
         article_input_source="jsonl",
         article_input_path="",
-        company_reference_path=str(companies),
         keywords_file_path="",
         dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
         api_host="127.0.0.1",
@@ -76,7 +68,47 @@ def test_article_ingestion_endpoint_processes_payload(tmp_path):
         enforce_payload_version_header=False,
         expected_payload_version="1",
     )
+    defaults.update(overrides)
+    return Config(**defaults)
+
+
+def _seed_acme():
+    """Seed Acme Corp firm + aliases into the current SessionLocal DB."""
+    db = SessionLocal()
+    try:
+        firm = Firm(full_name="Acme Corp", country="PL", market_ticker="ACME")
+        db.add(firm)
+        db.flush()
+        db.add(FirmAlias(firm_id=firm.id, alias="Acme Corp", alias_type="name", confidence=1.0, is_primary=True))
+        db.add(FirmAlias(firm_id=firm.id, alias="ACME", alias_type="ticker", confidence=1.0))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _seed_acme_and_beta():
+    """Seed Acme Corp + Beta Bank into the current SessionLocal DB."""
+    db = SessionLocal()
+    try:
+        acme = Firm(full_name="Acme Corp", country="PL", market_ticker="ACME")
+        beta = Firm(full_name="Beta Bank", country="PL", market_ticker="BETA")
+        db.add_all([acme, beta])
+        db.flush()
+        db.add(FirmAlias(firm_id=acme.id, alias="Acme Corp", alias_type="name", confidence=1.0, is_primary=True))
+        db.add(FirmAlias(firm_id=acme.id, alias="ACME", alias_type="ticker", confidence=1.0))
+        db.add(FirmAlias(firm_id=beta.id, alias="Beta Bank", alias_type="name", confidence=1.0, is_primary=True))
+        db.add(FirmAlias(firm_id=beta.id, alias="BETA", alias_type="ticker", confidence=1.0))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_article_ingestion_endpoint_processes_payload(tmp_path):
+    pytest.importorskip("uvicorn")
+
+    config = _make_config(tmp_path)
     app = create_app(config)
+    _seed_acme()
     client = TestClient(app)
 
     payload = {
@@ -114,34 +146,9 @@ def test_article_ingestion_endpoint_processes_payload(tmp_path):
 def test_article_ingestion_accepts_scuttle_word_count(tmp_path):
     pytest.importorskip("uvicorn")
 
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
-
-    config = Config(
-        database_url=sqlite_url(tmp_path / "db.sqlite"),
-        log_level="INFO",
-        llm_provider="openai",
-        llm_api_key="",
-        llm_model="gpt-4o-mini",
-        article_input_source="jsonl",
-        article_input_path="",
-        company_reference_path=str(companies),
-        keywords_file_path="",
-        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
-        api_host="127.0.0.1",
-        api_port=8081,
-        enable_stage3_dispatch=False,
-        event_classifier_url="",
-        nsa_url="",
-        trustweb_url="",
-        enable_ingest_contract_headers=False,
-        enforce_payload_version_header=False,
-        expected_payload_version="1",
-    )
+    config = _make_config(tmp_path)
     app = create_app(config)
+    _seed_acme()
     client = TestClient(app)
 
     payload = {
@@ -178,34 +185,13 @@ def test_article_ingestion_accepts_scuttle_word_count(tmp_path):
 def test_article_ingestion_contract_headers_toggle(tmp_path):
     pytest.importorskip("uvicorn")
 
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
-
-    config = Config(
-        database_url=sqlite_url(tmp_path / "db.sqlite"),
-        log_level="INFO",
-        llm_provider="openai",
-        llm_api_key="",
-        llm_model="gpt-4o-mini",
-        article_input_source="jsonl",
-        article_input_path="",
-        company_reference_path=str(companies),
-        keywords_file_path="",
-        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
-        api_host="127.0.0.1",
-        api_port=8081,
-        enable_stage3_dispatch=False,
-        event_classifier_url="",
-        nsa_url="",
-        trustweb_url="",
+    config = _make_config(
+        tmp_path,
         enable_ingest_contract_headers=True,
         enforce_payload_version_header=True,
-        expected_payload_version="1",
     )
     app = create_app(config)
+    _seed_acme()
     client = TestClient(app)
 
     payload = {
@@ -248,35 +234,9 @@ def test_article_ingestion_contract_headers_toggle(tmp_path):
 def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
     pytest.importorskip("uvicorn")
 
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
-
-    config = Config(
-        database_url=sqlite_url(tmp_path / "db.sqlite"),
-        log_level="INFO",
-        llm_provider="openai",
-        llm_api_key="",
-        llm_model="gpt-4o-mini",
-        article_input_source="jsonl",
-        article_input_path="",
-        company_reference_path=str(companies),
-        keywords_file_path="",
-        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
-        api_host="127.0.0.1",
-        api_port=8081,
-        enable_stage3_dispatch=False,
-        event_classifier_url="",
-        nsa_url="",
-        trustweb_url="",
-        enable_ingest_contract_headers=False,
-        enforce_payload_version_header=False,
-        expected_payload_version="1",
-    )
-
+    config = _make_config(tmp_path)
     app = create_app(config)
+    _seed_acme()
     client = TestClient(app)
 
     response = client.post(
@@ -303,35 +263,9 @@ def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
 def test_connection_events_are_persisted_without_edges(tmp_path):
     pytest.importorskip("uvicorn")
 
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}, '
-        '{"name": "Beta Bank", "ticker": "BETA", "aliases": ["Beta Bank", "BETA"]}]',
-        encoding="utf-8",
-    )
-
-    config = Config(
-        database_url=sqlite_url(tmp_path / "db.sqlite"),
-        log_level="INFO",
-        llm_provider="openai",
-        llm_api_key="",
-        llm_model="gpt-4o-mini",
-        article_input_source="jsonl",
-        article_input_path="",
-        company_reference_path=str(companies),
-        keywords_file_path="",
-        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
-        api_host="127.0.0.1",
-        api_port=8081,
-        enable_stage3_dispatch=False,
-        event_classifier_url="",
-        nsa_url="",
-        trustweb_url="",
-        enable_ingest_contract_headers=False,
-        enforce_payload_version_header=False,
-        expected_payload_version="1",
-    )
+    config = _make_config(tmp_path)
     app = create_app(config)
+    _seed_acme_and_beta()
     client = TestClient(app)
 
     payload = {
@@ -376,30 +310,7 @@ def test_companies_endpoint_returns_timeline_and_tradingview_metadata(
 ):
     pytest.importorskip("uvicorn")
 
-    companies = tmp_path / "companies.json"
-    companies.write_text("[]", encoding="utf-8")
-
-    config = Config(
-        database_url=sqlite_url(tmp_path / "db.sqlite"),
-        log_level="INFO",
-        llm_provider="openai",
-        llm_api_key="",
-        llm_model="gpt-4o-mini",
-        article_input_source="jsonl",
-        article_input_path="",
-        company_reference_path=str(companies),
-        keywords_file_path="",
-        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
-        api_host="127.0.0.1",
-        api_port=8081,
-        enable_stage3_dispatch=False,
-        event_classifier_url="",
-        nsa_url="",
-        trustweb_url="",
-        enable_ingest_contract_headers=False,
-        enforce_payload_version_header=False,
-        expected_payload_version="1",
-    )
+    config = _make_config(tmp_path)
 
     monkeypatch.setattr(
         FrontendGraphService,

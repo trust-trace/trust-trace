@@ -52,11 +52,13 @@ def _compute_score(
     return score, risk, top_keywords
 
 
-def _run(firm_id: int) -> list[EEMTimelineEntry]:
+def _run(firm_id: int, *, correlation_id: str | None = None) -> list[EEMTimelineEntry]:
     """Enrich classical events and produce an 8-bucket timeline score."""
     database_url = os.environ.get("DATABASE_URL") or config.DATABASE_URL
     if not database_url:
         raise RuntimeError("DATABASE_URL is not set in environment")
+
+    correlation_id = correlation_id or str(firm_id)
 
     init_engine(database_url)
 
@@ -85,7 +87,7 @@ def _run(firm_id: int) -> list[EEMTimelineEntry]:
                     entity_type="event",
                     entity_id=event.event_id,
                     trace_data=trace.model_dump(),
-                    correlation_id=None,
+                    correlation_id=correlation_id,
                 )
                 db.commit()
                 fields.reasoning_trace = trace

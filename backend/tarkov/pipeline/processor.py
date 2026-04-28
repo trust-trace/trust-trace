@@ -60,7 +60,7 @@ class ArticleProcessor:
             web_search_enabled=config.llm_web_search_enabled,
         )
         self.summary_generator = SummaryGenerator(self.llm_client)
-        self.company_matcher = CompanyMatcher(db_session, config.company_reference_path, llm_client=self.llm_client)
+        self.company_matcher = CompanyMatcher(db_session, llm_client=self.llm_client)
         self.event_extractor = EventExtractor(llm_client=self.llm_client)
         self.person_extractor = PersonExtractor(llm_client=self.llm_client)
         self.connection_extractor = ConnectionExtractor(llm_client=self.llm_client)
@@ -98,16 +98,16 @@ class ArticleProcessor:
             events, event_traces = self.event_extractor.extract_events_keyword_based(article)
             print(f"[PROCESSOR] events     : {[(e.event_type, e.risk_level) for e in events]}")
 
-            # Store event extraction traces and embed in EventExtraction objects
             trace_repo = ReasoningTraceRepository(self.db_session)
-            for event_type, trace in event_traces.items():
-                trace_repo.save(
-                    classifier_name="Tarkov",
-                    entity_type="event_extraction",
-                    entity_id=f"{article_id}_{event_type}",
-                    trace_data=trace.model_dump(),
-                    correlation_id=correlation_id,
-                )
+            for firm in firms:
+                for event_type, trace in event_traces.items():
+                    trace_repo.save(
+                        classifier_name="Tarkov",
+                        entity_type="event_extraction",
+                        entity_id=f"{article_id}_{event_type}",
+                        trace_data=trace.model_dump(),
+                        correlation_id=str(firm.id),
+                    )
             for event in events:
                 if event.event_type in event_traces:
                     event.reasoning_trace = event_traces[event.event_type]

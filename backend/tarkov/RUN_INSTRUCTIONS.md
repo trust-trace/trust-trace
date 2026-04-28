@@ -41,7 +41,6 @@ LLM_WEB_SEARCH_ENABLED=false  # set true to enable OpenRouter web search for enr
 # File paths
 ARTICLE_INPUT_SOURCE=jsonl
 ARTICLE_INPUT_PATH=articles.jsonl
-COMPANY_REFERENCE_PATH=backend/tarkov/data/companies.json
 KEYWORDS_FILE_PATH=backend/tarkov/data/aml_keywords.json
 DEAD_LETTER_PATH=backend/tarkov/dead_letters.jsonl
 
@@ -149,7 +148,7 @@ pytest backend/tarkov/tests --cov=tarkov --cov-report=html
 - Migrations: tables auto-create on first run
 
 ### Article not processed
-- Check logs for company match failures (requires `companies.json` entries)
+- Check logs for company match failures — the matcher checks the `firm` + `firm_alias` DB tables and falls back to LLM discovery
 - Verify payload schema matches `backend/tarkov/schemas/article.py`
 
 ### LLM features not working

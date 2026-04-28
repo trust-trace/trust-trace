@@ -260,7 +260,7 @@ class PipelineOrchestrator:
         async def _run_nsa():
             from nsa.api import StubNSAService
             svc = StubNSAService()
-            return await asyncio.to_thread(svc.score_company, firm_id, "pipeline")
+            return await asyncio.to_thread(svc.score_company, firm_id, str(firm_id))
 
         results: dict = {
             "eem_timeline": None,

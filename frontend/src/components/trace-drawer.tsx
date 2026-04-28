@@ -12,10 +12,10 @@ const CLASSIFIER_COLORS: Record<string, string> = {
 };
 
 const CLASSIFIER_LABELS: Record<string, string> = {
-  EEM: 'Event Evaluation',
-  NSA: 'Person Scoring',
-  Tarkov: 'Event Extraction',
-  Market: 'Market Data',
+  EEM: 'Ocena zdarzeń',
+  NSA: 'Scoring osób',
+  Tarkov: 'Ekstrakcja zdarzeń',
+  Market: 'Dane rynkowe',
 };
 
 function formatTimestamp(iso: string): string {
@@ -29,6 +29,76 @@ function formatTimestamp(iso: string): string {
 
 function isUrl(value: string): boolean {
   return /^https?:\/\//.test(value);
+}
+
+function formatKey(key: string): string {
+  return key.replace(/_/g, ' ');
+}
+
+export function traceHeadline(trace: ReasoningTrace): string {
+  const td = trace.trace_data as Record<string, unknown>;
+  switch (trace.classifier_name) {
+    case 'EEM': {
+      const sc = td.sentiment_calculation as Record<string, unknown> | undefined;
+      const ks = td.keyword_extraction as Record<string, unknown> | undefined;
+      const eventType = (sc?.event_type as string) || '';
+      const kws = (ks?.top_6_keywords as string[]) || (ks?.extracted_keywords as string[]) || [];
+      const sentiment = sc?.final_sentiment as number | undefined;
+      const parts: string[] = [];
+      if (eventType) parts.push(eventType);
+      if (sentiment !== undefined) parts.push(`sentyment ${sentiment > 0 ? '+' : ''}${sentiment.toFixed(2)}`);
+      if (kws.length) parts.push(kws.slice(0, 3).join(', '));
+      return parts.join(' · ') || 'Analiza zdarzenia';
+    }
+    case 'NSA': {
+      const pc = td.person_context as Record<string, unknown> | undefined;
+      const ag = td.aggregation_logic as Record<string, unknown> | undefined;
+      const name = (pc?.person_name as string) || '';
+      const role = (pc?.role as string) || '';
+      const score = ag?.clamped_score as number | undefined;
+      const parts: string[] = [];
+      if (name) parts.push(name);
+      if (role) parts.push(role);
+      if (score !== undefined) parts.push(`score ${score.toFixed(1)}`);
+      return parts.join(' · ') || 'Scoring osoby';
+    }
+    case 'Tarkov': {
+      const km = td.keyword_matching as Record<string, unknown> | undefined;
+      const tg = td.title_generation as Record<string, unknown> | undefined;
+      const sr = td.source_reference as Record<string, unknown> | undefined;
+      const eventType = (km?.event_type as string) || '';
+      const title = (tg?.generated_title as string) || (tg?.article_title as string) || '';
+      const source = (sr?.source_title as string) || '';
+      const parts: string[] = [];
+      if (eventType) parts.push(eventType);
+      if (title) parts.push(title.length > 60 ? title.slice(0, 57) + '…' : title);
+      else if (source) parts.push(source.length > 60 ? source.slice(0, 57) + '…' : source);
+      return parts.join(' · ') || 'Ekstrakcja zdarzenia';
+    }
+    case 'Market': {
+      const ts = td.ticker_search as Record<string, unknown> | undefined;
+      const fr = td.fetch_results as Record<string, unknown> | undefined;
+      const firm = (ts?.firm_name as string) || '';
+      const success = fr?.successful_fetches as number | undefined;
+      const parts: string[] = [];
+      if (firm) parts.push(firm);
+      if (success !== undefined) parts.push(`${success} serii danych`);
+      return parts.join(' · ') || 'Dane rynkowe';
+    }
+    default:
+      return trace.entity_type;
+  }
+}
+
+export function traceMethodBadge(trace: ReasoningTrace): string | null {
+  const td = trace.trace_data as Record<string, unknown>;
+  if (trace.classifier_name === 'EEM') {
+    return (td.model_used as string) || null;
+  }
+  if (trace.classifier_name === 'Tarkov') {
+    return (td.extraction_method as string)?.replace('_', ' ') || null;
+  }
+  return null;
 }
 
 function TraceValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
@@ -77,7 +147,7 @@ function TraceValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
     }
 
     return (
-      <CollapsibleSection label={`${value.length} items`} defaultOpen={value.length < 10}>
+      <CollapsibleSection label={`${value.length} elementów`} defaultOpen={depth < 1 && value.length < 6}>
         <ul className="tt-trace-list">
           {value.map((item, i) => (
             <li key={i}>
@@ -145,10 +215,6 @@ function CollapsibleSection({
   );
 }
 
-function formatKey(key: string): string {
-  return key.replace(/_/g, ' ');
-}
-
 function TraceCard({
   trace,
   defaultOpen,
@@ -158,6 +224,8 @@ function TraceCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const color = CLASSIFIER_COLORS[trace.classifier_name] ?? 'var(--tt-fg-mute)';
+  const headline = traceHeadline(trace);
+  const method = traceMethodBadge(trace);
 
   return (
     <div className={'tt-trace-card' + (open ? ' is-open' : '')}>
@@ -166,8 +234,8 @@ function TraceCard({
           <span className="tt-trace-badge" style={{ background: color }}>
             {trace.classifier_name}
           </span>
-          <span className="tt-trace-entity-type">{trace.entity_type}</span>
-          <span className="tt-trace-entity-id tt-mono">{trace.entity_id}</span>
+          <span className="tt-trace-headline">{headline}</span>
+          {method && <span className="tt-trace-method">{method}</span>}
         </div>
         <div className="tt-trace-card-right">
           <span className="tt-trace-time tt-mono">{formatTimestamp(trace.created_at)}</span>
@@ -191,12 +259,10 @@ function TraceCard({
             <span className="tt-trace-meta-label">Klasyfikator</span>
             <span>{CLASSIFIER_LABELS[trace.classifier_name] ?? trace.classifier_name}</span>
           </div>
-          {trace.correlation_id && (
-            <div className="tt-trace-card-meta">
-              <span className="tt-trace-meta-label">Korelacja</span>
-              <span className="tt-mono">{trace.correlation_id}</span>
-            </div>
-          )}
+          <div className="tt-trace-card-meta">
+            <span className="tt-trace-meta-label">Typ encji</span>
+            <span>{trace.entity_type}</span>
+          </div>
           <div className="tt-trace-tree">
             {Object.entries(trace.trace_data).map(([key, val]) => (
               <div key={key} className="tt-trace-section">
@@ -218,6 +284,7 @@ interface TraceDrawerProps {
   entityId?: string;
   correlationId?: string;
   title?: string;
+  initialTrace?: ReasoningTrace;
 }
 
 export function TraceDrawer({
@@ -227,17 +294,22 @@ export function TraceDrawer({
   entityId,
   correlationId,
   title,
+  initialTrace,
 }: TraceDrawerProps) {
-  const [traces, setTraces] = useState<ReasoningTrace[]>([]);
+  const hasInitial = !!initialTrace;
+  const [fetched, setFetched] = useState<ReasoningTrace[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchKey, setFetchKey] = useState(0);
   const drawerRef = useRef<HTMLDivElement>(null);
 
+  const traces = hasInitial ? [initialTrace] : fetched;
+
   const retryFetch = useCallback(() => setFetchKey((k) => k + 1), []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || hasInitial) return;
+
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -254,7 +326,7 @@ export function TraceDrawer({
         }
         if (!cancelled) {
           data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          setTraces(data);
+          setFetched(data);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Nieznany błąd');
@@ -265,7 +337,7 @@ export function TraceDrawer({
 
     run();
     return () => { cancelled = true; };
-  }, [open, classifier, entityId, correlationId, fetchKey]);
+  }, [open, classifier, entityId, correlationId, hasInitial, fetchKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -304,9 +376,7 @@ export function TraceDrawer({
           <div>
             <div className="tt-trace-drawer-title">{displayTitle}</div>
             <div className="tt-trace-drawer-sub">
-              {correlationId
-                ? `Korelacja: ${correlationId}`
-                : `${classifier} · ${entityId}`}
+              {traces.length} {traces.length === 1 ? 'wynik' : 'wyników'}
             </div>
           </div>
           <button
