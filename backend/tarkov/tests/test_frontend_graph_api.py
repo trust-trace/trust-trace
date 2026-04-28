@@ -1,0 +1,229 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from eem.database.models import Base as EemBase, EventEnrichment, FirmScore
+from tarkov.config import Config
+from tarkov.database.models import Base as TarkovBase, Event, Firm, Source
+from tarkov.frontend_graph_api import FrontendGraphService
+
+
+def build_session() -> Session:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    TarkovBase.metadata.create_all(bind=engine)
+    EemBase.metadata.create_all(bind=engine)
+    factory = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+        future=True,
+    )
+    return factory()
+
+
+def build_config() -> Config:
+    return Config(
+        database_url="sqlite+pysqlite:///:memory:",
+        log_level="INFO",
+        llm_provider="none",
+        llm_api_key="",
+        llm_model="gpt-4o-mini",
+        article_input_source="jsonl",
+        article_input_path="",
+        company_reference_path="",
+        keywords_file_path="",
+        dead_letter_path="",
+        api_host="127.0.0.1",
+        api_port=8081,
+        enable_stage3_dispatch=False,
+        event_classifier_url="",
+        nsa_url="",
+        trustweb_url="",
+    )
+
+
+def test_list_companies_shapes_frontend_payload(monkeypatch):
+    session = build_session()
+    session.add(
+        Firm(
+            id=1,
+            full_name="Acme Holdings S.A.",
+            nip="1234567890",
+            country="PL",
+        )
+    )
+    session.add(
+        FirmScore(
+            firm_id=1,
+            score=82,
+            risk="low",
+            trend=4,
+            score_history="[70, 76, 82]",
+            keywords='["fraud", "audit"]',
+            computed_at=datetime(2026, 4, 27, 12, 0, 0),
+        )
+    )
+    session.add(
+        Event(
+            unique_id="evt-1",
+            firm_id=1,
+            title="Acme investigation update",
+            event_type="investigation",
+            event_category="classical",
+            risk_level=7,
+            occurred_at=datetime(2026, 4, 27, 10, 0, 0),
+        )
+    )
+    session.add(
+        Source(
+            event_id="evt-1",
+            url="https://example.com/acme",
+            title="Acme investigation update",
+            source_category="article",
+            published_at=datetime(2026, 4, 27, 11, 0, 0),
+        )
+    )
+    session.commit()
+
+    service = FrontendGraphService(build_config())
+    monkeypatch.setattr(
+        service,
+        "_query_company_nodes",
+        lambda: [{"company_id": "1", "name": "Acme Holdings S.A."}],
+    )
+
+    companies = service.list_companies(session)
+
+    assert companies == [
+        {
+            "id": "acme-holdings",
+            "name": "Acme Holdings S.A.",
+            "short": "Acme Holdings",
+            "nip": "1234567890",
+            "sector": "Unknown",
+            "score": 82,
+            "trend": 4,
+            "risk": "low",
+            "articles": 1,
+            "lastUpdate": "2026-04-27T11:00:00",
+            "history": [70, 76, 82],
+            "keywords": ["fraud", "audit"],
+        }
+    ]
+
+
+def test_list_relations_maps_graph_edges_to_frontend_payload(monkeypatch):
+    service = FrontendGraphService(build_config())
+    monkeypatch.setattr(
+        service,
+        "_query_company_relations",
+        lambda: [
+            {
+                "source_company_id": "1",
+                "source_name": "Acme Holdings S.A.",
+                "target_company_id": "2",
+                "target_name": "Beta Logistics Sp. z o.o.",
+                "connection_type": "board_overlap",
+                "description": "Shared supervisory board member",
+                "intensity": 0.9,
+            },
+            {
+                "source_company_id": "2",
+                "source_name": "Beta Logistics Sp. z o.o.",
+                "target_company_id": "1",
+                "target_name": "Acme Holdings S.A.",
+                "connection_type": "commercial_relationship",
+                "description": "Commercial cooperation",
+                "intensity": 0.2,
+            },
+        ],
+    )
+
+    relations = service.list_relations(build_session())
+
+    assert relations == [
+        {
+            "sourceCompanyId": "acme-holdings",
+            "targetCompanyId": "beta-logistics",
+            "type": "business",
+            "label": "Commercial cooperation",
+        },
+        {
+            "sourceCompanyId": "acme-holdings",
+            "targetCompanyId": "beta-logistics",
+            "type": "person",
+            "label": "Shared supervisory board member",
+        },
+    ]
+
+
+def test_list_articles_returns_frontend_article_shape(monkeypatch):
+    session = build_session()
+    session.add(
+        Firm(
+            id=1,
+            full_name="Acme Holdings S.A.",
+            country="PL",
+        )
+    )
+    session.add(
+        Event(
+            unique_id="evt-1",
+            firm_id=1,
+            title="Acme investigation update",
+            event_type="investigation",
+            event_category="classical",
+            risk_level=8,
+            occurred_at=datetime(2026, 4, 27, 10, 0, 0),
+            source_text_quote="Important investigation quote.",
+        )
+    )
+    session.add(
+        Source(
+            event_id="evt-1",
+            url="https://reuters.com/acme",
+            title="Reuters reports on Acme",
+            content="Detailed article body",
+            source_category="article",
+            published_at=datetime(2026, 4, 27, 9, 30, 0),
+            credibility=0.9,
+        )
+    )
+    session.add(
+        EventEnrichment(
+            event_id="evt-1",
+            sentiment=-0.7,
+            impact=-3.5,
+            source_tier="tier-1",
+            keywords='["aml", "investigation"]',
+            excerpt="Short excerpt",
+            entities='["Acme Holdings", "KNF"]',
+            model_used="test-model",
+            enriched_at=datetime(2026, 4, 27, 12, 0, 0),
+        )
+    )
+    session.commit()
+
+    service = FrontendGraphService(build_config())
+    monkeypatch.setattr(service, "_query_company_nodes", lambda: [])
+
+    articles = service.list_articles(session, "acme-holdings")
+
+    assert articles == [
+        {
+            "id": "evt-1",
+            "headline": "Reuters reports on Acme",
+            "source": "Reuters",
+            "sourceTier": "tier-1",
+            "date": "2026-04-27T09:30:00",
+            "sentiment": -0.7,
+            "impact": -3.5,
+            "keywords": ["aml", "investigation"],
+            "excerpt": "Short excerpt",
+            "entities": ["Acme Holdings", "KNF"],
+        }
+    ]
