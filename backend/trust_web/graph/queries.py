@@ -14,7 +14,7 @@ SET p.name = $name
 
 MERGE_EVENT_NODE = """\
 MERGE (e:Event {event_id: $event_id})
-SET e.title = $title, e.risk_level = $risk_level, e.event_type = $event_type
+SET e.title = $title, e.risk_level = $risk_level, e.event_type = $event_type, e.occurred_at = $occurred_at
 """
 
 # ── CONNECTION edge (between any two entity types) ─────────────────────────
@@ -30,6 +30,7 @@ SET r.type = $connection_type,
     r.llm_description = $llm_description,
     r.source_url = $source_url,
     r.source_title = $source_title,
+    r.event_occurred_at = $event_occurred_at,
     r.scored_at = datetime()
 """
 
@@ -74,6 +75,7 @@ RETURN DISTINCT
     llm_description: r.llm_description,
     source_url: r.source_url,
     source_title: r.source_title,
+    event_occurred_at: r.event_occurred_at,
     source_id: startNode(r).company_id,
     source_person_id: startNode(r).person_id,
     source_event_id_prop: startNode(r).event_id,

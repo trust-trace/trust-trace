@@ -1,4 +1,4 @@
-"""Run TrustWeb scoring on a firm and print the results.
+"""Run TrustWeb scoring on a firm and print the timeline results.
 
 Usage:
     cd backend && python -m scripts.run_trustweb [firm_id]
@@ -15,12 +15,11 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from sqlalchemy import text
-
 from tarkov.database.session import SessionLocal, init_engine, init_neo4j
 
 from trust_web import score_firm
 from trust_web.config import TrustWebConfig
+from trust_web.schemas import TrustWebTimelineResult
 
 PG_URL = "postgresql+psycopg2://trusttrace:trusttrace@localhost:5432/trusttrace_db"
 
@@ -39,38 +38,27 @@ async def main(firm_id: int):
     init_neo4j(config.neo4j_uri, config.neo4j_user, config.neo4j_password)
 
     logger.info("Scoring firm %d ...", firm_id)
-    risk_score = await score_firm(firm_id, force_rescore=True)
+    result: TrustWebTimelineResult = await score_firm(firm_id, force_rescore=True)
 
-    print("\n" + "=" * 60)
-    print("TRUSTWEB RESULT")
-    print("=" * 60)
+    print("\n" + "=" * 70)
+    print("TRUSTWEB TIMELINE RESULT")
+    print("=" * 70)
     print(f"  Firm ID:      {firm_id}")
-    print(f"  Risk Score:   {risk_score:.4f}")
+    print(f"  Computed At:  {result.computed_at}")
+    print()
 
-    # Read the persisted row for the full details
-    session = SessionLocal()
-    try:
-        row = session.execute(
-            text(
-                "SELECT node_count, edge_count, max_depth_used, explanation, computed_at "
-                "FROM trustweb_score WHERE firm_id = :fid "
-                "ORDER BY computed_at DESC LIMIT 1"
-            ),
-            {"fid": firm_id},
-        ).first()
-        if row:
-            print(f"  Nodes:        {row.node_count}")
-            print(f"  Edges:        {row.edge_count}")
-            print(f"  Max Depth:    {row.max_depth_used}")
-            print(f"  Computed At:  {row.computed_at}")
-            print()
-            print("  Explanation:")
-            for line in (row.explanation or "").split("\n"):
-                print(f"    {line}")
-    finally:
-        session.close()
+    print(f"  {'Bucket':<8} {'Period':<24} {'Score':>7}  {'Nodes':>5}  {'Edges':>5}")
+    print("  " + "─" * 60)
+    for e in result.entries:
+        period = f"{e.bucket_start.strftime('%Y-%m')} → {e.bucket_end.strftime('%Y-%m')}"
+        print(f"  T{e.bucket_index:<7} {period:<24} {e.score:>7.3f}  {e.node_count:>5}  {e.edge_count:>5}")
 
-    print("=" * 60)
+    print()
+    print("  Explanation:")
+    for line in (result.explanation or "").split("\n"):
+        print(f"    {line}")
+
+    print("=" * 70)
 
 
 if __name__ == "__main__":

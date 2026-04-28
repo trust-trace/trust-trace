@@ -28,14 +28,20 @@ async def compute_trustweb_score(
     subgraph: SubgraphData,
     pg_session: Session,
     config: TrustWebConfig,
+    *,
+    skip_explanation: bool = False,
 ) -> TrustWebResult:
-    """Run propagation, generate explanation, and return the final result."""
+    """Run propagation, generate explanation, and return the final result.
+
+    When *skip_explanation* is True the LLM call is skipped — used by the
+    timeline loop which generates one explanation at the end.
+    """
     # Handle isolated firm
     if len(subgraph.nodes) <= 1 and not subgraph.edges:
         return TrustWebResult(
             firm_id=firm_id,
             score=0.0,
-            explanation="No network connections found for this entity.",
+            explanation="" if skip_explanation else "No network connections found for this entity.",
             subgraph_summary=_build_summary(subgraph),
             connections_scored=0,
             max_depth_used=0,
@@ -51,10 +57,13 @@ async def compute_trustweb_score(
 
     summary = _build_summary(subgraph)
 
-    # Generate LLM explanation
-    explanation = await _generate_explanation(
-        firm_id, numeric_score, subgraph, summary, prop_result, pg_session, config,
-    )
+    # Generate LLM explanation (unless skipped for timeline mode)
+    if skip_explanation:
+        explanation = ""
+    else:
+        explanation = await _generate_explanation(
+            firm_id, numeric_score, subgraph, summary, prop_result, pg_session, config,
+        )
 
     return TrustWebResult(
         firm_id=firm_id,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eem.database.session import Base
@@ -40,3 +40,19 @@ class FirmScore(Base):
     keywords: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     computed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FirmScoreTimeline(Base):
+    __tablename__ = "firm_score_timeline"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    firm_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    bucket_index: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    bucket_start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    bucket_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    risk: Mapped[str] = mapped_column(String(10), nullable=False)
+    event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    keywords: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    computed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

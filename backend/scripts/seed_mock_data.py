@@ -39,6 +39,10 @@ def _days_ago(n: int) -> datetime:
     return datetime.utcnow() - timedelta(days=n)
 
 
+def _years_ago(y: float) -> datetime:
+    return datetime.utcnow() - timedelta(days=int(y * 365.25))
+
+
 def create_pg_tables(engine):
     """Create all ORM tables + extra raw-SQL tables not in the ORM."""
     Base.metadata.create_all(bind=engine)
@@ -66,6 +70,46 @@ def create_pg_tables(engine):
             computed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS firm_score_timeline (
+            id              SERIAL PRIMARY KEY,
+            firm_id         INT NOT NULL REFERENCES firm(id) ON DELETE CASCADE,
+            run_id          UUID NOT NULL,
+            bucket_index    SMALLINT NOT NULL,
+            bucket_start    TIMESTAMP NOT NULL,
+            bucket_end      TIMESTAMP NOT NULL,
+            score           INT NOT NULL,
+            risk            VARCHAR(10) NOT NULL,
+            event_count     INT NOT NULL DEFAULT 0,
+            keywords        TEXT NOT NULL DEFAULT '[]',
+            computed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(run_id, bucket_index)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS trustweb_score_timeline (
+            id              SERIAL PRIMARY KEY,
+            firm_id         BIGINT NOT NULL REFERENCES firm(id) ON DELETE CASCADE,
+            run_id          UUID NOT NULL,
+            bucket_index    SMALLINT NOT NULL,
+            bucket_start    TIMESTAMP NOT NULL,
+            bucket_end      TIMESTAMP NOT NULL,
+            score           DECIMAL(4,3) NOT NULL CHECK (score BETWEEN 0 AND 1),
+            node_count      INT,
+            edge_count      INT,
+            max_depth_used  INT,
+            computed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(run_id, bucket_index)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS trustweb_run (
+            run_id          UUID PRIMARY KEY,
+            firm_id         BIGINT NOT NULL REFERENCES firm(id) ON DELETE CASCADE,
+            explanation     TEXT,
+            computed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     with engine.connect() as conn:
         for ddl in extra_ddl:
@@ -76,6 +120,9 @@ def create_pg_tables(engine):
 def drop_all(engine):
     """Drop everything so we can re-seed cleanly."""
     with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS trustweb_run CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS trustweb_score_timeline CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS firm_score_timeline CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS trustweb_score CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS reputation_score CASCADE"))
         conn.commit()
@@ -89,11 +136,16 @@ def seed_postgres(session) -> dict:
     # ── Firms ──────────────────────────────────────────────────────────────
 
     firms = [
-        Firm(full_name="Orion Capital Group Sp. z o.o.", nip="5261234567", krs="0000112233", country="PL"),
-        Firm(full_name="Baltic Shell Trading Ltd.", nip="7891234560", krs="0000445566", country="PL"),
-        Firm(full_name="Nordica Finance AG", country="CH"),
-        Firm(full_name="Vistula Logistics Sp. z o.o.", nip="6661234569", krs="0000778899", country="PL"),
-        Firm(full_name="Amber Consulting GmbH", country="DE"),
+        Firm(full_name="Orion Capital Group Sp. z o.o.", nip="5261234567", krs="0000112233", country="PL",
+             founded_at=_years_ago(8)),
+        Firm(full_name="Baltic Shell Trading Ltd.", nip="7891234560", krs="0000445566", country="PL",
+             founded_at=_years_ago(6)),
+        Firm(full_name="Nordica Finance AG", country="CH",
+             founded_at=_years_ago(12)),
+        Firm(full_name="Vistula Logistics Sp. z o.o.", nip="6661234569", krs="0000778899", country="PL",
+             founded_at=_years_ago(5)),
+        Firm(full_name="Amber Consulting GmbH", country="DE",
+             founded_at=_years_ago(3)),
     ]
     session.add_all(firms)
     session.flush()
@@ -118,35 +170,35 @@ def seed_postgres(session) -> dict:
             unique_id=_uuid(), firm_id=firm_ids[0],
             title="Orion Capital linked to suspected money laundering scheme in Warsaw",
             event_type="money_laundering_allegation", event_category="classical",
-            risk_level=8, occurred_at=_days_ago(15), extraction_confidence=0.87,
+            risk_level=8, occurred_at=_days_ago(180), extraction_confidence=0.87,
             source_text_quote="Investigators allege Orion Capital Group funneled approximately €2.3M through a network of shell companies based in Cyprus and Malta.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[0],
             title="KNF investigation into Orion Capital regulatory compliance",
             event_type="regulatory_investigation", event_category="classical",
-            risk_level=6, occurred_at=_days_ago(30), extraction_confidence=0.92,
+            risk_level=6, occurred_at=_days_ago(540), extraction_confidence=0.92,
             source_text_quote="Poland's Financial Supervision Authority (KNF) has opened a formal investigation into Orion Capital Group's compliance with AML directives.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[1],
             title="Baltic Shell Trading sanctioned by EU for embargo violations",
             event_type="sanctions_violation", event_category="classical",
-            risk_level=9, occurred_at=_days_ago(10), extraction_confidence=0.95,
+            risk_level=9, occurred_at=_days_ago(90), extraction_confidence=0.95,
             source_text_quote="The European Council added Baltic Shell Trading Ltd. to the sanctions list for alleged violations of trade restrictions on dual-use goods.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[2],
             title="Nordica Finance AG subject of Swiss FINMA inquiry",
             event_type="regulatory_investigation", event_category="classical",
-            risk_level=5, occurred_at=_days_ago(45), extraction_confidence=0.78,
+            risk_level=5, occurred_at=_days_ago(900), extraction_confidence=0.78,
             source_text_quote="FINMA has requested documents from Nordica Finance AG regarding suspicious transaction patterns with Eastern European counterparties.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[3],
             title="Vistula Logistics cleared in customs fraud probe",
             event_type="customs_fraud", event_category="classical",
-            risk_level=3, occurred_at=_days_ago(60), extraction_confidence=0.85,
+            risk_level=3, occurred_at=_days_ago(400), extraction_confidence=0.85,
             source_text_quote="Vistula Logistics was cleared of customs fraud allegations after a 6-month investigation by Polish authorities.",
         ),
     ]
@@ -160,14 +212,14 @@ def seed_postgres(session) -> dict:
             unique_id=_uuid(), firm_id=firm_ids[0],
             title="Jan Kowalski identified as beneficial owner of Orion Capital",
             event_type="beneficial_ownership", event_category="people",
-            risk_level=7, occurred_at=_days_ago(20), extraction_confidence=0.88,
+            risk_level=7, occurred_at=_days_ago(730), extraction_confidence=0.88,
             source_text_quote="Records show Jan Kowalski holds 65% beneficial ownership of Orion Capital Group through a layered holding structure.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[1],
             title="Marek Nowak named as director of Baltic Shell",
             event_type="director_appointment", event_category="people",
-            risk_level=4, occurred_at=_days_ago(25), extraction_confidence=0.93,
+            risk_level=4, occurred_at=_days_ago(1100), extraction_confidence=0.93,
             source_text_quote="Marek Nowak was appointed as managing director of Baltic Shell Trading Ltd.",
         ),
     ]
@@ -181,28 +233,28 @@ def seed_postgres(session) -> dict:
             unique_id=_uuid(), firm_id=firm_ids[0],
             title="Orion Capital and Baltic Shell share director Marek Nowak",
             event_type="shared_director_discovery", event_category="connection",
-            risk_level=7, occurred_at=_days_ago(12), extraction_confidence=0.91,
+            risk_level=7, occurred_at=_days_ago(365), extraction_confidence=0.91,
             source_text_quote="Company registry filings reveal Marek Nowak serves as director at both Orion Capital Group and Baltic Shell Trading.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[0],
             title="Orion Capital has business relationship with Nordica Finance",
             event_type="business_relationship_discovery", event_category="connection",
-            risk_level=6, occurred_at=_days_ago(18), extraction_confidence=0.83,
+            risk_level=6, occurred_at=_days_ago(600), extraction_confidence=0.83,
             source_text_quote="Financial transaction records indicate regular wire transfers between Orion Capital Group and Nordica Finance AG totaling CHF 4.7M over 18 months.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[1],
             title="Baltic Shell linked to Vistula Logistics through joint venture",
             event_type="activity_link_discovery", event_category="connection",
-            risk_level=4, occurred_at=_days_ago(40), extraction_confidence=0.79,
+            risk_level=4, occurred_at=_days_ago(800), extraction_confidence=0.79,
             source_text_quote="Baltic Shell Trading and Vistula Logistics jointly operate a bonded warehouse in Gdańsk.",
         ),
         Event(
             unique_id=_uuid(), firm_id=firm_ids[2],
             title="Nordica Finance and Amber Consulting share beneficial owner",
             event_type="shared_beneficial_owner_discovery", event_category="connection",
-            risk_level=5, occurred_at=_days_ago(50), extraction_confidence=0.76,
+            risk_level=5, occurred_at=_days_ago(1500), extraction_confidence=0.76,
             source_text_quote="Swiss corporate registry data shows Hans Weber listed as beneficial owner of both Nordica Finance AG and Amber Consulting GmbH.",
         ),
     ]

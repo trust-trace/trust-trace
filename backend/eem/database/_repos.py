@@ -15,7 +15,7 @@ from eem._types import (
     _PersonRow,
     _SourceRow,
 )
-from eem.database.models import EventEnrichment, FirmScore
+from eem.database.models import EventEnrichment, FirmScore, FirmScoreTimeline
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,16 @@ class _EventReader:
         if row is None:
             raise FirmNotFoundError(f"No firm with id={firm_id}")
         return row.full_name
+
+    def get_firm_info(self, firm_id: int) -> tuple[str, datetime | None, datetime | None]:
+        """Return (full_name, founded_at, created_at) for a firm."""
+        row = self._db.execute(
+            text("SELECT full_name, founded_at, created_at FROM firm WHERE id = :fid"),
+            {"fid": firm_id},
+        ).fetchone()
+        if row is None:
+            raise FirmNotFoundError(f"No firm with id={firm_id}")
+        return row.full_name, row.founded_at, row.created_at
 
     def load_classical_events(self, firm_id: int) -> list[_EventRow]:
         exists = self._db.execute(
@@ -211,4 +221,33 @@ class _FirmScoreRepo:
             existing.keywords = kw_json
             existing.computed_at = now
 
+        self._db.flush()
+
+
+class _FirmScoreTimelineRepo:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def upsert_timeline(self, firm_id: int, run_id: str, entries: list) -> None:
+        """Write 8 timeline rows for a single scoring run.
+
+        *entries* is a list of ``EEMTimelineEntry`` dataclass instances
+        (imported lazily to avoid circular deps).
+        """
+        now = datetime.utcnow()
+        for entry in entries:
+            self._db.add(
+                FirmScoreTimeline(
+                    firm_id=firm_id,
+                    run_id=run_id,
+                    bucket_index=entry.bucket_index,
+                    bucket_start=entry.bucket_start,
+                    bucket_end=entry.bucket_end,
+                    score=entry.score,
+                    risk=entry.risk,
+                    event_count=entry.event_count,
+                    keywords=json.dumps(entry.keywords, ensure_ascii=False),
+                    computed_at=now,
+                )
+            )
         self._db.flush()
