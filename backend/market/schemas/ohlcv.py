@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Optional
 
 from pydantic import BaseModel
+
+from reasoning.schemas import MarketReasoningTrace
 
 
 class ListingMatch(BaseModel):
@@ -31,3 +34,4 @@ class FetchResult(BaseModel):
     firm_name: str
     found: bool
     charts: list[ChartData]
+    reasoning_trace: Optional[MarketReasoningTrace] = None  # NEW: Optional reasoning trace

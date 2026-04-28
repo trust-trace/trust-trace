@@ -23,7 +23,7 @@ import {
   type EntityGraphEdge,
   type EntityGraphNode,
 } from '@/lib/entity-graph';
-import type { Company, GraphResponse, Risk } from '@/lib/data';
+import type { Company, GraphEntityType, GraphResponse, Risk } from '@/lib/data';
 import { riskColor, riskLabel } from './sidebar';
 
 interface CompanyGraphProps {
@@ -36,17 +36,40 @@ interface CompanyGraphProps {
 /* Visual encoding tables                                              */
 /* ------------------------------------------------------------------ */
 
-const NODE_WIDTH = {
+const BASE_NODE_WIDTH: Record<GraphEntityType, number> = {
   Company: 180,
   Person: 160,
   Event: 220,
-} as const;
+};
 
-const NODE_HEIGHT = {
+const BASE_NODE_HEIGHT: Record<GraphEntityType, number> = {
   Company: 64,
   Person: 56,
   Event: 78,
-} as const;
+};
+
+const MAX_NODE_WIDTH = 280;
+const CHAR_WIDTH_ESTIMATE = 7;
+const NODE_PADDING_X = 28;
+const LINE_HEIGHT = 16;
+
+function estimateNodeSize(node: EntityGraphNode): { width: number; height: number } {
+  const label =
+    node.entityType === 'Event' ? truncate(node.label, 56) : (node.data.short ?? node.label);
+  const baseW = BASE_NODE_WIDTH[node.entityType];
+  const baseH = BASE_NODE_HEIGHT[node.entityType];
+
+  const textWidth = label.length * CHAR_WIDTH_ESTIMATE + NODE_PADDING_X;
+  const width = Math.min(MAX_NODE_WIDTH, Math.max(baseW, textWidth));
+
+  const availableTextWidth = width - NODE_PADDING_X;
+  const charsPerLine = Math.max(1, Math.floor(availableTextWidth / CHAR_WIDTH_ESTIMATE));
+  const lines = Math.ceil(label.length / charsPerLine);
+  const extraHeight = Math.max(0, lines - 1) * LINE_HEIGHT;
+  const height = baseH + extraHeight;
+
+  return { width, height };
+}
 
 const EDGE_STYLE: Record<
   EntityGraphEdge['relationshipType'],
@@ -207,29 +230,32 @@ function layoutGraph(
   nodes: EntityGraphNode[],
   edges: EntityGraphEdge[],
   rootId: string
-): { positions: Map<string, { x: number; y: number }>; order: Map<string, number> } {
+): {
+  positions: Map<string, { x: number; y: number }>;
+  sizes: Map<string, { width: number; height: number }>;
+  order: Map<string, number>;
+} {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: 'TB',
-    nodesep: 60,
-    ranksep: 110,
+    nodesep: 80,
+    ranksep: 120,
     marginx: 30,
     marginy: 30,
   });
 
+  const sizes = new Map<string, { width: number; height: number }>();
   for (const node of nodes) {
-    g.setNode(node.id, {
-      width: NODE_WIDTH[node.entityType],
-      height: NODE_HEIGHT[node.entityType],
-    });
+    const size = estimateNodeSize(node);
+    sizes.set(node.id, size);
+    g.setNode(node.id, size);
   }
 
-  // Direct edges so dagre ranks descendants below the root visually.
   for (const edge of edges) {
     g.setEdge(edge.source, edge.target);
   }
-  void rootId; // root rank is implicit via depth=0 from normalizeEntityGraph
+  void rootId;
 
   dagre.layout(g);
 
@@ -238,14 +264,15 @@ function layoutGraph(
   let i = 0;
   for (const node of nodes) {
     const placed = g.node(node.id);
+    const size = sizes.get(node.id)!;
     if (!placed) continue;
     positions.set(node.id, {
-      x: placed.x - NODE_WIDTH[node.entityType] / 2,
-      y: placed.y - NODE_HEIGHT[node.entityType] / 2,
+      x: placed.x - size.width / 2,
+      y: placed.y - size.height / 2,
     });
     order.set(node.id, i++);
   }
-  return { positions, order };
+  return { positions, sizes, order };
 }
 
 /* ------------------------------------------------------------------ */
@@ -412,7 +439,7 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
     if (selectedId !== null) setSelectedId(null);
   }
 
-  const { positions } = useMemo(
+  const { positions, sizes } = useMemo(
     () => layoutGraph(model.nodes, model.edges, model.rootId),
     [model.edges, model.nodes, model.rootId]
   );
@@ -421,39 +448,27 @@ function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProp
     () =>
       model.nodes.map((node) => {
         const pos = positions.get(node.id) ?? { x: 0, y: 0 };
+        const size = sizes.get(node.id);
         const isRoot = node.id === model.rootId;
         const isSelected = selectedId === node.id;
 
-        if (node.entityType === 'Company') {
-          return {
-            id: node.id,
-            type: 'company',
-            position: pos,
-            data: { node, isRoot, isSelected },
-            draggable: true,
-            selectable: true,
-          };
-        }
-        if (node.entityType === 'Person') {
-          return {
-            id: node.id,
-            type: 'person',
-            position: pos,
-            data: { node, isSelected, risk: node.data.risk ?? 'low' },
-            draggable: true,
-            selectable: true,
-          };
-        }
-        return {
+        const base = {
           id: node.id,
-          type: 'event',
           position: pos,
-          data: { node, isSelected },
           draggable: true,
           selectable: true,
+          ...(size ? { width: size.width, height: size.height } : {}),
         };
+
+        if (node.entityType === 'Company') {
+          return { ...base, type: 'company', data: { node, isRoot, isSelected } };
+        }
+        if (node.entityType === 'Person') {
+          return { ...base, type: 'person', data: { node, isSelected, risk: node.data.risk ?? 'low' } };
+        }
+        return { ...base, type: 'event', data: { node, isSelected } };
       }),
-    [model.nodes, model.rootId, positions, selectedId]
+    [model.nodes, model.rootId, positions, sizes, selectedId]
   );
 
   const rfEdges: Edge[] = useMemo(

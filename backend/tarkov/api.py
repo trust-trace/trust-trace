@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 try:
     from fastapi import Request as FastAPIRequest
@@ -27,6 +28,17 @@ logger = get_logger(__name__)
 def _check_db_connection() -> None:
     with SessionLocal() as session:
         session.execute(text("SELECT 1"))
+
+
+def _apply_schema_migrations() -> None:
+    """Add columns that create_all() won't add to existing tables."""
+    engine = get_engine()
+    insp = inspect(engine)
+    firm_cols = {c["name"] for c in insp.get_columns("firm")} if insp.has_table("firm") else set()
+    with engine.begin() as conn:
+        if "founded_at" not in firm_cols:
+            conn.execute(text("ALTER TABLE firm ADD COLUMN founded_at TIMESTAMP NULL"))
+            logger.info("migrated: added firm.founded_at column")
 
 
 def _prepare_eem_schema() -> None:
@@ -54,6 +66,7 @@ def create_app(config: Config | None = None):
     setup_logging(cfg.log_level)
     init_engine(cfg.database_url)
     create_all()
+    _apply_schema_migrations()
     _prepare_eem_schema()
     _prepare_pipeline_schema()
 
@@ -237,8 +250,11 @@ def create_app(config: Config | None = None):
         article_limit = int(body.get("article_limit", 30))
 
         from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.scraper_adapter import ScuttleCrabAdapter
 
-        orchestrator = PipelineOrchestrator(cfg)
+        scuttle_url = os.environ.get("SCUTTLE_CRAB_URL", "").strip()
+        scraper = ScuttleCrabAdapter(scuttle_url) if scuttle_url else None
+        orchestrator = PipelineOrchestrator(cfg, scraper=scraper)
         run_id = str(uuid.uuid4())
 
         # Create the pipeline_run row synchronously so the ID is available

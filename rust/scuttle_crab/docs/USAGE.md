@@ -54,10 +54,6 @@ Downstream systems own entity extraction, topic classification, and scoring.
 - `data/seen_urls.jsonl`: dedup store for normalized URLs
 - `data/outbox.jsonl`: legacy local outbox used by older non-API tests only
 
-## Notes
-
-- The HTTP service is the primary runtime surface.
-- Article collection, normalization, deduplication, and emission are the core responsibilities of the crate.
 
 ## Docker Compose
 

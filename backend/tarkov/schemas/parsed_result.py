@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+from reasoning.schemas import TarkovReasoningTrace
 
 
 class LLMSummary(BaseModel):
@@ -32,6 +35,7 @@ class EventExtraction(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     source_text: str
     source_reference: SourceReference
+    reasoning_trace: Optional[TarkovReasoningTrace] = None  # NEW: Optional reasoning trace
 
 
 class PersonExtraction(BaseModel):

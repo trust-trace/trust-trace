@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Optional
+
+from reasoning.schemas import EEMReasoningTrace
 
 
 class FirmNotFoundError(Exception):
@@ -44,3 +47,4 @@ class _EventFields:
     keywords: list[str]
     excerpt: str
     entities: list[str]
+    reasoning_trace: Optional[EEMReasoningTrace] = None  # NEW: Optional reasoning trace

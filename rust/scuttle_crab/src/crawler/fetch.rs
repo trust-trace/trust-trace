@@ -93,8 +93,15 @@ pub fn build_article_payload(
     let domain = parsed.host_str().unwrap_or("unknown").to_string();
     let source_name = domain.strip_prefix("www.").unwrap_or(&domain).to_string();
 
-    let (title, text) = extract_text_from_html(html);
+    let article = extract_article_document(html);
+    let ExtractedArticle { title, text, body_blocks, article_semantics } = article;
     let word_count = text.split_whitespace().count() as u32;
+
+    if !has_substantial_body_block(&title, &body_blocks, article_semantics) {
+        anyhow::bail!(
+            "extracted article text looks unavailable for payload: {word_count} words from {source_url}"
+        );
+    }
 
     Ok(ArticlePayload {
         source: SourceInfo {
@@ -126,10 +133,23 @@ pub fn build_article_payload(
 
 /// Parse raw HTML into a title and visible article text.
 pub fn extract_text_from_html(html: &str) -> (String, String) {
+    let article = extract_article_document(html);
+    (article.title, article.text)
+}
+
+struct ExtractedArticle {
+    title: String,
+    text: String,
+    body_blocks: Vec<String>,
+    article_semantics: bool,
+}
+
+fn extract_article_document(html: &str) -> ExtractedArticle {
     let document = Html::parse_document(html);
     let title = extract_title(&document);
-    let text = extract_visible_text(&document);
-    (title, text)
+    let (text, body_blocks, article_semantics) = extract_visible_text(&document);
+
+    ExtractedArticle { title, text, body_blocks, article_semantics }
 }
 
 fn extract_title(document: &Html) -> String {
@@ -143,19 +163,24 @@ fn extract_title(document: &Html) -> String {
         .unwrap_or_else(|| "untitled".to_string())
 }
 
-fn extract_visible_text(document: &Html) -> String {
+fn extract_visible_text(document: &Html) -> (String, Vec<String>, bool) {
     let selector =
         Selector::parse("article, main, p, h1, h2, h3, li").expect("valid content selector");
+    let semantic_selector = Selector::parse("article, main, p").expect("valid semantic selector");
     let mut parts: Vec<String> = Vec::new();
 
     for node in document.select(&selector) {
         let text = clean_text(&node.text().collect::<Vec<_>>().join(" "));
-        if text.len() >= 20 {
+        if text.len() >= 12 {
             parts.push(text);
         }
     }
 
-    dedup_preserving_order(parts).join("\n\n")
+    let body_blocks = dedup_preserving_order(parts);
+    let article_semantics = document.select(&semantic_selector).any(|node| {
+        clean_text(&node.text().collect::<Vec<_>>().join(" ")).split_whitespace().count() >= 8
+    });
+    (body_blocks.join("\n\n"), body_blocks, article_semantics)
 }
 
 fn dedup_preserving_order(parts: Vec<String>) -> Vec<String> {
@@ -175,9 +200,87 @@ fn clean_text(input: &str) -> String {
     input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+fn has_substantial_body_block(title: &str, body_blocks: &[String], article_semantics: bool) -> bool {
+    let title_norm = normalized_text(title);
+    let visible_words: usize = body_blocks.iter().map(|block| block.split_whitespace().count()).sum();
+    let distinct_blocks = body_blocks.len();
+    let max_block_words = body_blocks
+        .iter()
+        .map(|block| block.split_whitespace().count())
+        .max()
+        .unwrap_or(0);
+    let repeated_title_only = body_blocks.len() == 1 && is_near_title_only_body(&title_norm, &body_blocks[0]);
+    let strong_body_block = body_blocks.iter().any(|block| {
+        let word_count = block.split_whitespace().count();
+        word_count >= 18 && block.chars().any(|ch| matches!(ch, '.' | '!' | '?'))
+    });
+    let title_shell = title_norm.contains("unavailable") || title_norm.contains("not found");
+    let boilerplate_shell = body_blocks.iter().any(|block| {
+        let lowered = block.to_lowercase();
+        lowered.contains("return to the homepage")
+            || lowered.contains("site map")
+            || lowered.contains("home contact news")
+            || (title_shell && lowered.contains("could not be found"))
+    });
+
+    if repeated_title_only || boilerplate_shell {
+        return false;
+    }
+
+    let positive_structure = distinct_blocks > 1 || strong_body_block || article_semantics;
+    let density_ok = visible_words >= 8
+        && (strong_body_block || distinct_blocks > 1 || article_semantics || max_block_words >= 8);
+
+    positive_structure && density_ok
+}
+
+fn is_near_title_only_body(title_norm: &str, body_block: &str) -> bool {
+    let body_norm = normalized_text(body_block);
+    let title_words = title_norm.split_whitespace().count();
+    let body_words = body_norm.split_whitespace().count();
+
+    if body_norm == title_norm {
+        return true;
+    }
+
+    if body_norm.starts_with(title_norm) {
+        let remainder = body_norm[title_norm.len()..].trim();
+        let remainder_words = remainder.split_whitespace().count();
+        return remainder_words <= 3 && body_words <= title_words + 3;
+    }
+
+    if title_norm.starts_with(&body_norm) {
+        let remainder = title_norm[body_norm.len()..].trim();
+        let remainder_words = remainder.split_whitespace().count();
+        return remainder_words <= 3 && title_words <= body_words + 3;
+    }
+
+    false
+}
+
+fn normalized_text(input: &str) -> String {
+    input
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{build_article_payload, extract_text_from_html};
+    use axum::{routing::get, Router};
+    use tokio::net::TcpListener;
+
+    async fn spawn_test_server(html: &'static str) -> String {
+        let app = Router::new().route("/article", get(move || async move { html }));
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let addr = listener.local_addr().expect("local addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve test server");
+        });
+        format!("http://{}", addr)
+    }
 
     #[test]
     fn extracts_title_and_main_visible_text() {
@@ -245,5 +348,223 @@ mod tests {
             Some("fetch-url")
         );
         assert!(payload.article.word_count.unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn allows_short_but_real_article_content() {
+        let html = r#"
+        <html>
+          <head><title>Short Story</title></head>
+          <body>
+            <main>
+              <p>Brief update: rain delayed the launch, but the event still opened tonight.</p>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let payload = build_article_payload(
+            "http://localhost:8787/short-story.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect("payload should build");
+
+        assert_eq!(payload.article.title, "Short Story");
+        assert!(payload.article.text.0.contains("Brief update"));
+        assert!(payload.article.word_count.unwrap_or(0) < 20);
+    }
+
+    #[test]
+    fn allows_single_block_article_that_starts_with_title_and_continues() {
+        let html = r#"
+        <html>
+          <head><title>Article 3</title></head>
+          <body>
+            <main>
+              <p>Article 3 body text is long enough to count as a real article and keeps going with additional details, context, and facts about the topic.</p>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let payload = build_article_payload(
+            "http://localhost:8787/article-3.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect("single-block article should build");
+
+        assert_eq!(payload.article.title, "Article 3");
+        assert!(payload.article.text.0.starts_with("Article 3 body text"));
+        assert!(payload.article.word_count.unwrap_or(0) >= 20);
+    }
+
+    #[test]
+    fn allows_single_block_article_with_title_prefixed_paragraph() {
+        let html = r#"
+        <html>
+          <head><title>Root Article</title></head>
+          <body>
+            <main>
+              <p>Root Article body with enough words to pass extraction and continue as a real paragraph.</p>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let payload = build_article_payload(
+            "http://localhost:8787/root-article.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect("title-prefixed article should build");
+
+        assert_eq!(payload.article.title, "Root Article");
+        assert!(payload.article.text.0.contains("Root Article body with enough words"));
+    }
+
+    #[test]
+    fn rejects_soft_404_like_page_even_with_enough_words() {
+        let html = r#"
+        <html>
+          <head><title>Article Unavailable</title></head>
+          <body>
+            <main>
+              <p>Sorry, this page is unavailable right now. The requested article could not be found on this site.</p>
+              <p>Please return to the homepage or try again later for more updates and links.</p>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let err = build_article_payload(
+            "http://localhost:8787/missing.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect_err("payload should be rejected");
+
+        assert!(err
+            .to_string()
+            .contains("extracted article text looks unavailable for payload"));
+    }
+
+    #[test]
+    fn rejects_title_only_page() {
+        let html = r#"
+        <html>
+          <head><title>Page not found</title></head>
+          <body><h1>Page not found</h1></body>
+        </html>
+        "#;
+
+        let err = build_article_payload(
+            "http://localhost:8787/page-not-found.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect_err("title-only page should be rejected");
+
+        assert!(err
+            .to_string()
+            .contains("extracted article text looks unavailable for payload"));
+    }
+
+    #[test]
+    fn rejects_list_nav_shell_without_real_paragraph_content() {
+        let html = r#"
+        <html>
+          <head><title>Site Map</title></head>
+          <body>
+            <main>
+              <nav>
+                <ul>
+                  <li>Home</li>
+                  <li>News</li>
+                  <li>Contact</li>
+                </ul>
+              </nav>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let err = build_article_payload(
+            "http://localhost:8787/empty.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect_err("list/nav shell should be rejected");
+
+        assert!(err
+            .to_string()
+            .contains("extracted article text looks unavailable for payload"));
+    }
+
+    #[tokio::test]
+    async fn fetch_article_payload_rejects_template_page_from_public_path() {
+        let base = spawn_test_server(
+            r#"<html>
+              <head><title>Article Unavailable</title></head>
+              <body>
+                <main>
+                  <p>This article is unavailable right now.</p>
+                  <p>The requested article could not be found. Please return to the homepage.</p>
+                </main>
+              </body>
+            </html>"#,
+        )
+        .await;
+
+        let url = format!("{base}/article");
+        let err = super::fetch_article_payload(&url)
+            .await
+            .expect_err("soft-404 should be rejected on public fetch path");
+
+        assert!(err
+            .to_string()
+            .contains("extracted article text looks unavailable for payload"));
+    }
+
+    #[test]
+    fn allows_legitimate_article_that_mentions_404_and_not_found() {
+        let html = r#"
+        <html>
+          <head><title>Engineering Update</title></head>
+          <body>
+            <main>
+              <h1>Engineering Update</h1>
+              <p>We improved the 404 recovery flow and added a helpful not found message for the search UI.</p>
+              <p>The article explains how the team handled edge cases without removing valid content.</p>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let payload = build_article_payload(
+            "http://localhost:8787/blog/engineering-update.html",
+            html,
+            200,
+            "2026-04-27T14:00:00Z",
+            "fetch-url",
+        )
+        .expect("real article should pass");
+
+        assert_eq!(payload.article.title, "Engineering Update");
+        assert!(payload.article.text.0.contains("404 recovery flow"));
+        assert!(payload.article.text.0.contains("not found message"));
     }
 }

@@ -13,6 +13,7 @@ from eem.database._repos import _EnrichmentRepo, _EventReader, _FirmScoreRepo, _
 from eem.database.session import get_db, init_engine
 from eem.llm._analyzer import _ParseError, _analyze_event
 from timeline.buckets import TimelineBucket, compute_timeline_buckets
+from reasoning.storage import ReasoningTraceRepository
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ def _run(firm_id: int) -> list[EEMTimelineEntry]:
         enrichment_repo = _EnrichmentRepo(db)
         score_repo = _FirmScoreRepo(db)
         timeline_repo = _FirmScoreTimelineRepo(db)
+        trace_repo = ReasoningTraceRepository(db)
 
         firm_name, firm_founded_at, firm_created_at = reader.get_firm_info(firm_id)
         events = reader.load_classical_events(firm_id)
@@ -76,8 +78,16 @@ def _run(firm_id: int) -> list[EEMTimelineEntry]:
         impact_map: dict[str, tuple[float, list[str]]] = {}
         for event in events:
             try:
-                fields: _EventFields = _analyze_event(event, firm_name)
+                fields, trace = _analyze_event(event, firm_name)
                 enrichment_repo.upsert(event.event_id, fields, config.EEM_MODEL)
+                # Store reasoning trace
+                trace_repo.save(
+                    classifier_name="EEM",
+                    entity_type="event",
+                    entity_id=event.event_id,
+                    trace_data=trace.model_dump(),
+                    correlation_id=None,
+                )
                 impact_map[event.event_id] = (fields.impact, fields.keywords)
             except _ParseError as exc:
                 logger.warning("Skipping event %s — parse error: %s", event.event_id, exc)

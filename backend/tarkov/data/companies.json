@@ -10,5 +10,11 @@
     "ticker": "GLOB",
     "aliases": ["Globex", "Globex Holdings"],
     "exchange": "TEST"
+  },
+  {
+    "name": "Cyfrowy Polsat S.A.",
+    "ticker": "CPS",
+    "aliases": ["Cyfrowy Polsat", "Polsat", "Polsat Box", "Polsat News", "CPS"],
+    "exchange": "GPW"
   }
 ]

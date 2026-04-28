@@ -1469,6 +1469,7 @@
   font-family: inherit;
   cursor: pointer;
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .tt-rf-node:hover {
@@ -1545,12 +1546,19 @@
   line-height: 1.25;
   letter-spacing: -0.005em;
   word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .tt-rf-node-sub {
   font-size: 10.5px;
   color: var(--tt-fg-mute);
   letter-spacing: 0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tt-rf-handle {

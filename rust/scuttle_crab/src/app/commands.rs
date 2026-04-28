@@ -20,6 +20,9 @@ use crate::crawler::search_discovery::discover_company_article_urls;
 use crate::domain::source::{SourceInfo, load_sources};
 use crate::storage::seen_urls::SeenUrlStore;
 
+const REQUIRED_NEWS_ARTICLES: usize = 10;
+const DISCOVERY_CANDIDATE_LIMIT: usize = 50;
+
 #[derive(Debug, Clone)]
 pub enum CommandRequest {
     Crawl {
@@ -209,11 +212,13 @@ async fn execute_search_company(
     let company = resolve_company_record(&config, query)?;
     let mut delivered = 0;
     let mut delivery_failed = 0;
+    let mut news_delivered = 0;
+    let mut registry_delivered = 0;
 
     if !registry_only {
         let client = build_http_client()?;
         let search_query = company.as_ref().map(|value| value.name.as_str()).unwrap_or(query);
-        let urls = discover_company_article_urls(&client, search_query, config.company_article_limit()).await?;
+        let urls = discover_company_article_urls(&client, search_query, DISCOVERY_CANDIDATE_LIMIT).await?;
         let mut seen_urls = SeenUrlStore::load(&config.seen_urls_path)?;
         let mut pending_urls = HashSet::new();
 
@@ -226,7 +231,10 @@ async fn execute_search_company(
                 continue;
             }
 
-            let payload = fetch_article_payload(&url).await?;
+            let payload = match fetch_article_payload(&url).await {
+                Ok(payload) => payload,
+                Err(_) => continue,
+            };
             let canonical_url = payload
                 .article
                 .canonical_url
@@ -237,9 +245,18 @@ async fn execute_search_company(
                 Ok(_) => {
                     seen_urls.record(&canonical_url, &payload.source.name, &payload.article.scraped_at)?;
                     delivered += 1;
+                    news_delivered += 1;
                 }
                 Err(_) => delivery_failed += 1,
             }
+
+            if news_delivered >= REQUIRED_NEWS_ARTICLES {
+                break;
+            }
+        }
+
+        if news_delivered < REQUIRED_NEWS_ARTICLES {
+            bail!("failed to deliver {REQUIRED_NEWS_ARTICLES} news articles after exhausting candidates");
         }
     }
 
@@ -254,21 +271,26 @@ async fn execute_search_company(
             }).await?;
             for payload in result.payloads {
                 match deliver_to_tarkov(&payload).await {
-                    Ok(_) => delivered += 1,
+                    Ok(_) => {
+                        delivered += 1;
+                        registry_delivered += 1;
+                    }
                     Err(_) => delivery_failed += 1,
                 }
             }
         }
     }
 
-    if delivery_failed > 0 {
-        bail!("failed to deliver one or more search-company payloads to Tarkov");
+    if registry_only && registry_delivered == 0 {
+        bail!("failed to deliver any search-company registry payloads to Tarkov");
     }
 
     Ok(CommandSummary {
         delivered,
         delivery_failed,
-        message: format!("search-company finished: delivered={delivered}"),
+        message: format!(
+            "search-company finished: news_delivered={news_delivered}, registry_delivered={registry_delivered}, delivery_failed={delivery_failed}, delivered={delivered}"
+        ),
     })
 }
 

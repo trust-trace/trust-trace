@@ -1,10 +1,5 @@
 # Timeline Scoring — Implementation Plan
 
-> Replace single-point scores with an 8-bucket historical timeline.
-> Both EEM and TrustWeb produce `list[TimelineScore]` instead of a single number.
-
----
-
 ## 1. Core Concept
 
 Today, both scoring modules output **one score per firm**:
@@ -85,7 +80,7 @@ The `firm` table currently has `created_at` (row insertion time) but no business
 ```sql
 ALTER TABLE firm ADD COLUMN founded_at DATETIME;
 
--- Backfill: use created_at as a default for existing rows
+
 UPDATE firm SET founded_at = created_at WHERE founded_at IS NULL;
 ```
 

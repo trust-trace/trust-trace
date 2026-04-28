@@ -12,6 +12,9 @@ use crate::crawler::search_discovery::discover_company_article_urls;
 use crate::storage::jsonl::JsonlOutbox;
 use crate::storage::seen_urls::SeenUrlStore;
 
+const REQUIRED_NEWS_ARTICLES: usize = 10;
+const DISCOVERY_CANDIDATE_LIMIT: usize = 50;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SearchCompanySummary {
     pub news_discovered: usize,
@@ -77,7 +80,9 @@ async fn run_news_branch(
     let outbox = JsonlOutbox::new(&config.outbox_path);
     let mut seen_urls = SeenUrlStore::load(&config.seen_urls_path)?;
     let mut pending_urls = HashSet::new();
-    let urls = discover_company_article_urls(&client, query, config.company_article_limit()).await?;
+    let mut accepted_news_articles = 0usize;
+    let required_news_articles = config.company_article_limit().min(REQUIRED_NEWS_ARTICLES);
+    let urls = discover_company_article_urls(&client, query, DISCOVERY_CANDIDATE_LIMIT).await?;
 
     for url in urls {
         summary.news_discovered += 1;
@@ -105,6 +110,7 @@ async fn run_news_branch(
 
                 if recorded {
                     summary.news_emitted += 1;
+                    accepted_news_articles += 1;
                 } else {
                     summary.news_skipped += 1;
                 }
@@ -117,6 +123,16 @@ async fn run_news_branch(
             }
             Err(_) => summary.news_failed += 1,
         }
+
+        if accepted_news_articles >= required_news_articles {
+            break;
+        }
+    }
+
+    if accepted_news_articles < required_news_articles {
+        anyhow::bail!(
+            "failed to deliver {required_news_articles} news articles after exhausting candidates"
+        );
     }
 
     Ok(())

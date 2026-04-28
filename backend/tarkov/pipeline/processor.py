@@ -34,6 +34,7 @@ from tarkov.pipeline.result_emitter import ResultEmitter
 from tarkov.schemas.article import ArticleIn
 from tarkov.schemas.parsed_result import ParsedResult
 from tarkov.utils.logger import get_logger
+from reasoning.storage import ReasoningTraceRepository
 
 
 logger = get_logger(__name__)
@@ -93,8 +94,21 @@ class ArticleProcessor:
                 self.company_matcher.enrich_firm_profile(firm, article.article.text)
                 firms.append(firm)
             print(f"[PROCESSOR] firms      : {[(f.id, f.full_name) for f in firms]}")
-            events = self.event_extractor.extract_events_keyword_based(article)
+            
+            events, event_traces = self.event_extractor.extract_events_keyword_based(article)
             print(f"[PROCESSOR] events     : {[(e.event_type, e.risk_level) for e in events]}")
+            
+            # Store event extraction traces
+            trace_repo = ReasoningTraceRepository(self.db_session)
+            for event_type, trace in event_traces.items():
+                trace_repo.save(
+                    classifier_name="Tarkov",
+                    entity_type="event_extraction",
+                    entity_id=f"{article_id}_{event_type}",
+                    trace_data=trace.model_dump(),
+                    correlation_id=correlation_id,
+                )
+            
             people = self.person_extractor.extract_people(article, [e.description for e in events])
             print(f"[PROCESSOR] people     : {[p.name for p in people]}")
 
