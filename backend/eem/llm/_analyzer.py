@@ -6,6 +6,8 @@ import logging
 from eem._types import _EventFields, _EventRow
 from eem.llm._client import chat_completion
 from eem.llm._prompts import SYSTEM_PROMPT, build_user_message
+from reasoning.collectors.eem_collector import EEMTraceCollector
+from reasoning.schemas import EEMReasoningTrace
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,10 @@ class _ParseError(Exception):
     pass
 
 
-def _analyze_event(event: _EventRow, firm_name: str) -> _EventFields:
+def _analyze_event(event: _EventRow, firm_name: str) -> tuple[_EventFields, EEMReasoningTrace]:
     user_msg = build_user_message(event, firm_name)
+    collector = EEMTraceCollector(event.event_id, firm_name)
+    
     try:
         raw = chat_completion(
             [
@@ -25,10 +29,15 @@ def _analyze_event(event: _EventRow, firm_name: str) -> _EventFields:
                 {"role": "user", "content": user_msg},
             ]
         )
-        return _parse_response(raw)
+        fields = _parse_response(raw)
+        collector.record_llm_success(fields, raw)
     except Exception as exc:
         logger.warning("Falling back to deterministic EEM analysis for event %s: %s", event.event_id, exc)
-        return _fallback_fields(event, firm_name)
+        fields = _fallback_fields(event, firm_name)
+        collector.record_fallback(exc)
+    
+    trace = collector.collect()
+    return fields, trace
 
 
 def _fallback_fields(event: _EventRow, firm_name: str) -> _EventFields:
