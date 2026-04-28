@@ -133,6 +133,24 @@ def create_app(config: Config | None = None):
         finally:
             session.close()
 
+    @app.get("/api/ingestion/stats")
+    def ingestion_queue_stats() -> dict:
+        """Live counts for article ingestion: actively processing vs waiting in queue."""
+        session = SessionLocal()
+        try:
+            repo = IngestionJobRepository(session)
+            return {
+                "parsing": repo.count_processing(),
+                "queued": repo.count_queued(),
+            }
+        except Exception as exc:
+            logger.exception("Failed to load ingestion stats: %s", exc)
+            raise HTTPException(
+                status_code=500, detail="Failed to load ingestion stats"
+            ) from exc
+        finally:
+            session.close()
+
     @app.get("/api/companies/{company_id}/articles")
     def list_frontend_company_articles(company_id: str) -> list[dict]:
         session = SessionLocal()

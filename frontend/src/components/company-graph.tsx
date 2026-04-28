@@ -44,16 +44,18 @@ const BASE_NODE_WIDTH: Record<GraphEntityType, number> = {
   Event: 220,
 };
 
+/** Minimum height for one title line + chrome; must match real CSS in globals (.tt-rf-node). */
 const BASE_NODE_HEIGHT: Record<GraphEntityType, number> = {
-  Company: 64,
-  Person: 56,
-  Event: 78,
+  Company: 72,
+  Person: 74,
+  Event: 88,
 };
 
 const MAX_NODE_WIDTH = 280;
 const CHAR_WIDTH_ESTIMATE = 7;
 const NODE_PADDING_X = 28;
-const LINE_HEIGHT = 16;
+/** Per wrapped title line; keep in sync with .tt-rf-node-title line-height × font-size. */
+const LINE_HEIGHT = 17;
 
 function estimateNodeSize(node: EntityGraphNode): { width: number; height: number } {
   const label =

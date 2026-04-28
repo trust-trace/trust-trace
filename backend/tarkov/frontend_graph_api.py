@@ -216,8 +216,16 @@ class FrontendGraphService:
             )
         )
 
+        result_rows = list(db.execute(stmt))
+        if not result_rows:
+            return []
+
+        event_ids = [str(row[0].unique_id) for row in result_rows]
+        sources_by_event = self._article_sources_by_event_id(db, event_ids)
+        traces_by_event = self._article_traces_by_event_id(db, event_ids)
+
         articles: list[dict[str, Any]] = []
-        for event, source, enrichment in db.execute(stmt):
+        for event, source, enrichment in result_rows:
             keywords = self._load_json_list(enrichment.keywords if enrichment else None)
             entities = self._load_json_list(enrichment.entities if enrichment else None)
             article_date = None
@@ -228,6 +236,7 @@ class FrontendGraphService:
             elif source is not None:
                 article_date = source.created_at
 
+            quote = (event.source_text_quote or "").strip()
             articles.append(
                 {
                     "id": event.unique_id,
@@ -242,10 +251,64 @@ class FrontendGraphService:
                     "keywords": keywords,
                     "excerpt": self._article_excerpt(event, source, enrichment),
                     "entities": entities or [firm.full_name],
+                    "sourceText": quote,
+                    "sources": sources_by_event.get(event.unique_id, []),
+                    "traces": traces_by_event.get(event.unique_id, []),
                 }
             )
 
         return articles
+
+    def _article_sources_by_event_id(
+        self, db: Session, event_ids: list[str]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """All persisted Source rows per event (URLs, tiers metadata)."""
+        if not event_ids:
+            return {}
+        rows = db.execute(select(Source).where(Source.event_id.in_(event_ids))).scalars().all()
+        by_event: dict[str, list[dict[str, Any]]] = {}
+        for src in rows:
+            by_event.setdefault(src.event_id, []).append(
+                {
+                    "url": src.url,
+                    "title": src.title,
+                    "sourceCategory": src.source_category,
+                    "publishedAt": self._to_iso8601(src.published_at)
+                    if src.published_at
+                    else None,
+                    "credibility": src.credibility,
+                }
+            )
+        return by_event
+
+    def _article_traces_by_event_id(
+        self, db: Session, event_ids: list[str]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Reasoning traces stored for each event entity_id (e.g. EEM scoring)."""
+        if not event_ids:
+            return {}
+        from reasoning.models import ReasoningTraceModel
+        from reasoning.storage import ReasoningTraceRepository
+
+        rows = (
+            db.execute(
+                select(ReasoningTraceModel).where(
+                    ReasoningTraceModel.entity_id.in_(event_ids)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for model in rows:
+            st = ReasoningTraceRepository._model_to_storage(model)
+            grouped.setdefault(model.entity_id, []).append(st.model_dump(mode="json"))
+        for items in grouped.values():
+            items.sort(
+                key=lambda t: str(t.get("created_at") or ""),
+                reverse=True,
+            )
+        return grouped
 
     def get_graph(
         self, db: Session, company_id: str, max_depth: int = 2

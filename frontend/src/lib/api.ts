@@ -3,6 +3,7 @@ import type {
   Company,
   CompanyRelation,
   GraphResponse,
+  IngestionStats,
   PipelineRunAccepted,
   PipelineRunStatus,
   ReasoningTrace,
@@ -39,6 +40,10 @@ async function sendJson<T>(input: string, init: RequestInit): Promise<T> {
 
 export function getCompanies() {
   return readJson<Company[]>('/api/companies');
+}
+
+export function getIngestionStats() {
+  return readJson<IngestionStats>('/api/ingestion/stats');
 }
 
 export function getCompanyArticles(companyId: string) {

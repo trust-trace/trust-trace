@@ -11,6 +11,9 @@ export const handlers = [
   http.get('*/api/relations', () => {
     return HttpResponse.json(COMPANY_RELATIONS);
   }),
+  http.get('*/api/ingestion/stats', () => {
+    return HttpResponse.json({ parsing: 0, queued: 0 });
+  }),
   http.get('*/api/companies/:companyId/articles', ({ params }) => {
     const companyId = String(params.companyId);
     return HttpResponse.json(ARTICLES[companyId] ?? []);

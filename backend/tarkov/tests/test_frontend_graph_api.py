@@ -5,7 +5,9 @@ from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+import reasoning.models  # noqa: F401 — registers ReasoningTraceModel
 from eem.database.models import Base as EemBase, EventEnrichment, FirmScore
+from reasoning.session import Base as ReasoningBase
 from pipeline.models import FinalScoreTimeline
 from tarkov.config import Config
 from tarkov.database.models import (
@@ -24,6 +26,7 @@ def build_session() -> Session:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     TarkovBase.metadata.create_all(bind=engine)
     EemBase.metadata.create_all(bind=engine)
+    ReasoningBase.metadata.create_all(bind=engine)
     factory = sessionmaker(
         bind=engine,
         autoflush=False,
@@ -584,6 +587,17 @@ def test_list_articles_returns_frontend_article_shape(monkeypatch):
             "keywords": ["aml", "investigation"],
             "excerpt": "Short excerpt",
             "entities": ["Acme Holdings", "KNF"],
+            "sourceText": "Important investigation quote.",
+            "sources": [
+                {
+                    "url": "https://reuters.com/acme",
+                    "title": "Reuters reports on Acme",
+                    "sourceCategory": "article",
+                    "publishedAt": "2026-04-27T09:30:00",
+                    "credibility": 0.9,
+                }
+            ],
+            "traces": [],
         }
     ]
 

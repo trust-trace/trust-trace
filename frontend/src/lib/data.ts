@@ -34,6 +34,21 @@ export interface Article {
   keywords: string[];
   excerpt: string;
   entities: string[];
+  /** Quote / span of text from the source used for extraction and scoring (full transparency). */
+  sourceText?: string;
+  /** All persisted source rows for this event (URLs, categories, credibility). */
+  sources?: ArticleSourceRef[];
+  /** Reasoning traces linked to this article/event (e.g. EEM impact breakdown). */
+  traces?: ReasoningTrace[];
+}
+
+/** One stored source row attached to the pipeline event behind an article. */
+export interface ArticleSourceRef {
+  url: string;
+  title: string | null;
+  sourceCategory: string;
+  publishedAt: string | null;
+  credibility: number | null;
 }
 
 export interface CompanyRelation {
@@ -128,6 +143,12 @@ export interface GraphResponse {
   rootId: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
+}
+
+/** Article ingestion worker: `queued` is pending/retrying; `parsing` is in-flight. */
+export interface IngestionStats {
+  parsing: number;
+  queued: number;
 }
 
 export interface PipelineRunAccepted {
@@ -385,6 +406,41 @@ const JSW_ARTICLES: Article[] = [
     excerpt:
       'Funkcjonariusze CBA przeprowadzili w czwartek rano akcję w siedzibie spółki w Jastrzębiu-Zdroju. Zatrzymanym przedstawiono zarzuty przyjęcia korzyści majątkowej w łącznej kwocie ponad 4,2 mln zł oraz działania na szkodę spółki Skarbu Państwa.',
     entities: ['CBA', 'Prokuratura Regionalna w Katowicach', 'JSW S.A.'],
+    sourceText:
+      'Funkcjonariusze CBA przeprowadzili w czwartek rano akcję w siedzibie spółki w Jastrzębiu-Zdroju.',
+    sources: [
+      {
+        url: 'https://example.com/articles/jsw-cba',
+        title: 'CBA wkroczyło do siedziby JSW',
+        sourceCategory: 'article',
+        publishedAt: '2026-04-26T08:00:00',
+        credibility: 0.92,
+      },
+    ],
+    traces: [
+      {
+        classifier_name: 'EEM',
+        entity_type: 'event',
+        entity_id: 'a1',
+        correlation_id: null,
+        trace_data: {
+          model_used: 'llm',
+          impact_scoring: {
+            baseline_impact: -6.2,
+            risk_level: 9,
+            keyword_boost: -2.2,
+            final_impact: -8.4,
+          },
+          sentiment_calculation: {
+            base_sentiment: -0.85,
+            event_type: 'investigation',
+            keyword_influences: ['CBA', 'zarzuty'],
+            final_sentiment: -0.92,
+          },
+        },
+        created_at: '2026-04-26T08:15:00',
+      },
+    ],
   },
   {
     id: 'a2',
@@ -598,6 +654,19 @@ function generateArticles(company: Company): Article[] {
       excerpt:
         'Treść artykułu została zagregowana z publicznie dostępnych źródeł i poddana analizie sentymentu w kontekście branżowym. Algorytm uwzględnia fleksję, synonimy oraz kontekst wystąpień słów kluczowych ryzyka.',
       entities: [company.name],
+      sourceText: `Fragment tekstu użytego w scoringu (symulacja): ${company.short} — ${t.k.join(', ')}.`,
+      sources: [
+        {
+          url: `https://example.com/articles/${company.id}-${i}`,
+          title: t.h.replace('{short}', company.short),
+          sourceCategory: 'article',
+          publishedAt: date.toISOString(),
+          credibility:
+            Math.round((0.55 + ((company.id.charCodeAt(0) + i * 31) % 35) / 100) * 100) /
+            100,
+        },
+      ],
+      traces: [],
     });
   }
   return out;
