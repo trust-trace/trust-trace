@@ -7,12 +7,21 @@ import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
 import { CompanyGraph } from './company-graph';
-import { getCompanyHistoryForRange, hasCompanyTradingView } from './main-panel-helpers';
+import {
+  getCompanyHistoryForRange,
+  hasCompanyTradingView,
+  hasPendingScore,
+} from './main-panel-helpers';
 import { riskColor, riskLabel } from './sidebar';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
 
+const PENDING_COLOR = 'oklch(0.58 0.03 255)';
+
 function relativeTime(iso: string): string {
+  if (!iso) return 'w trakcie';
+
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (Number.isNaN(diff)) return 'w trakcie';
   if (diff < 60) return 'przed chwilą';
   if (diff < 3600) return `${Math.floor(diff / 60)} min temu`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} h temu`;
@@ -36,25 +45,27 @@ interface OverviewPanelProps {
   loading: boolean;
   error: string | null;
   accentColor: string;
+  scorePending: boolean;
 }
 
-function OverviewPanel({ company, articles, loading, error, accentColor }: OverviewPanelProps) {
-  const [openId, setOpenId] = useState<string | null>(articles[0]?.id ?? null);
+function OverviewPanel({
+  company,
+  articles,
+  loading,
+  error,
+  accentColor,
+  scorePending,
+}: OverviewPanelProps) {
+  const [manualOpenId, setManualOpenId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [activeTab, setActiveTab] = useState<HistoryRangeKey>('12M');
   const [showTVChart, setShowTVChart] = useState(false);
   const tradingViewAvailable = hasCompanyTradingView(company);
   const displayedHistory = getCompanyHistoryForRange(company, activeTab);
-
-  useEffect(() => {
-    setOpenId(articles[0]?.id ?? null);
-  }, [articles]);
-
-  useEffect(() => {
-    if (!tradingViewAvailable) {
-      setShowTVChart(false);
-    }
-  }, [tradingViewAvailable]);
+  const openId = articles.some((article) => article.id === manualOpenId)
+    ? manualOpenId
+    : articles[0]?.id ?? null;
+  const activeShowTVChart = tradingViewAvailable && showTVChart;
 
   const filtered = useMemo(() => {
     if (filter === 'neg') return articles.filter((article) => article.sentiment <= -0.2);
@@ -83,7 +94,9 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
           <div>
             <div className="tt-section-title">Historia scoringu</div>
             <div className="tt-section-sub">
-              {displayedHistory
+              {scorePending
+                ? 'Model przygotowuje pierwszy wynik z backendu'
+                : displayedHistory
                 ? `Zakres ${activeTab} · dane z backendu`
                 : `Zakres ${activeTab} · brak zhydratowanych danych z backendu`}
             </div>
@@ -92,7 +105,7 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: tradingViewAvailable ? 'pointer' : 'not-allowed', fontSize: 11, color: tradingViewAvailable ? 'oklch(0.55 0.01 260)' : 'oklch(0.7 0.01 260)', fontFamily: 'var(--font-jetbrains-mono), monospace', letterSpacing: '0.04em' }}>
               <input
                 type="checkbox"
-                checked={showTVChart}
+                checked={activeShowTVChart}
                 disabled={!tradingViewAvailable}
                 onChange={(e) => setShowTVChart(e.target.checked)}
                 style={{ accentColor: '#2962ff', cursor: tradingViewAvailable ? 'pointer' : 'not-allowed' }}
@@ -108,14 +121,26 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
           </div>
         )}
         <div style={{ position: 'relative' }}>
-          {displayedHistory ? (
+          {scorePending ? (
+            <div className="tt-chart-loading" aria-live="polite">
+              <div className="tt-chart-loading-orbit" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="tt-chart-loading-copy">
+                <strong>Liczymy Trust Score</strong>
+                <span>Pierwszy wynik pojawi się zaraz po zakończeniu scoringu backendowego.</span>
+              </div>
+            </div>
+          ) : displayedHistory ? (
             <ScoreChart history={displayedHistory} color={accentColor} range={activeTab} />
           ) : (
             <div className="tt-empty" style={{ padding: 40 }}>
               Timeline scoringu nie jest jeszcze dostępny z backendu dla tego zakresu.
             </div>
           )}
-          {showTVChart && company.tradingViewSymbol && <TradingViewWidget symbol={company.tradingViewSymbol} />}
+          {activeShowTVChart && company.tradingViewSymbol && <TradingViewWidget symbol={company.tradingViewSymbol} />}
         </div>
       </section>
 
@@ -155,7 +180,7 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
               key={article.id}
               article={article}
               expanded={openId === article.id}
-              onToggle={() => setOpenId(openId === article.id ? null : article.id)}
+              onToggle={() => setManualOpenId(openId === article.id ? null : article.id)}
               idx={idx}
             />
           ))}
@@ -220,11 +245,12 @@ export function MainPanel({
   articleError,
   onSelectCompany,
 }: MainPanelProps) {
+  const scorePending = hasPendingScore(company);
   const [activeView, setActiveView] = useState<MainPanelView>('overview');
   const [graphCache, setGraphCache] = useState<Record<string, GraphResponse>>({});
   const [graphLoadingById, setGraphLoadingById] = useState<Record<string, boolean>>({});
   const [graphErrorById, setGraphErrorById] = useState<Record<string, string | null>>({});
-  const accentColor = riskColor(company.risk);
+  const accentColor = scorePending ? PENDING_COLOR : riskColor(company.risk);
 
   const loadGraph = useCallback(async (companyId: string, force = false) => {
     if (!force && graphCache[companyId]) {
@@ -293,23 +319,32 @@ export function MainPanel({
 
         <div className="tt-mhead-right">
           <div className="tt-score-card">
-            <div className="tt-score-label">Trust score</div>
-            <div className="tt-score-value" style={{ color: accentColor }}>
-              {company.score}
-              <span className="tt-score-of">/100</span>
-            </div>
-            <div
-              className={
-                'tt-score-trend' +
-                (company.trend < 0 ? ' is-neg' : company.trend > 0 ? ' is-pos' : '')
-              }
-            >
-              {company.trend > 0 ? '↑' : company.trend < 0 ? '↓' : '·'} {Math.abs(company.trend)} pkt · 30 dni
-            </div>
+            <div className="tt-score-label">{scorePending ? 'Scoring backendu' : 'Trust score'}</div>
+            {scorePending ? (
+              <div className="tt-score-pending">
+                <span className="tt-score-pending-dot" />
+                <span>Calculating…</span>
+              </div>
+            ) : (
+              <>
+                <div className="tt-score-value" style={{ color: accentColor }}>
+                  {company.score}
+                  <span className="tt-score-of">/100</span>
+                </div>
+                <div
+                  className={
+                    'tt-score-trend' +
+                    (company.trend < 0 ? ' is-neg' : company.trend > 0 ? ' is-pos' : '')
+                  }
+                >
+                  {company.trend > 0 ? '↑' : company.trend < 0 ? '↓' : '·'} {Math.abs(company.trend)} pkt · 30 dni
+                </div>
+              </>
+            )}
           </div>
-          <div className={'tt-risk-pill tt-risk-' + company.risk}>
+          <div className={'tt-risk-pill' + (scorePending ? ' is-pending' : ' tt-risk-' + company.risk)}>
             <span className="tt-risk-dot" style={{ background: accentColor }} />
-            Ryzyko: {riskLabel(company.risk)}
+            {scorePending ? 'Scoring pending' : `Ryzyko: ${riskLabel(company.risk)}`}
           </div>
         </div>
       </header>
@@ -336,6 +371,7 @@ export function MainPanel({
           loading={articlesLoading}
           error={articleError}
           accentColor={accentColor}
+          scorePending={scorePending}
         />
       ) : (
         <section className="tt-graph-view">

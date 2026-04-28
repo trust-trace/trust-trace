@@ -27,6 +27,7 @@ export interface Article {
   id: string;
   headline: string;
   source: string;
+  sourceUrl?: string;
   sourceTier: SourceTier;
   date: string;
   sentiment: number;

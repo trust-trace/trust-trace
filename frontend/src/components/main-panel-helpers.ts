@@ -1,5 +1,17 @@
 import type { Company, HistoryRangeKey } from '@/lib/data';
 
+export function hasPendingScore(company: Company): boolean {
+  return (
+    company.score === 50 &&
+    company.trend === 0 &&
+    company.risk === 'medium' &&
+    company.history.length === 1 &&
+    company.history[0] === 50 &&
+    company.keywords.length === 0 &&
+    company.lastUpdate.trim() === ''
+  );
+}
+
 export function getCompanyHistoryForRange(
   company: Company,
   range: HistoryRangeKey
