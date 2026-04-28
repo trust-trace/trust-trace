@@ -42,16 +42,14 @@ class EventClassifierClient(BaseScoringClient):
 
 class NSAClient(BaseScoringClient):
     def __init__(self, base_url: str):
-        super().__init__(base_url=base_url, route="/score/people")
+        super().__init__(base_url=base_url, route="/score/company")
 
-    async def score_people(self, company_matches, people, correlation_id):
+    async def score_company(self, firm_id, correlation_id):
         from asyncio import to_thread
 
         payload = {
             "correlation_id": correlation_id,
-            "company_matches": company_matches,
-            "people": [person.model_dump(mode="json") for person in people],
+            "firm_id": firm_id,
         }
         return await to_thread(self._post, payload)
-
 

@@ -158,6 +158,7 @@ class ArticleProcessor:
                 events=[*events, *connection_events],
                 people=people,
                 company_matches=[str(f.id) for f in firms],
+                firm_ids=[f.id for f in firms],
                 language=article.article.language,
                 total_risk_score=(sum(e.risk_level for e in events) / len(events)) if events else 0.0,
             )
