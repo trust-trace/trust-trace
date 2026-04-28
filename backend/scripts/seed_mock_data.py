@@ -110,6 +110,40 @@ def create_pg_tables(engine):
             computed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS pipeline_run (
+            id              UUID PRIMARY KEY,
+            query           TEXT NOT NULL,
+            status          VARCHAR(30) NOT NULL DEFAULT 'created',
+            phase           VARCHAR(30) NOT NULL DEFAULT 'created',
+            article_target  INT NOT NULL DEFAULT 30,
+            articles_scraped  INT NOT NULL DEFAULT 0,
+            articles_processed INT NOT NULL DEFAULT 0,
+            firm_ids        TEXT NOT NULL DEFAULT '[]',
+            final_scores    TEXT NOT NULL DEFAULT '{}',
+            error           TEXT,
+            created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at    TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS final_score_timeline (
+            id              SERIAL PRIMARY KEY,
+            firm_id         BIGINT NOT NULL REFERENCES firm(id) ON DELETE CASCADE,
+            run_id          UUID NOT NULL REFERENCES pipeline_run(id) ON DELETE CASCADE,
+            bucket_index    SMALLINT NOT NULL,
+            bucket_start    TIMESTAMP NOT NULL,
+            bucket_end      TIMESTAMP NOT NULL,
+            eem_score       DECIMAL(5,2),
+            trustweb_score  DECIMAL(4,3),
+            nsa_score       DECIMAL(4,3),
+            final_score     DECIMAL(4,3) NOT NULL,
+            risk_level      VARCHAR(10) NOT NULL,
+            computed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(run_id, firm_id, bucket_index)
+        )
+        """,
     ]
     with engine.connect() as conn:
         for ddl in extra_ddl:
@@ -120,6 +154,8 @@ def create_pg_tables(engine):
 def drop_all(engine):
     """Drop everything so we can re-seed cleanly."""
     with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS final_score_timeline CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS pipeline_run CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS trustweb_run CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS trustweb_score_timeline CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS firm_score_timeline CASCADE"))

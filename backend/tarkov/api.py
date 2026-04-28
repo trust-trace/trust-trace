@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 
 from sqlalchemy import text
@@ -35,6 +37,13 @@ def _prepare_eem_schema() -> None:
     EemBase.metadata.create_all(bind=get_engine())
 
 
+def _prepare_pipeline_schema() -> None:
+    import pipeline.models  # noqa: F401  # populate metadata on Tarkov's Base
+
+    from tarkov.database.session import Base
+    Base.metadata.create_all(bind=get_engine())
+
+
 def create_app(config: Config | None = None):
     try:
         from fastapi import FastAPI, HTTPException
@@ -46,6 +55,7 @@ def create_app(config: Config | None = None):
     init_engine(cfg.database_url)
     create_all()
     _prepare_eem_schema()
+    _prepare_pipeline_schema()
 
     app = FastAPI(title="Tarkov API", version="0.1.0")
     worker = IngestionWorker(cfg)
@@ -187,6 +197,86 @@ def create_app(config: Config | None = None):
                 "article_id": job.article_id,
                 "source_url": job.source_url,
                 "title": job.title,
+            }
+        finally:
+            session.close()
+
+    # ── Pipeline endpoints ────────────────────────────────────────────
+
+    @app.post("/v1/pipeline/run", status_code=202)
+    async def pipeline_run(request: FastAPIRequest):
+        """Kick off the full E2E AML scoring pipeline.
+
+        Request body: ``{"query": "<keyword or company>", "article_limit": 30}``
+        Returns 202 with ``run_id`` immediately; pipeline executes in background.
+        """
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
+
+        query = body.get("query", "").strip()
+        if not query:
+            raise HTTPException(status_code=400, detail="'query' is required")
+
+        article_limit = int(body.get("article_limit", 30))
+
+        from pipeline.orchestrator import PipelineOrchestrator
+
+        orchestrator = PipelineOrchestrator(cfg)
+        run_id = str(uuid.uuid4())
+
+        # Create the pipeline_run row synchronously so the ID is available
+        from pipeline.models import PipelineRun as PipelineRunModel
+        session = SessionLocal()
+        try:
+            run = PipelineRunModel(
+                id=run_id,
+                query=query,
+                status="running",
+                phase="created",
+                article_target=article_limit,
+            )
+            session.add(run)
+            session.commit()
+        finally:
+            session.close()
+
+        async def _background():
+            try:
+                await orchestrator._execute(run_id, query, article_limit)
+                orchestrator._complete(run_id, {})
+            except Exception as exc:
+                logger.exception("Pipeline %s failed", run_id)
+                orchestrator._fail(run_id, str(exc))
+
+        asyncio.create_task(_background())
+
+        return {"status": "accepted", "run_id": run_id}
+
+    @app.get("/v1/pipeline/{run_id}")
+    def pipeline_status(run_id: str) -> dict:
+        """Poll the current state of a pipeline run."""
+        from pipeline.models import PipelineRun as PipelineRunModel
+
+        session = SessionLocal()
+        try:
+            run = session.get(PipelineRunModel, run_id)
+            if run is None:
+                raise HTTPException(status_code=404, detail="Pipeline run not found")
+            return {
+                "run_id": run.id,
+                "query": run.query,
+                "status": run.status,
+                "phase": run.phase,
+                "article_target": run.article_target,
+                "articles_scraped": run.articles_scraped,
+                "articles_processed": run.articles_processed,
+                "firm_ids": json.loads(run.firm_ids) if run.firm_ids else [],
+                "final_scores": json.loads(run.final_scores) if run.final_scores else {},
+                "error": run.error,
+                "created_at": run.created_at.isoformat() if run.created_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
             }
         finally:
             session.close()
