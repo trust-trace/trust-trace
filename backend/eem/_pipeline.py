@@ -87,6 +87,7 @@ def _run(firm_id: int) -> list[EEMTimelineEntry]:
                     trace_data=trace.model_dump(),
                     correlation_id=None,
                 )
+                db.commit()
                 fields.reasoning_trace = trace
                 impact_map[event.event_id] = (fields.impact, fields.keywords)
             except _ParseError as exc:
