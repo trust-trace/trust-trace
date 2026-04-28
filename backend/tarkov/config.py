@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
+
+
+_DATACLASS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -13,7 +17,7 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-@dataclass(slots=True)
+@dataclass(**_DATACLASS_KWARGS)
 class Config:
     database_url: str
     log_level: str
@@ -57,7 +61,9 @@ class Config:
             llm_provider=os.getenv("LLM_PROVIDER", "none"),
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
-            openrouter_base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+            openrouter_base_url=os.getenv(
+                "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
+            ),
             openrouter_http_referer=os.getenv(
                 "OPENROUTER_HTTP_REFERER", "https://github.com/trust-trace/trust-trace"
             ),
@@ -65,17 +71,27 @@ class Config:
             llm_web_search_enabled=env_bool("LLM_WEB_SEARCH_ENABLED", False),
             article_input_source=os.getenv("ARTICLE_INPUT_SOURCE", "jsonl"),
             article_input_path=os.getenv("ARTICLE_INPUT_PATH", "articles.jsonl"),
-            company_reference_path=os.getenv("COMPANY_REFERENCE_PATH", "backend/tarkov/data/companies.json"),
-            keywords_file_path=os.getenv("KEYWORDS_FILE_PATH", "backend/tarkov/data/aml_keywords.json"),
-            dead_letter_path=os.getenv("DEAD_LETTER_PATH", "backend/tarkov/dead_letters.jsonl"),
+            company_reference_path=os.getenv(
+                "COMPANY_REFERENCE_PATH", "backend/tarkov/data/companies.json"
+            ),
+            keywords_file_path=os.getenv(
+                "KEYWORDS_FILE_PATH", "backend/tarkov/data/aml_keywords.json"
+            ),
+            dead_letter_path=os.getenv(
+                "DEAD_LETTER_PATH", "backend/tarkov/dead_letters.jsonl"
+            ),
             api_host=os.getenv("TARKOV_API_HOST", "0.0.0.0"),
             api_port=int(os.getenv("TARKOV_API_PORT", "8081")),
             enable_stage3_dispatch=env_bool("ENABLE_STAGE3_DISPATCH", False),
             event_classifier_url=os.getenv("EVENT_CLASSIFIER_URL", ""),
             nsa_url=os.getenv("NSA_URL", ""),
             trustweb_url=os.getenv("TRUSTWEB_URL", ""),
-            enable_ingest_contract_headers=env_bool("ENABLE_INGEST_CONTRACT_HEADERS", False),
-            enforce_payload_version_header=env_bool("ENFORCE_PAYLOAD_VERSION_HEADER", False),
+            enable_ingest_contract_headers=env_bool(
+                "ENABLE_INGEST_CONTRACT_HEADERS", False
+            ),
+            enforce_payload_version_header=env_bool(
+                "ENFORCE_PAYLOAD_VERSION_HEADER", False
+            ),
             expected_payload_version=os.getenv("EXPECTED_PAYLOAD_VERSION", "1"),
             neo4j_uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
             neo4j_user=os.getenv("NEO4J_USER", "neo4j"),

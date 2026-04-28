@@ -1,9 +1,9 @@
-//! DuckDuckGo-based company article discovery helpers.
+//! RSS-based company article discovery helpers.
 
-use anyhow::{Context, bail};
-use scraper::{Html, Selector};
+use anyhow::Context;
+use feed_rs::parser;
 
-const SEARCH_BASE_URL: &str = "https://html.duckduckgo.com/html/?q=";
+const SEARCH_BASE_URL: &str = "https://www.bing.com/news/search?q=";
 
 fn search_base_url() -> String {
     std::env::var("SCUTTLE_COMPANY_SEARCH_BASE_URL")
@@ -14,25 +14,33 @@ fn search_base_url() -> String {
 
 pub fn build_search_url(query: &str) -> String {
     format!(
-        "{}{}",
+        "{}{}&format=rss",
         search_base_url(),
         url::form_urlencoded::byte_serialize(query.as_bytes()).collect::<String>()
     )
 }
 
-pub fn parse_result_urls(html: &str) -> anyhow::Result<Vec<String>> {
-    if html.contains("Unfortunately, bots use DuckDuckGo too") {
-        bail!("duckduckgo challenge page returned");
+pub fn parse_result_urls(feed_xml: &str) -> anyhow::Result<Vec<String>> {
+    let feed = parser::parse(feed_xml.as_bytes()).context("failed to parse search RSS feed")?;
+    Ok(feed
+        .entries
+        .into_iter()
+        .filter_map(|entry| entry.links.into_iter().next())
+        .filter_map(|link| unwrap_result_link(&link.href))
+        .collect())
+}
+
+fn unwrap_result_link(raw: &str) -> Option<String> {
+    let parsed = url::Url::parse(raw).ok()?;
+    if parsed.domain() == Some("www.bing.com") {
+        for (key, value) in parsed.query_pairs() {
+            if key == "url" {
+                return Some(value.into_owned());
+            }
+        }
     }
 
-    let document = Html::parse_document(html);
-    let selector = Selector::parse("a.result__a").expect("valid result selector");
-
-    Ok(document
-        .select(&selector)
-        .filter_map(|node| node.value().attr("href"))
-        .map(str::to_string)
-        .collect())
+    Some(raw.to_string())
 }
 
 pub async fn discover_company_article_urls(
@@ -62,24 +70,31 @@ mod tests {
     use super::{build_search_url, parse_result_urls};
 
     #[test]
-    fn builds_duckduckgo_search_url_from_query() {
+    fn builds_bing_news_rss_search_url_from_query() {
         let url = build_search_url("Allegro news");
-        assert!(url.starts_with("https://html.duckduckgo.com/html/?q="));
+        assert!(url.starts_with("https://www.bing.com/news/search?q="));
         assert!(url.contains("Allegro%20news") || url.contains("Allegro+news"));
+        assert!(url.ends_with("&format=rss"));
     }
 
     #[test]
-    fn extracts_result_links_from_duckduckgo_html() {
-        let html = r#"
-        <html>
-          <body>
-            <a class="result__a" href="https://example.com/article-1">Article 1</a>
-            <a class="result__a" href="https://example.com/article-2">Article 2</a>
-          </body>
-        </html>
+    fn extracts_direct_links_from_bing_rss() {
+        let xml = r#"
+        <rss version="2.0">
+          <channel>
+            <item>
+              <title>Article 1</title>
+              <link>http://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fexample.com%2Farticle-1&amp;foo=bar</link>
+            </item>
+            <item>
+              <title>Article 2</title>
+              <link>https://example.com/article-2</link>
+            </item>
+          </channel>
+        </rss>
         "#;
 
-        let urls = parse_result_urls(html).expect("links should parse");
+        let urls = parse_result_urls(xml).expect("links should parse");
         assert_eq!(
             urls,
             vec![
@@ -94,7 +109,7 @@ mod tests {
         unsafe {
             std::env::set_var(
                 "SCUTTLE_COMPANY_SEARCH_BASE_URL",
-                "http://localhost:9999/html/?q=",
+                "http://localhost:9999/news/search?q=",
             );
         }
 
@@ -104,6 +119,6 @@ mod tests {
             std::env::remove_var("SCUTTLE_COMPANY_SEARCH_BASE_URL");
         }
 
-        assert_eq!(url, "http://localhost:9999/html/?q=Allegro");
+        assert_eq!(url, "http://localhost:9999/news/search?q=Allegro&format=rss");
     }
 }

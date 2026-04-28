@@ -66,6 +66,7 @@ pub async fn serve() -> anyhow::Result<()> {
     let address = config.bind_address();
     let listener = tokio::net::TcpListener::bind(&address).await?;
     let app = http::app(app::jobs::JobRegistry::default())?;
+    println!("scuttle_crab ready — listening on {address}");
     axum::serve(listener, app).await?;
     Ok(())
 }

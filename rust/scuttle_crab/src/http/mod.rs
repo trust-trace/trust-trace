@@ -35,8 +35,10 @@ struct FetchUrlRequest {
 }
 
 #[derive(Debug, Deserialize)]
-struct QueryRequest {
+struct ScrapeCompanyRequest {
     query: String,
+    krs: Option<String>,
+    nip: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,13 +142,19 @@ async fn queue_fetch_url(
 
 async fn queue_scrape_company(
     State(state): State<AppState>,
-    Json(request): Json<QueryRequest>,
+    Json(request): Json<ScrapeCompanyRequest>,
 ) -> Response {
-    let command = CommandRequest::ScrapeCompany {
-        query: request.query,
-    };
+    let command = scrape_company_command(request);
     let record = queue_command(state.registry.clone(), "scrape-company", command);
     accepted_response(record).into_response()
+}
+
+fn scrape_company_command(request: ScrapeCompanyRequest) -> CommandRequest {
+    CommandRequest::ScrapeCompany {
+        query: request.query,
+        krs: request.krs,
+        nip: request.nip,
+    }
 }
 
 async fn queue_test_source(
@@ -212,4 +220,26 @@ fn not_found() -> (StatusCode, Json<ErrorEnvelope>) {
             },
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{scrape_company_command, ScrapeCompanyRequest};
+
+    #[test]
+    fn scrape_company_command_preserves_krs_and_nip() {
+        let request: ScrapeCompanyRequest = serde_json::from_str(
+            r#"{"query":"Allegro","krs":"0000123456","nip":"1234567890"}"#,
+        )
+        .expect("request should deserialize");
+
+        match scrape_company_command(request) {
+            crate::app::commands::CommandRequest::ScrapeCompany { query, krs, nip } => {
+                assert_eq!(query, "Allegro");
+                assert_eq!(krs.as_deref(), Some("0000123456"));
+                assert_eq!(nip.as_deref(), Some("1234567890"));
+            }
+            _ => panic!("expected scrape-company command"),
+        }
+    }
 }

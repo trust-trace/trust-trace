@@ -1,466 +1,608 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  forceCenter,
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceRadial,
-  forceSimulation,
-  drag as d3Drag,
-  select,
-  type SimulationNodeDatum,
-  type SimulationLinkDatum,
-} from 'd3';
-import { buildCompanyGraph } from '@/lib/company-graph';
-import type {
-  Company,
-  CompanyRelation,
-  GraphRelationType,
-} from '@/lib/data';
-import { riskColor } from './sidebar';
+  Background,
+  BackgroundVariant,
+  Controls,
+  Handle,
+  MiniMap,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  type Edge,
+  type Node,
+  type NodeMouseHandler,
+  type NodeProps,
+} from '@xyflow/react';
+import dagre from 'dagre';
+import '@xyflow/react/dist/style.css';
 
-/* ---------------------------------------------------------------- */
-/* Types                                                             */
-/* ---------------------------------------------------------------- */
+import {
+  normalizeEntityGraph,
+  type EntityGraphEdge,
+  type EntityGraphNode,
+} from '@/lib/entity-graph';
+import type { Company, GraphResponse, Risk } from '@/lib/data';
+import { riskColor, riskLabel } from './sidebar';
 
 interface CompanyGraphProps {
   company: Company;
-  companies: Company[];
-  relations: CompanyRelation[];
+  graph: GraphResponse;
   onSelectCompany: (id: string) => void;
 }
 
-interface SimNode extends SimulationNodeDatum {
-  id: string;
-  company: Company;
-  depth: number;
+/* ------------------------------------------------------------------ */
+/* Visual encoding tables                                              */
+/* ------------------------------------------------------------------ */
+
+const NODE_WIDTH = {
+  Company: 180,
+  Person: 160,
+  Event: 220,
+} as const;
+
+const NODE_HEIGHT = {
+  Company: 64,
+  Person: 56,
+  Event: 78,
+} as const;
+
+const EDGE_STYLE: Record<
+  EntityGraphEdge['relationshipType'],
+  { stroke: string; strokeWidth: number; strokeDasharray?: string; label: string; description: string }
+> = {
+  CONNECTION: {
+    stroke: 'oklch(0.55 0.16 272)',
+    strokeWidth: 2.4,
+    label: 'Connection',
+    description: 'Company ↔ company business tie',
+  },
+  AFFILIATED_WITH: {
+    stroke: 'oklch(0.58 0.13 248)',
+    strokeWidth: 1.8,
+    label: 'Affiliated',
+    description: 'Person ↔ company affiliation',
+  },
+  INVOLVED_IN: {
+    stroke: 'oklch(0.62 0.15 32)',
+    strokeWidth: 1.8,
+    strokeDasharray: '6 4',
+    label: 'Involved',
+    description: 'Person ↔ event involvement',
+  },
+  ABOUT: {
+    stroke: 'oklch(0.55 0.05 250)',
+    strokeWidth: 1.4,
+    strokeDasharray: '2 4',
+    label: 'About',
+    description: 'Publication / mention link',
+  },
+};
+
+function riskFromLevel(level: number | undefined): Risk {
+  if ((level ?? 0) >= 7) return 'high';
+  if ((level ?? 0) >= 4) return 'medium';
+  return 'low';
 }
 
-interface SimEdge extends SimulationLinkDatum<SimNode> {
-  source: string | SimNode;
-  target: string | SimNode;
-  type: GraphRelationType;
-  label?: string;
+function eventRiskColor(level: number | undefined, risk?: Risk): string {
+  return riskColor(risk ?? riskFromLevel(level));
 }
 
-interface Snapshot {
-  nodes: Array<{ id: string; company: Company; depth: number; x: number; y: number }>;
-  edges: Array<{
-    sourceId: string;
-    targetId: string;
-    sx: number;
-    sy: number;
-    tx: number;
-    ty: number;
-    type: GraphRelationType;
-    label?: string;
-  }>;
+/* ------------------------------------------------------------------ */
+/* Custom node components                                              */
+/* ------------------------------------------------------------------ */
+
+type CompanyNodeData = {
+  node: Extract<EntityGraphNode, { entityType: 'Company' }>;
+  isRoot: boolean;
+  isSelected: boolean;
+};
+type PersonNodeData = {
+  node: Extract<EntityGraphNode, { entityType: 'Person' }>;
+  isSelected: boolean;
+  risk: Risk;
+};
+type EventNodeData = {
+  node: Extract<EntityGraphNode, { entityType: 'Event' }>;
+  isSelected: boolean;
+};
+
+function CompanyNode({ data }: NodeProps<Node<CompanyNodeData>>) {
+  const { node, isRoot, isSelected } = data;
+  const accent = riskColor(node.data.risk ?? 'low');
+  return (
+    <div
+      className={`tt-rf-node tt-rf-company${isRoot ? ' is-root' : ''}${isSelected ? ' is-selected' : ''}`}
+      style={{ borderColor: accent }}
+    >
+      <Handle type="target" position={Position.Top} className="tt-rf-handle" />
+      <div className="tt-rf-node-row">
+        <span className="tt-rf-node-kind" style={{ background: accent }}>
+          {isRoot ? 'ROOT' : 'COMPANY'}
+        </span>
+        <span className="tt-rf-node-score" style={{ color: accent }}>
+          {node.data.score ?? '—'}
+        </span>
+      </div>
+      <div className="tt-rf-node-title">{node.data.short ?? node.label}</div>
+      <div className="tt-rf-node-sub">
+        {node.data.sector ?? '—'} · {riskLabel(node.data.risk ?? 'low')}
+      </div>
+      <Handle type="source" position={Position.Bottom} className="tt-rf-handle" />
+    </div>
+  );
 }
 
-/* ---------------------------------------------------------------- */
-/* Constants                                                         */
-/* ---------------------------------------------------------------- */
-
-const W = 920;
-const H = 560;
-const CX = W / 2;
-const CY = H / 2;
-
-/* ---------------------------------------------------------------- */
-/* Helpers                                                           */
-/* ---------------------------------------------------------------- */
-
-function relationLabel(type: GraphRelationType): string {
-  if (type === 'person') return 'Powiązanie osobowe';
-  if (type === 'partnership') return 'Współpraca';
-  return 'Relacja biznesowa';
+function PersonNode({ data }: NodeProps<Node<PersonNodeData>>) {
+  const { node, isSelected, risk } = data;
+  const accent = riskColor(risk);
+  return (
+    <div
+      className={`tt-rf-node tt-rf-person${isSelected ? ' is-selected' : ''}`}
+      style={{ borderColor: accent }}
+    >
+      <Handle type="target" position={Position.Top} className="tt-rf-handle" />
+      <div className="tt-rf-node-row">
+        <span className="tt-rf-node-kind" style={{ background: accent }}>
+          PERSON
+        </span>
+        {typeof node.data.trustScore === 'number' && (
+          <span className="tt-rf-node-badge" style={{ color: accent }}>
+            {node.data.trustScore}
+          </span>
+        )}
+      </div>
+      <div className="tt-rf-node-title">{node.label}</div>
+      <div className="tt-rf-node-sub">
+        {node.data.role || 'Unknown role'} · {riskLabel(risk)}
+      </div>
+      <Handle type="source" position={Position.Bottom} className="tt-rf-handle" />
+    </div>
+  );
 }
 
-function relationColor(type: GraphRelationType): string {
-  if (type === 'person') return 'oklch(0.57 0.16 20)';
-  if (type === 'partnership') return 'oklch(0.64 0.14 82)';
-  return 'oklch(0.53 0.12 240)';
+function EventNode({ data }: NodeProps<Node<EventNodeData>>) {
+  const { node, isSelected } = data;
+  const accent = eventRiskColor(node.data.riskLevel, node.data.risk);
+  return (
+    <div
+      className={`tt-rf-node tt-rf-event${isSelected ? ' is-selected' : ''}`}
+      style={{ borderColor: accent }}
+    >
+      <Handle type="target" position={Position.Top} className="tt-rf-handle" />
+      <div className="tt-rf-node-row">
+        <span className="tt-rf-node-kind" style={{ background: accent }}>
+          EVENT
+        </span>
+        <span className="tt-rf-node-badge" style={{ color: accent }}>
+          R{node.data.riskLevel ?? '—'}
+        </span>
+      </div>
+      <div className="tt-rf-node-title">{truncate(node.label, 56)}</div>
+      <div className="tt-rf-node-sub">
+        {node.data.eventCategory || node.data.eventType || 'Event'}
+      </div>
+      <Handle type="source" position={Position.Bottom} className="tt-rf-handle" />
+    </div>
+  );
 }
 
-function relationDash(type: GraphRelationType): string {
-  if (type === 'person') return '6 3';
-  if (type === 'partnership') return '2 3';
-  return '';
+const NODE_TYPES = {
+  company: CompanyNode,
+  person: PersonNode,
+  event: EventNode,
+};
+
+function truncate(value: string, max: number): string {
+  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
-function nodeRadius(depth: number): number {
-  if (depth === 0) return 38;
-  if (depth === 1) return 26;
-  return 19;
+/* ------------------------------------------------------------------ */
+/* Layout                                                              */
+/* ------------------------------------------------------------------ */
+
+function layoutGraph(
+  nodes: EntityGraphNode[],
+  edges: EntityGraphEdge[],
+  rootId: string
+): { positions: Map<string, { x: number; y: number }>; order: Map<string, number> } {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: 60,
+    ranksep: 110,
+    marginx: 30,
+    marginy: 30,
+  });
+
+  for (const node of nodes) {
+    g.setNode(node.id, {
+      width: NODE_WIDTH[node.entityType],
+      height: NODE_HEIGHT[node.entityType],
+    });
+  }
+
+  // Direct edges so dagre ranks descendants below the root visually.
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target);
+  }
+  void rootId; // root rank is implicit via depth=0 from normalizeEntityGraph
+
+  dagre.layout(g);
+
+  const positions = new Map<string, { x: number; y: number }>();
+  const order = new Map<string, number>();
+  let i = 0;
+  for (const node of nodes) {
+    const placed = g.node(node.id);
+    if (!placed) continue;
+    positions.set(node.id, {
+      x: placed.x - NODE_WIDTH[node.entityType] / 2,
+      y: placed.y - NODE_HEIGHT[node.entityType] / 2,
+    });
+    order.set(node.id, i++);
+  }
+  return { positions, order };
 }
 
-function snap(simNodes: SimNode[], simEdges: SimEdge[]): Snapshot {
-  const nodeMap = new Map(simNodes.map((n) => [n.id, n]));
-  return {
-    nodes: simNodes.map((n) => ({
-      id: n.id,
-      company: n.company,
-      depth: n.depth,
-      x: n.x ?? CX,
-      y: n.y ?? CY,
-    })),
-    edges: simEdges.map((e) => {
-      const s = typeof e.source === 'object' ? e.source : nodeMap.get(e.source as string);
-      const t = typeof e.target === 'object' ? e.target : nodeMap.get(e.target as string);
-      return {
-        sourceId: typeof e.source === 'object' ? e.source.id : (e.source as string),
-        targetId: typeof e.target === 'object' ? e.target.id : (e.target as string),
-        sx: s?.x ?? CX,
-        sy: s?.y ?? CY,
-        tx: t?.x ?? CX,
-        ty: t?.y ?? CY,
-        type: e.type,
-        label: e.label,
-      };
-    }),
-  };
+/* ------------------------------------------------------------------ */
+/* Detail drawer                                                       */
+/* ------------------------------------------------------------------ */
+
+function CompanyDetailRows(node: Extract<EntityGraphNode, { entityType: 'Company' }>) {
+  const risk: Risk = node.data.risk ?? 'low';
+  return (
+    <>
+      <Row label="Type">Company</Row>
+      <Row label="Trust score">{node.data.score ?? '—'}</Row>
+      <Row label="Risk">{riskLabel(risk)}</Row>
+      <Row label="Sector">{node.data.sector ?? '—'}</Row>
+      <Row label="Country">{node.data.country ?? '—'}</Row>
+      <Row label="NIP">{node.data.nip || '—'}</Row>
+      <Row label="Articles">{node.data.articles ?? '—'}</Row>
+      <Row label="Keywords">
+        {(node.data.keywords ?? []).slice(0, 5).join(', ') || '—'}
+      </Row>
+    </>
+  );
 }
 
-/* ---------------------------------------------------------------- */
-/* Component                                                         */
-/* ---------------------------------------------------------------- */
+function PersonDetailRows(node: Extract<EntityGraphNode, { entityType: 'Person' }>) {
+  const risk: Risk = node.data.risk ?? 'low';
+  return (
+    <>
+      <Row label="Type">Person</Row>
+      <Row label="Trust score">{node.data.trustScore ?? '—'}</Row>
+      <Row label="Risk">{riskLabel(risk)}</Row>
+      <Row label="Role">{node.data.role || '—'}</Row>
+      <Row label="Affiliation">{node.data.firmName || '—'}</Row>
+      <Row label="Events">{node.data.eventCount ?? '—'}</Row>
+      <Row label="Description" stack>
+        {node.data.description || '—'}
+      </Row>
+    </>
+  );
+}
 
-export function CompanyGraph({
-  company,
-  companies,
-  relations,
-  onSelectCompany,
-}: CompanyGraphProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const simRef = useRef<ReturnType<typeof forceSimulation<SimNode>> | null>(null);
-  const simNodesRef = useRef<SimNode[]>([]);
-  const simEdgesRef = useRef<SimEdge[]>([]);
+function EventDetailRows(node: Extract<EntityGraphNode, { entityType: 'Event' }>) {
+  return (
+    <>
+      <Row label="Type">Event</Row>
+      <Row label="Category">{node.data.eventCategory || '—'}</Row>
+      <Row label="Subtype">{node.data.eventType || '—'}</Row>
+      <Row label="Risk">{node.data.riskLevel ?? '—'} / 10</Row>
+      <Row label="Risk class">{riskLabel(node.data.risk ?? riskFromLevel(node.data.riskLevel))}</Row>
+      <Row label="Occurred">{node.data.occurredAt || '—'}</Row>
+      <Row label="Company">{node.data.companyName || '—'}</Row>
+      <Row label="Source">{node.data.sourceTitle || node.data.source || '—'}</Row>
+      {node.data.sourceUrl && (
+        <Row label="URL" stack>
+          <a href={node.data.sourceUrl} target="_blank" rel="noreferrer" className="tt-rf-link">
+            {node.data.sourceUrl}
+          </a>
+        </Row>
+      )}
+      <Row label="Keywords">
+        {(node.data.keywords ?? []).slice(0, 5).join(', ') || '—'}
+      </Row>
+      <Row label="Excerpt" stack>
+        {node.data.excerpt || '—'}
+      </Row>
+    </>
+  );
+}
 
-  const uid = useId();
-  const glowId = `${uid}-glow`;
-  const bgGradId = `${uid}-bg`;
+function Row({
+  label,
+  children,
+  stack = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  stack?: boolean;
+}) {
+  return (
+    <div className={`tt-rf-kv${stack ? ' is-stack' : ''}`}>
+      <span className="tt-rf-kv-label">{label}</span>
+      <span className="tt-rf-kv-value">{children}</span>
+    </div>
+  );
+}
 
-  const [snapshot, setSnapshot] = useState<Snapshot>({ nodes: [], edges: [] });
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
-  const [entered, setEntered] = useState(false);
+/* ------------------------------------------------------------------ */
+/* Legend                                                              */
+/* ------------------------------------------------------------------ */
 
-  const graph = useMemo(
-    () => buildCompanyGraph(company.id, companies, relations, 2),
-    [company.id, companies, relations]
+function Legend() {
+  return (
+    <div className="tt-rf-legend">
+      <div className="tt-rf-legend-section">
+        <div className="tt-rf-legend-title">Nodes</div>
+        <div className="tt-rf-legend-items">
+          <span className="tt-rf-legend-item">
+            <span className="tt-rf-swatch tt-rf-swatch-company" />
+            <span className="tt-rf-legend-copy">
+              <span className="tt-rf-legend-name">Company</span>
+              <span className="tt-rf-legend-desc">risk + trust</span>
+            </span>
+          </span>
+          <span className="tt-rf-legend-item">
+            <span className="tt-rf-swatch tt-rf-swatch-person" />
+            <span className="tt-rf-legend-copy">
+              <span className="tt-rf-legend-name">Person</span>
+              <span className="tt-rf-legend-desc">risk + trust</span>
+            </span>
+          </span>
+          <span className="tt-rf-legend-item">
+            <span className="tt-rf-swatch tt-rf-swatch-event" />
+            <span className="tt-rf-legend-copy">
+              <span className="tt-rf-legend-name">Event</span>
+              <span className="tt-rf-legend-desc">risk class + R0–R10</span>
+            </span>
+          </span>
+        </div>
+      </div>
+      <div className="tt-rf-legend-section">
+        <div className="tt-rf-legend-title">Edges</div>
+        <div className="tt-rf-legend-items">
+          {(Object.entries(EDGE_STYLE) as Array<
+            [EntityGraphEdge['relationshipType'], (typeof EDGE_STYLE)[EntityGraphEdge['relationshipType']]]
+          >).map(([type, style]) => (
+            <span key={type} className="tt-rf-legend-item">
+              <svg width="38" height="10" viewBox="0 0 38 10" aria-hidden="true">
+                <title>{style.label} edge style</title>
+                <line
+                  x1="2"
+                  y1="5"
+                  x2="36"
+                  y2="5"
+                  stroke={style.stroke}
+                  strokeWidth={style.strokeWidth}
+                  strokeDasharray={style.strokeDasharray}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="tt-rf-legend-copy">
+                <span className="tt-rf-legend-name">{style.label}</span>
+                <span className="tt-rf-legend-desc">{style.description}</span>
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Main                                                                */
+/* ------------------------------------------------------------------ */
+
+function CompanyGraphInner({ company, graph, onSelectCompany }: CompanyGraphProps) {
+  const model = useMemo(() => normalizeEntityGraph(graph), [graph]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [lastRootId, setLastRootId] = useState<string>(model.rootId);
+
+  // Reset selection whenever the graph root changes.
+  if (lastRootId !== model.rootId) {
+    setLastRootId(model.rootId);
+    if (selectedId !== null) setSelectedId(null);
+  }
+
+  const { positions } = useMemo(
+    () => layoutGraph(model.nodes, model.edges, model.rootId),
+    [model.edges, model.nodes, model.rootId]
   );
 
-  const graphNodes = graph.nodes;
-  const graphEdges = graph.edges;
-  const centerId = graph.centerId;
+  const rfNodes: Node[] = useMemo(
+    () =>
+      model.nodes.map((node) => {
+        const pos = positions.get(node.id) ?? { x: 0, y: 0 };
+        const isRoot = node.id === model.rootId;
+        const isSelected = selectedId === node.id;
 
-  /* ---------- simulation lifecycle ---------- */
+        if (node.entityType === 'Company') {
+          return {
+            id: node.id,
+            type: 'company',
+            position: pos,
+            data: { node, isRoot, isSelected },
+            draggable: true,
+            selectable: true,
+          };
+        }
+        if (node.entityType === 'Person') {
+          return {
+            id: node.id,
+            type: 'person',
+            position: pos,
+            data: { node, isSelected, risk: node.data.risk ?? 'low' },
+            draggable: true,
+            selectable: true,
+          };
+        }
+        return {
+          id: node.id,
+          type: 'event',
+          position: pos,
+          data: { node, isSelected },
+          draggable: true,
+          selectable: true,
+        };
+      }),
+    [model.nodes, model.rootId, positions, selectedId]
+  );
 
-  const onTick = useCallback(() => {
-    setSnapshot(snap(simNodesRef.current, simEdgesRef.current));
+  const rfEdges: Edge[] = useMemo(
+    () =>
+      model.edges.map((edge) => {
+        const style = EDGE_STYLE[edge.relationshipType];
+        const isHighlighted =
+          selectedId !== null && (edge.source === selectedId || edge.target === selectedId);
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          type: 'smoothstep',
+          animated: edge.relationshipType === 'INVOLVED_IN',
+          label: edge.connectionType || edge.label || style.label,
+          labelStyle: { fontSize: 10, fill: 'var(--tt-fg-soft)' },
+          labelBgStyle: { fill: 'var(--tt-bg-card)', fillOpacity: 0.9 },
+          labelBgPadding: [4, 2] as [number, number],
+          labelBgBorderRadius: 3,
+          style: {
+            stroke: style.stroke,
+            strokeWidth: isHighlighted ? style.strokeWidth + 1 : style.strokeWidth,
+            strokeDasharray: style.strokeDasharray,
+            opacity: selectedId === null || isHighlighted ? 1 : 0.18,
+          },
+          data: { edge },
+        };
+      }),
+    [model.edges, selectedId]
+  );
+
+  const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
+    setSelectedId(node.id);
   }, []);
 
-  useEffect(() => {
-    simRef.current?.stop();
+  const onNodeDoubleClick: NodeMouseHandler = useCallback(
+    (_, node) => {
+      const original = model.nodes.find((entry) => entry.id === node.id);
+      if (!original || original.entityType !== 'Company') return;
+      const target = original.data.id ?? original.entityId;
+      if (target) onSelectCompany(target);
+    },
+    [model.nodes, onSelectCompany]
+  );
 
-    const nodes: SimNode[] = graphNodes.map((n, i) => {
-      const angle = (i / Math.max(graphNodes.length, 1)) * Math.PI * 2;
-      const r = n.depth === 0 ? 0 : n.depth === 1 ? 160 : 290;
-      return { ...n, x: CX + Math.cos(angle) * r, y: CY + Math.sin(angle) * r };
-    });
+  const onPaneClick = useCallback(() => setSelectedId(null), []);
 
-    const edges: SimEdge[] = graphEdges.map((e) => ({ ...e }));
+  const selectedNode = useMemo(
+    () => model.nodes.find((node) => node.id === selectedId) ?? null,
+    [model.nodes, selectedId]
+  );
 
-    simNodesRef.current = nodes;
-    simEdgesRef.current = edges;
-
-    const sim = forceSimulation<SimNode>(nodes)
-      .force(
-        'link',
-        forceLink<SimNode, SimEdge>(edges)
-          .id((n) => n.id)
-          .distance((l) => {
-            const sd = typeof l.source === 'object' ? l.source.depth : 0;
-            const td = typeof l.target === 'object' ? l.target.depth : 0;
-            return Math.max(sd, td) === 1 ? 170 : 140;
-          })
-          .strength(0.7)
-      )
-      .force('charge', forceManyBody().strength(-800))
-      .force('collide', forceCollide<SimNode>().radius((n) => nodeRadius(n.depth) + 18))
-      .force('center', forceCenter(CX, CY).strength(0.05))
-      .force(
-        'radial',
-        forceRadial<SimNode>(
-          (n) => (n.depth === 0 ? 0 : n.depth === 1 ? 160 : 290),
-          CX,
-          CY
-        ).strength(0.6)
-      )
-      .alpha(1)
-      .alphaDecay(0.02)
-      .velocityDecay(0.35)
-      .on('tick', onTick);
-
-    const center = nodes.find((n) => n.id === centerId);
-    if (center) {
-      center.fx = CX;
-      center.fy = CY;
-    }
-
-    simRef.current = sim;
-
-    const timeout = setTimeout(() => setEntered(true), 60);
-
-    return () => {
-      sim.stop();
-      clearTimeout(timeout);
-      setEntered(false);
-    };
-  }, [graphNodes, graphEdges, centerId, onTick]);
-
-  /* ---------- drag ---------- */
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    const sim = simRef.current;
-    if (!svg || !sim) return;
-
-    const dragBehavior = d3Drag<SVGCircleElement, SimNode>()
-      .on('start', (event, d) => {
-        if (!event.active) sim.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-      })
-      .on('drag', (event, d) => {
-        d.fx = event.x;
-        d.fy = event.y;
-      })
-      .on('end', (event, d) => {
-        if (!event.active) sim.alphaTarget(0);
-        if (d.id !== company.id) {
-          d.fx = null;
-          d.fy = null;
-        }
-      });
-
-    select(svg)
-      .selectAll<SVGCircleElement, SimNode>('.tt-graph-node-hit')
-      .data(simNodesRef.current)
-      .call(dragBehavior);
-  }, [company.id, snapshot]);
-
-  /* ---------- derived from snapshot ---------- */
-
-  const hoveredNode = hoveredNodeId
-    ? snapshot.nodes.find((n) => n.id === hoveredNodeId) ?? null
-    : null;
-  const hoveredEdge = hoveredEdgeKey
-    ? snapshot.edges.find(
-        (e) => `${e.sourceId}:${e.targetId}:${e.type}` === hoveredEdgeKey
-      ) ?? null
-    : null;
-
-  /* ---------- empty state ---------- */
-
-  if (graph.nodes.length <= 1 || graph.edges.length === 0) {
+  if (model.nodes.length <= 1 || model.edges.length === 0) {
     return (
       <div className="tt-graph-shell tt-graph-empty-state">
         <div className="tt-empty">
-          Brak zdefiniowanych relacji dla {company.short}.
+          No related companies, people or events found for {company.short}.
         </div>
       </div>
     );
   }
 
-  /* ---------- render ---------- */
-
   return (
-    <div className="tt-graph-shell">
-      <div className="tt-graph-meta">
-        <div className="tt-graph-legend">
-          {(['person', 'partnership', 'business'] as const).map((type) => (
-            <div key={type} className="tt-graph-legend-item">
-              <span className="tt-graph-legend-line" style={{ background: relationColor(type) }} />
-              <span>{relationLabel(type)}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="tt-graph-detail">
-          {hoveredNode && (
-            <>
-              <div className="tt-graph-detail-title">{hoveredNode.company.name}</div>
-              <div className="tt-graph-detail-sub">
-                {hoveredNode.company.sector} ·{' '}
-                {hoveredNode.depth === 0
-                  ? 'Firma centralna'
-                  : hoveredNode.depth === 1
-                    ? 'Połączenie bezpośrednie'
-                    : 'Poziom 2'}
-                {' · Trust '}
-                <span style={{ color: riskColor(hoveredNode.company.risk) }}>
-                  {hoveredNode.company.score}
-                </span>
-              </div>
-            </>
-          )}
-          {!hoveredNode && hoveredEdge && (
-            <>
-              <div className="tt-graph-detail-title">{relationLabel(hoveredEdge.type)}</div>
-              <div className="tt-graph-detail-sub">{hoveredEdge.label ?? 'Brak dodatkowego opisu'}</div>
-            </>
-          )}
-          {!hoveredNode && !hoveredEdge && (
-            <>
-              <div className="tt-graph-detail-title">{company.short} &middot; mapa relacji</div>
-              <div className="tt-graph-detail-sub">
-                Przeciągnij węzły, aby zmienić układ. Kliknij firmę, aby przełączyć kontekst.
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="tt-graph-stage">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${W} ${H}`}
-          className="tt-graph-svg"
-          aria-label={`Graf relacji dla ${company.name}`}
+    <div className="tt-rf-shell">
+      <Legend />
+      <div className="tt-rf-stage">
+        <ReactFlow
+          nodes={rfNodes}
+          edges={rfEdges}
+          nodeTypes={NODE_TYPES}
+          onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onPaneClick={onPaneClick}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.2}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+          defaultEdgeOptions={{ type: 'smoothstep' }}
+          nodesDraggable
+          nodesConnectable={false}
+          elementsSelectable
         >
-          <title>{`Graf relacji dla ${company.name}`}</title>
-
-          <defs>
-            <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <radialGradient id={bgGradId}>
-              <stop offset="0%" stopColor="oklch(0.97 0.012 250)" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="oklch(0.97 0.012 250)" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-
-          <circle cx={CX} cy={CY} r="220" fill={`url(#${bgGradId})`} />
-
-          {/* edges */}
-          {snapshot.edges.map((edge) => {
-            const key = `${edge.sourceId}:${edge.targetId}:${edge.type}`;
-            const isHovered = hoveredEdgeKey === key;
-            const isConnected =
-              hoveredNodeId !== null &&
-              (edge.sourceId === hoveredNodeId || edge.targetId === hoveredNodeId);
-            const dimmed = hoveredNodeId !== null && !isConnected && !isHovered;
-
-            return (
-              <line
-                key={key}
-                className={`tt-graph-edge${entered ? ' tt-entered' : ''}`}
-                x1={edge.sx}
-                y1={edge.sy}
-                x2={edge.tx}
-                y2={edge.ty}
-                stroke={relationColor(edge.type)}
-                strokeWidth={isHovered ? 3 : isConnected ? 2.5 : 1.5}
-                strokeOpacity={dimmed ? 0.15 : isHovered ? 0.95 : 0.5}
-                strokeDasharray={relationDash(edge.type)}
-                onMouseEnter={() => setHoveredEdgeKey(key)}
-                onMouseLeave={() => setHoveredEdgeKey((c) => (c === key ? null : c))}
-              >
-                <title>{`${relationLabel(edge.type)}${edge.label ? ` · ${edge.label}` : ''}`}</title>
-              </line>
-            );
-          })}
-
-          {/* nodes */}
-          {snapshot.nodes.map((node, idx) => {
-            const active = node.id === company.id;
-            const r = nodeRadius(node.depth);
-            const fill = active ? 'oklch(0.18 0.02 260)' : riskColor(node.company.risk);
-            const strokeCol = active ? riskColor(node.company.risk) : 'oklch(1 0 0 / 0.85)';
-            const isHovered = hoveredNodeId === node.id;
-            const dimmed =
-              hoveredNodeId !== null &&
-              !isHovered &&
-              !snapshot.edges.some(
-                (e) =>
-                  (e.sourceId === hoveredNodeId && e.targetId === node.id) ||
-                  (e.targetId === hoveredNodeId && e.sourceId === node.id)
-              );
-
-            return (
-              <g
-                key={node.id}
-                className={`tt-graph-node${entered ? ' tt-entered' : ''}`}
-                style={{ animationDelay: `${idx * 60}ms` }}
-                transform={`translate(${node.x}, ${node.y})`}
-                opacity={dimmed ? 0.3 : 1}
-              >
-                <title>{`Wybierz firmę ${node.company.name}`}</title>
-
-                {isHovered && (
-                  <circle
-                    className="tt-graph-glow"
-                    r={r + 8}
-                    fill="none"
-                    stroke={fill}
-                    strokeWidth={2}
-                    strokeOpacity={0.3}
-                    filter={`url(#${glowId})`}
-                  />
-                )}
-
-                {active && (
-                  <circle
-                    r={r + 6}
-                    fill="none"
-                    stroke={riskColor(node.company.risk)}
-                    strokeWidth={1}
-                    strokeOpacity={0.25}
-                    strokeDasharray="3 4"
-                  />
-                )}
-
-                <circle
-                  className="tt-graph-node-hit"
-                  r={r}
-                  fill={fill}
-                  stroke={strokeCol}
-                  strokeWidth={active ? 3 : isHovered ? 3 : 2}
-                  onMouseEnter={() => setHoveredNodeId(node.id)}
-                  onMouseLeave={() => setHoveredNodeId((c) => (c === node.id ? null : c))}
-                  onClick={() => onSelectCompany(node.id)}
-                />
-
-                {!active && node.depth <= 1 && (
-                  <g transform={`translate(${r * 0.65}, ${-r * 0.65})`}>
-                    <circle r={9} fill="var(--tt-bg-card)" stroke="var(--tt-line)" strokeWidth={1} />
-                    <text className="tt-graph-score-badge" textAnchor="middle" y={3.5} fill={riskColor(node.company.risk)}>
-                      {node.company.score}
-                    </text>
-                  </g>
-                )}
-
-                <text className="tt-graph-node-label" textAnchor="middle" y={r + 16} fill="var(--tt-fg)">
-                  {node.company.short}
-                </text>
-
-                {active && (
-                  <text className="tt-graph-node-sub" textAnchor="middle" y={r + 28} fill="var(--tt-fg-mute)">
-                    Trust {node.company.score}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
+          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="oklch(0.9 0.01 250)" />
+          <Controls position="bottom-right" showInteractive={false} />
+          <MiniMap
+            position="top-right"
+            pannable
+            zoomable
+            nodeStrokeWidth={2}
+            nodeColor={(node) => {
+              const original = model.nodes.find((entry) => entry.id === node.id);
+              if (!original) return '#ccc';
+              if (original.entityType === 'Company') return riskColor(original.data.risk ?? 'low');
+              if (original.entityType === 'Event') return eventRiskColor(original.data.riskLevel, original.data.risk);
+              return riskColor(original.data.risk ?? 'low');
+            }}
+            style={{ border: '1px solid var(--tt-line)', borderRadius: 6 }}
+          />
+        </ReactFlow>
       </div>
+
+      {selectedNode && (
+        <aside className="tt-rf-drawer" role="dialog" aria-label="Node details">
+          <header className="tt-rf-drawer-head">
+            <div>
+              <div className="tt-rf-drawer-kind">{selectedNode.entityType.toUpperCase()}</div>
+              <div className="tt-rf-drawer-title">{selectedNode.label}</div>
+              <div className="tt-rf-drawer-sub">{selectedNode.summary}</div>
+            </div>
+            <button
+              type="button"
+              className="tt-rf-drawer-close"
+              onClick={() => setSelectedId(null)}
+              aria-label="Close details"
+            >
+              ×
+            </button>
+          </header>
+          <div className="tt-rf-drawer-body">
+            {selectedNode.entityType === 'Company' && CompanyDetailRows(selectedNode)}
+            {selectedNode.entityType === 'Person' && PersonDetailRows(selectedNode)}
+            {selectedNode.entityType === 'Event' && EventDetailRows(selectedNode)}
+          </div>
+          {selectedNode.entityType === 'Company' && selectedNode.id !== model.rootId && (
+            <footer className="tt-rf-drawer-foot">
+              <button
+                type="button"
+                className="tt-rf-drawer-action"
+                onClick={() => {
+                  const target = selectedNode.data.id ?? selectedNode.entityId;
+                  if (target) onSelectCompany(target);
+                }}
+              >
+                Re-center graph on this company →
+              </button>
+              <div className="tt-rf-drawer-hint">Tip: double-click a company to re-center.</div>
+            </footer>
+          )}
+        </aside>
+      )}
     </div>
+  );
+}
+
+export function CompanyGraph(props: CompanyGraphProps) {
+  return (
+    <ReactFlowProvider>
+      <CompanyGraphInner {...props} />
+    </ReactFlowProvider>
   );
 }
