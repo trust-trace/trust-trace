@@ -4,6 +4,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
@@ -13,6 +14,13 @@ use scuttle_crab::config::AppConfig;
 use scuttle_crab::crawler::pipeline::crawl_with_config;
 use scuttle_crab::utils::hash::hash_url;
 use scuttle_crab::utils::url::normalize_url;
+
+#[derive(Debug, Clone)]
+struct CapturedRequest {
+    path: String,
+    headers: String,
+    body: String,
+}
 
 fn temp_dir_path(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -85,6 +93,105 @@ fn crawl_reads_feed_and_emits_articles() {
     assert!(max_in_flight.load(Ordering::SeqCst) >= 2);
     assert!(outbox.contains("\"discovery_method\":\"rss\""));
     assert!(outbox.contains("\"credibility_label\":\"high\""));
+
+    fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn crawl_delivers_emitted_articles_to_tarkov() {
+    let runtime = tokio::runtime::Runtime::new().expect("runtime should initialize");
+    let root = temp_dir_path("crawl_tarkov_e2e");
+    fs::create_dir_all(&root).expect("temp dir should be created");
+
+    let feed_listener = TcpListener::bind("127.0.0.1:0").expect("feed listener should bind");
+    let feed_address = feed_listener.local_addr().expect("feed listener should have address");
+    let feed_max_in_flight = Arc::new(AtomicUsize::new(0));
+    let feed_current_in_flight = Arc::new(AtomicUsize::new(0));
+    let feed_server = spawn_test_server(
+        feed_listener,
+        3,
+        feed_max_in_flight.clone(),
+        feed_current_in_flight.clone(),
+    );
+
+    let tarkov_listener = TcpListener::bind("127.0.0.1:0").expect("tarkov listener should bind");
+    let tarkov_address = tarkov_listener
+        .local_addr()
+        .expect("tarkov listener should have address");
+    let captured_requests = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
+    let tarkov_server = spawn_tarkov_capture_server(
+        tarkov_listener,
+        2,
+        Arc::clone(&captured_requests),
+    );
+
+    let sources_path = root.join("sources.json");
+    let sources_json = format!(
+        r#"[
+          {{
+            "name": "Example Feed",
+            "feed_url": "http://{feed_address}/feed.xml",
+            "allowed_domains": ["127.0.0.1"],
+            "credibility_score": 0.9,
+            "credibility_label": "high"
+          }}
+        ]"#
+    );
+    fs::write(&sources_path, sources_json).expect("sources file should be written");
+
+    let config = AppConfig {
+        companies_path: root.join("companies.json").display().to_string(),
+        sources_path: sources_path.display().to_string(),
+        seen_urls_path: root.join("seen_urls.jsonl").display().to_string(),
+        outbox_path: root.join("outbox.jsonl").display().to_string(),
+        krs_api_base_url: "https://api-krs.ms.gov.pl/api".to_string(),
+        msig_api_base_url: "https://wyszukiwarka-msig.ms.gov.pl/api".to_string(),
+        concurrency: 2,
+    };
+
+    unsafe {
+        std::env::set_var("TARKOV_BASE_URL", format!("http://{}", tarkov_address));
+        std::env::set_var("TARKOV_INGEST_PATH", "/v1/articles");
+    }
+
+    let summary = runtime
+        .block_on(crawl_with_config(&config))
+        .expect("crawl should complete");
+
+    unsafe {
+        std::env::remove_var("TARKOV_BASE_URL");
+        std::env::remove_var("TARKOV_INGEST_PATH");
+    }
+
+    feed_server.join().expect("feed server thread should finish");
+    tarkov_server.join().expect("tarkov server thread should finish");
+
+    let outbox = fs::read_to_string(root.join("outbox.jsonl")).expect("outbox should exist");
+    let lines: Vec<_> = outbox.lines().collect();
+    let requests = captured_requests.lock().expect("requests lock");
+
+    assert_eq!(summary.sources, 1);
+    assert_eq!(summary.discovered, 2);
+    assert_eq!(summary.emitted, 2);
+    assert_eq!(summary.failed, 0);
+    assert_eq!(lines.len(), 2);
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|request| request.path == "/v1/articles"));
+    assert!(requests
+        .iter()
+        .all(|request| request.headers.to_lowercase().contains("x-payload-version: 1")));
+    assert!(requests
+        .iter()
+        .all(|request| request.headers.to_lowercase().contains("x-correlation-id:")));
+    assert!(requests
+        .iter()
+        .all(|request| serde_json::from_str::<serde_json::Value>(&request.body).is_ok()));
+    assert!(requests
+        .iter()
+        .all(|request| serde_json::from_str::<serde_json::Value>(&request.body)
+            .expect("body should parse")
+            .get("source")
+            .is_some()));
 
     fs::remove_dir_all(&root).ok();
 }
@@ -289,6 +396,29 @@ fn spawn_test_server(
     })
 }
 
+fn spawn_tarkov_capture_server(
+    listener: TcpListener,
+    expected_requests: usize,
+    captured_requests: Arc<Mutex<Vec<CapturedRequest>>>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut workers = Vec::new();
+
+        for _ in 0..expected_requests {
+            let (mut stream, _) = listener.accept().expect("connection should succeed");
+            let captured_requests = Arc::clone(&captured_requests);
+
+            workers.push(thread::spawn(move || {
+                handle_tarkov_request(&mut stream, &captured_requests);
+            }));
+        }
+
+        for worker in workers {
+            worker.join().expect("worker should finish");
+        }
+    })
+}
+
 fn handle_request(
     stream: &mut TcpStream,
     address: SocketAddr,
@@ -357,6 +487,48 @@ fn handle_request(
         .expect("response should be written");
 
     current_in_flight.fetch_sub(1, Ordering::SeqCst);
+}
+
+fn handle_tarkov_request(stream: &mut TcpStream, captured_requests: &Arc<Mutex<Vec<CapturedRequest>>>) {
+    let mut buffer = [0; 8192];
+    let bytes_read = stream
+        .read(&mut buffer)
+        .expect("request should be readable");
+    let request = String::from_utf8_lossy(&buffer[..bytes_read]).to_string();
+    let mut lines = request.lines();
+    let request_line = lines.next().expect("request line should exist");
+    let path = request_line
+        .split_whitespace()
+        .nth(1)
+        .expect("request path should be present")
+        .to_string();
+
+    let mut headers = String::new();
+    let mut body = String::new();
+    let mut in_body = false;
+    for line in lines {
+        if line.is_empty() {
+            in_body = true;
+            continue;
+        }
+        if in_body {
+            body.push_str(line);
+        } else {
+            headers.push_str(line);
+            headers.push('\n');
+        }
+    }
+
+    captured_requests.lock().expect("requests lock").push(CapturedRequest {
+        path,
+        headers,
+        body,
+    });
+
+    let response = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+    stream
+        .write_all(response.as_bytes())
+        .expect("response should be written");
 }
 
 fn article_html(title: &str, body: &str) -> String {

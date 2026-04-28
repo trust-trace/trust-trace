@@ -47,6 +47,7 @@ class Config:
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_http_referer: str = "https://github.com/trust-trace/trust-trace"
     openrouter_x_title: str = "trust-trace"
+    llm_web_search_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -61,6 +62,7 @@ class Config:
                 "OPENROUTER_HTTP_REFERER", "https://github.com/trust-trace/trust-trace"
             ),
             openrouter_x_title=os.getenv("OPENROUTER_X_TITLE", "trust-trace"),
+            llm_web_search_enabled=env_bool("LLM_WEB_SEARCH_ENABLED", False),
             article_input_source=os.getenv("ARTICLE_INPUT_SOURCE", "jsonl"),
             article_input_path=os.getenv("ARTICLE_INPUT_PATH", "articles.jsonl"),
             company_reference_path=os.getenv("COMPANY_REFERENCE_PATH", "backend/tarkov/data/companies.json"),

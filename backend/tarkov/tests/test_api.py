@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 pytest.importorskip("fastapi")
@@ -9,9 +11,29 @@ from fastapi.testclient import TestClient
 
 from tarkov.api import create_app
 from tarkov.config import Config
-from tarkov.database.models import ArticleMetadata, ConnectionEntity, Event, Firm, RkrScore
+from tarkov.database.models import ArticleMetadata, ConnectionEntity, Event, Firm, IngestionJob, RkrScore
 from tarkov.database.session import SessionLocal
 from tarkov.tests.fixtures.sample_articles import SAMPLE_ARTICLE_1
+from eem.database.models import FirmScore
+
+
+def wait_for_job(job_id: str, timeout_seconds: float = 20.0) -> IngestionJob:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        db = SessionLocal()
+        try:
+            job = db.query(IngestionJob).filter_by(job_id=job_id).one_or_none()
+            if job is not None and job.status in {"completed", "skipped", "failed"}:
+                time.sleep(0.1)
+                return job
+        finally:
+            db.close()
+        time.sleep(0.05)
+    raise AssertionError(f"job {job_id} did not finish within {timeout_seconds}s")
+
+
+def sqlite_url(path):
+    return f"sqlite+pysqlite:///{path.as_posix()}"
 
 
 def test_article_ingestion_endpoint_processes_payload(tmp_path):
@@ -24,7 +46,7 @@ def test_article_ingestion_endpoint_processes_payload(tmp_path):
     )
 
     config = Config(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=sqlite_url(tmp_path / "db.sqlite"),
         log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
@@ -73,9 +95,10 @@ def test_article_ingestion_endpoint_processes_payload(tmp_path):
     }
 
     response = client.post("/v1/articles", json=payload)
-    assert response.status_code == 200
+    assert response.status_code == 202
     body = response.json()
-    assert body["status"] in {"processed", "skipped"}
+    assert body["status"] == "started"
+    assert wait_for_job(body["job_id"]).status in {"completed", "skipped"}
 
 
 def test_article_ingestion_accepts_scuttle_word_count(tmp_path):
@@ -88,7 +111,7 @@ def test_article_ingestion_accepts_scuttle_word_count(tmp_path):
     )
 
     config = Config(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=sqlite_url(tmp_path / "db.sqlite"),
         log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
@@ -138,7 +161,8 @@ def test_article_ingestion_accepts_scuttle_word_count(tmp_path):
     }
 
     response = client.post("/v1/articles", json=payload)
-    assert response.status_code == 200
+    assert response.status_code == 202
+    wait_for_job(response.json()["job_id"])
 
 
 def test_article_ingestion_contract_headers_toggle(tmp_path):
@@ -151,7 +175,7 @@ def test_article_ingestion_contract_headers_toggle(tmp_path):
     )
 
     config = Config(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=sqlite_url(tmp_path / "db.sqlite"),
         log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
@@ -207,7 +231,8 @@ def test_article_ingestion_contract_headers_toggle(tmp_path):
         json=payload,
         headers={"X-Payload-Version": "1", "X-Correlation-Id": "cid-test-123"},
     )
-    assert good.status_code == 200
+    assert good.status_code == 202
+    wait_for_job(good.json()["job_id"])
 
 
 def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
@@ -220,7 +245,7 @@ def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
     )
 
     config = Config(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=sqlite_url(tmp_path / "db.sqlite"),
         log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
@@ -246,8 +271,8 @@ def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
 
     response = client.post("/v1/articles", json=SAMPLE_ARTICLE_1.model_dump(mode="json"))
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "processed"
+    assert response.status_code == 202
+    assert wait_for_job(response.json()["job_id"]).status == "completed"
 
     db = SessionLocal()
     try:
@@ -258,6 +283,7 @@ def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
         assert db.query(Firm).count() >= 1
         assert db.query(Event).count() >= 1
         assert db.query(ArticleMetadata).count() >= 1
+        assert db.query(FirmScore).count() >= 1
     finally:
         db.close()
 
@@ -273,7 +299,7 @@ def test_connection_events_are_persisted_without_edges(tmp_path):
     )
 
     config = Config(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=sqlite_url(tmp_path / "db.sqlite"),
         log_level="INFO",
         llm_provider="openai",
         llm_api_key="",
@@ -322,8 +348,8 @@ def test_connection_events_are_persisted_without_edges(tmp_path):
     }
 
     response = client.post("/v1/articles", json=payload)
-    assert response.status_code == 200
-    assert response.json()["status"] == "processed"
+    assert response.status_code == 202
+    assert wait_for_job(response.json()["job_id"]).status == "completed"
 
     db = SessionLocal()
     try:

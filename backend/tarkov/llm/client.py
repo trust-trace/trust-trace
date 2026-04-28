@@ -12,6 +12,7 @@ from tarkov.llm.prompts import (
     COMPANY_MATCH_PROMPT,
     CONNECTION_EXTRACTION_PROMPT,
     CONNECTION_EXTRACTION_HYBRID_PROMPT,
+    FIRM_ENRICHMENT_PROMPT,
     EVENT_EXTRACTION_PROMPT,
     PERSON_EXTRACTION_PROMPT,
     PERSON_EXTRACTION_HYBRID_PROMPT,
@@ -30,6 +31,7 @@ class LLMClient:
         openrouter_base_url: str = "https://openrouter.ai/api/v1",
         openrouter_http_referer: str = "https://github.com/trust-trace/trust-trace",
         openrouter_x_title: str = "trust-trace",
+        web_search_enabled: bool = False,
     ):
         self.provider = provider
         self.model = model
@@ -37,6 +39,7 @@ class LLMClient:
         self.openrouter_base_url = openrouter_base_url
         self.openrouter_http_referer = openrouter_http_referer
         self.openrouter_x_title = openrouter_x_title
+        self.web_search_enabled = web_search_enabled
 
     def generate_summary(self, article_text: str) -> LLMSummary:
         if not self.api_key:
@@ -72,6 +75,18 @@ class LLMClient:
             )
         )
         return self._parse_json_response(response)
+
+    def enrich_firm_profile(self, firm: dict, article_text: str):
+        response = self._complete(
+            FIRM_ENRICHMENT_PROMPT.format(
+                firm_json=json.dumps(firm, ensure_ascii=False),
+                article_text=article_text,
+            )
+        )
+        try:
+            return json.loads(response) if response.strip() else {}
+        except Exception:
+            return {}
 
     def extract_people_hybrid(self, article_text: str, event_context: str, candidates: list[dict]):
         response = self._complete(
@@ -143,6 +158,9 @@ class LLMClient:
         referer = os.environ.get("OPENROUTER_HTTP_REFERER", self.openrouter_http_referer)
         title = os.environ.get("OPENROUTER_X_TITLE", self.openrouter_x_title)
         base_url = os.environ.get("OPENROUTER_BASE_URL", self.openrouter_base_url)
+        model = self.model
+        if self.web_search_enabled and not model.endswith(":online"):
+            model = f"{model}:online"
 
         try:
             with httpx.Client(timeout=60.0) as client:
@@ -155,7 +173,7 @@ class LLMClient:
                         "X-Title": title,
                     },
                     json={
-                        "model": self.model,
+                        "model": model,
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.1,
                     },

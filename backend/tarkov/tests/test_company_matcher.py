@@ -46,3 +46,32 @@ def test_get_or_create_firm(tmp_path):
     firm_2 = matcher.get_or_create_firm("Acme Corp", "ACME")
 
     assert firm_1.id == firm_2.id
+
+
+def test_enrich_firm_profile_fills_missing_fields_and_aliases(tmp_path):
+    reference = [{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp"]}]
+    path = tmp_path / "companies.json"
+    path.write_text(json.dumps(reference), encoding="utf-8")
+
+    class FakeLLMClient:
+        has_api_key = True
+        web_search_enabled = True
+
+        def enrich_firm_profile(self, firm: dict, article_text: str):
+            return {
+                "nip": "1234567890",
+                "country": "PL",
+                "aliases": ["Acme Holdings"],
+            }
+
+    db = create_test_session()
+    matcher = CompanyMatcher(db, str(path), llm_client=FakeLLMClient())
+    firm = matcher.get_or_create_firm("Acme Corp", "ACME")
+
+    matcher.enrich_firm_profile(firm, "Acme Corp is based in Poland")
+
+    refreshed = db.get(type(firm), firm.id)
+    assert refreshed is not None
+    assert refreshed.nip == "1234567890"
+    assert refreshed.country == "PL"
+    assert any(alias.alias == "Acme Holdings" for alias in refreshed.aliases)

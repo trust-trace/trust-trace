@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 
 from sqlalchemy import text
-from pydantic import ValidationError
 
 try:
     from fastapi import Request as FastAPIRequest
@@ -14,53 +12,26 @@ except ImportError:  # pragma: no cover - guarded again in create_app
     FastAPIRequest = object
 
 from tarkov.config import Config
-from tarkov.database.models import RkrScore
-from tarkov.database.session import SessionLocal, create_all, init_engine
-from tarkov.pipeline.event_handlers import AMLScoringEventHandler
-from tarkov.pipeline.processor import ArticleProcessor
-from tarkov.pipeline.result_emitter import ResultEmitter
-from tarkov.pipeline.stage3_clients import EventClassifierClient, NSAClient
-from tarkov.schemas.article import ArticleIn
+from tarkov.database.repositories.ingestion_job_repo import IngestionJobRepository
+from tarkov.database.session import SessionLocal, create_all, get_engine, init_engine
+from tarkov.pipeline.ingestion_worker import IngestionWorker
 from tarkov.utils.logger import get_logger, setup_logging
-from rkr.pipeline.processor import ArticleProcessor as RkrArticleProcessor
 
 
 logger = get_logger(__name__)
 
 
-def _store_rkr_score(
-    enriched,
-    *,
-    request_id: str,
-    correlation_id: str | None,
-    threshold: float,
-) -> None:
-    session = SessionLocal()
-    try:
-        score = RkrScore(
-            request_id=request_id,
-            correlation_id=correlation_id,
-            source_url=enriched.source["url"],
-            title=enriched.article.get("title"),
-            language=enriched.article.get("language"),
-            threshold=threshold,
-            risk_score=enriched.rkr.risk_score,
-            passed_threshold=enriched.rkr.passed_threshold,
-            categories_hit=json.dumps(enriched.rkr.categories_hit, ensure_ascii=False),
-            matched_keywords=json.dumps(
-                enriched.rkr.model_dump().get("matched_keywords", []),
-                ensure_ascii=False,
-            ),
-        )
-        session.add(score)
-        session.commit()
-    finally:
-        session.close()
-
-
 def _check_db_connection() -> None:
     with SessionLocal() as session:
         session.execute(text("SELECT 1"))
+
+
+def _prepare_eem_schema() -> None:
+    from eem.database.session import Base as EemBase
+
+    import eem.database.models  # noqa: F401  # populate metadata
+
+    EemBase.metadata.create_all(bind=get_engine())
 
 
 def create_app(config: Config | None = None):
@@ -73,9 +44,20 @@ def create_app(config: Config | None = None):
     setup_logging(cfg.log_level)
     init_engine(cfg.database_url)
     create_all()
+    _prepare_eem_schema()
 
     app = FastAPI(title="Tarkov API", version="0.1.0")
-    rkr_processor = RkrArticleProcessor()
+    worker = IngestionWorker(cfg)
+    worker.prepare_eem()
+    worker.start()
+
+    @app.on_event("startup")
+    def _startup_ingestion_worker() -> None:
+        worker.start()
+
+    @app.on_event("shutdown")
+    def _shutdown_ingestion_worker() -> None:
+        worker.stop()
 
     @app.get("/health")
     def health() -> dict:
@@ -85,7 +67,7 @@ def create_app(config: Config | None = None):
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"DB health check failed: {exc}") from exc
 
-    @app.post("/v1/articles")
+    @app.post("/v1/articles", status_code=202)
     async def receive_article(request: FastAPIRequest):
         try:
             raw_payload = await request.json()
@@ -108,67 +90,42 @@ def create_app(config: Config | None = None):
                     ),
                 )
 
-        request_id = str(uuid.uuid4())
-        enriched = rkr_processor.process_article(raw_payload)
-        logger.info(
-            "rkr completed risk_score=%s passed=%s categories=%s",
-            enriched.rkr.risk_score,
-            enriched.rkr.passed_threshold,
-            enriched.rkr.categories_hit,
-        )
-
-        _store_rkr_score(
-            enriched,
-            request_id=request_id,
-            correlation_id=correlation_id,
-            threshold=rkr_processor.threshold,
-        )
-
-        if not enriched.rkr.passed_threshold:
-            title = enriched.article.get("title", "")
-            return {
-                "status": "skipped",
-                "reason": "rkr_threshold",
-                "title": title,
-                "risk_score": enriched.rkr.risk_score,
-                "categories_hit": enriched.rkr.categories_hit,
-            }
-
         session = SessionLocal()
         try:
-            article_data = enriched.model_dump()
             try:
-                article = ArticleIn.model_validate(article_data)
-            except ValidationError as exc:
-                raise HTTPException(status_code=422, detail=exc.errors()) from exc
+                from tarkov.schemas.article import ArticleIn
 
-            emitter = ResultEmitter()
-            if cfg.enable_stage3_dispatch:
-                handler = AMLScoringEventHandler(
-                    event_classifier_client=EventClassifierClient(cfg.event_classifier_url),
-                    nsa_client=NSAClient(cfg.nsa_url),
-                )
-                emitter.register_async_handler(handler.handle_parsed_event)
+                article = ArticleIn.model_validate(raw_payload)
+            except Exception as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-            result = ArticleProcessor(session, cfg, result_emitter=emitter).process_article(
-                article, correlation_id=correlation_id
-            )
-            if result is None:
-                return {"status": "skipped", "reason": "no_company_matches", "title": article.article.title}
-
-            return {
-                "status": "processed",
-                "article_id": result.article_id,
-                "events": len(result.events),
-                "people": len(result.people),
-                "company_matches": result.company_matches,
-                "total_risk_score": result.total_risk_score,
-            }
+            job = IngestionJobRepository(session).enqueue(article, correlation_id or str(uuid.uuid4()))
+            session.commit()
+            return {"status": "started", "job_id": job.job_id, "ingest_key": job.ingest_key}
         except HTTPException:
             raise
         except Exception as exc:
-            logger.exception("Article processing failed: %s", exc)
+            logger.exception("Failed to queue article: %s", exc)
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        finally:
+            session.close()
+
+    @app.get("/v1/articles/{job_id}")
+    def article_job_status(job_id: str) -> dict:
+        session = SessionLocal()
+        try:
+            job = IngestionJobRepository(session).get_by_job_id(job_id)
+            if job is None:
+                raise HTTPException(status_code=404, detail="Job not found")
+            return {
+                "job_id": job.job_id,
+                "status": job.status,
+                "attempt_count": job.attempt_count,
+                "last_error": job.last_error,
+                "article_id": job.article_id,
+                "source_url": job.source_url,
+                "title": job.title,
+            }
         finally:
             session.close()
 

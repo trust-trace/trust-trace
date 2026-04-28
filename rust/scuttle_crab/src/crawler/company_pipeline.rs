@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::config::AppConfig;
+use crate::crawler::delivery::maybe_deliver_to_tarkov;
 use crate::domain::article::{ArticlePayload, ArticleSection, ArticleText, MetadataSection};
 use crate::domain::company::{CompanyRecord, load_companies_if_exists};
 use crate::domain::source::SourceInfo;
@@ -84,7 +85,7 @@ pub async fn scrape_company_with_config(
         "Aktualny odpis KRS dla wskazanej spółki.",
         "krs/current_extract",
     );
-    append_article_payload(&outbox, current_payload)?;
+    append_article_payload(&outbox, current_payload).await?;
     summary.emitted += 1;
     summary.krs_documents += 1;
 
@@ -101,7 +102,7 @@ pub async fn scrape_company_with_config(
         "Pełna historia zmian KRS dla wskazanej spółki.",
         "krs/full_extract",
     );
-    append_article_payload(&outbox, full_payload)?;
+    append_article_payload(&outbox, full_payload).await?;
     summary.emitted += 1;
     summary.krs_documents += 1;
 
@@ -109,7 +110,7 @@ pub async fn scrape_company_with_config(
         Ok(msig_payloads) => {
             summary.msig_documents += msig_payloads.len();
             for payload in msig_payloads {
-                append_article_payload(&outbox, payload)?;
+                append_article_payload(&outbox, payload).await?;
                 summary.emitted += 1;
             }
         }
@@ -121,8 +122,11 @@ pub async fn scrape_company_with_config(
     Ok(summary)
 }
 
-fn append_article_payload(outbox: &JsonlOutbox, payload: ArticlePayload) -> anyhow::Result<()> {
+async fn append_article_payload(outbox: &JsonlOutbox, payload: ArticlePayload) -> anyhow::Result<()> {
     outbox.append(&payload)?;
+    if let Err(error) = maybe_deliver_to_tarkov(&payload).await {
+        eprintln!("[COMPANY_PIPELINE] tarkov delivery failed: {error}");
+    }
     Ok(())
 }
 

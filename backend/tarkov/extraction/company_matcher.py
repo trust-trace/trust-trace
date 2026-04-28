@@ -131,5 +131,37 @@ class CompanyMatcher:
             self.firm_repo.add_alias(firm.id, ticker, "ticker", confidence=1.0)
         return firm
 
+    def enrich_firm_profile(self, firm: Firm, article_text: str) -> None:
+        if not self.llm_client or not getattr(self.llm_client, "has_api_key", False):
+            return
+        if not getattr(self.llm_client, "web_search_enabled", False):
+            return
+
+        current = {
+            "id": firm.id,
+            "full_name": firm.full_name,
+            "nip": firm.nip,
+            "regon": firm.regon,
+            "krs": firm.krs,
+            "country": firm.country,
+        }
+        enriched = self.llm_client.enrich_firm_profile(current, article_text)
+        if not isinstance(enriched, dict):
+            return
+
+        aliases = enriched.pop("aliases", [])
+        self.firm_repo.update_missing_fields(
+            firm.id,
+            nip=enriched.get("nip"),
+            regon=enriched.get("regon"),
+            krs=enriched.get("krs"),
+            country=enriched.get("country"),
+        )
+
+        if isinstance(aliases, list):
+            for alias in aliases:
+                if isinstance(alias, str) and alias.strip():
+                    self.firm_repo.add_alias(firm.id, alias.strip(), "enriched", confidence=0.75)
+
     def add_alias(self, firm: Firm, alias: str, alias_type: str, confidence: float | None = None) -> None:
         self.firm_repo.add_alias(firm.id, alias, alias_type, confidence=confidence)
