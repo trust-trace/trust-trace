@@ -47,4 +47,4 @@ class _EventFields:
     keywords: list[str]
     excerpt: str
     entities: list[str]
-    reasoning_trace: Optional[EEMReasoningTrace] = None  # NEW: Optional reasoning trace
+    reasoning_trace: Optional[EEMReasoningTrace] = None

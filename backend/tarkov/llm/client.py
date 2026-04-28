@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 import httpx
 
+logger = logging.getLogger(__name__)
+
 from tarkov.llm.prompts import (
     ARTICLE_SUMMARY_PROMPT,
+    COMPANY_DISCOVERY_PROMPT,
     COMPANY_MATCH_PROMPT,
     CONNECTION_EXTRACTION_PROMPT,
     CONNECTION_EXTRACTION_HYBRID_PROMPT,
@@ -76,6 +80,12 @@ class LLMClient:
         )
         return self._parse_json_response(response)
 
+    def discover_companies(self, article_text: str):
+        response = self._complete(
+            COMPANY_DISCOVERY_PROMPT.format(text=article_text)
+        )
+        return self._parse_json_response(response)
+
     def enrich_firm_profile(self, firm: dict, article_text: str):
         response = self._complete(
             FIRM_ENRICHMENT_PROMPT.format(
@@ -130,6 +140,7 @@ class LLMClient:
                 if out.content:
                     return getattr(out.content[0], "text", "")
             except Exception:
+                logger.exception("Anthropic completion failed")
                 return ""
 
         return ""
@@ -145,6 +156,7 @@ class LLMClient:
             )
             return out.choices[0].message.content or ""
         except Exception:
+            logger.exception("OpenAI completion failed")
             return ""
 
     def _complete_openrouter(self, prompt: str) -> str:
@@ -184,13 +196,30 @@ class LLMClient:
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
         except Exception:
+            logger.exception("OpenRouter completion failed")
             return ""
 
     @staticmethod
     def _parse_json_response(response: str):
+        text = response.strip()
+        if not text:
+            return []
+
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.startswith("json"):
+                text = text[4:].strip()
+
         try:
-            return json.loads(response)
+            return json.loads(text)
         except Exception:
+            start = text.find("[")
+            end = text.rfind("]")
+            if start >= 0 and end > start:
+                try:
+                    return json.loads(text[start : end + 1])
+                except Exception:
+                    return []
             return []
 
     @staticmethod

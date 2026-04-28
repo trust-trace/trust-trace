@@ -16,6 +16,7 @@ from tarkov.database.repositories.ingestion_job_repo import IngestionJobReposito
 from tarkov.database.session import SessionLocal
 from tarkov.pipeline.processor import ArticleProcessor
 from tarkov.pipeline.stage3_dispatch import build_stage3_result_emitter
+from tarkov.pipeline.static_graph_builder import build_edges_for_firms
 from tarkov.schemas.article import ArticleIn
 from tarkov.utils.logger import get_logger
 from rkr.pipeline.processor import ArticleProcessor as RkrArticleProcessor
@@ -138,6 +139,13 @@ class IngestionWorker:
                 repo.mark_retry(job, f"EEM failed: {exc}")
                 session.commit()
                 return
+
+            try:
+                firm_ids = [int(fid) for fid in result.company_matches]
+                edges = build_edges_for_firms(firm_ids, session)
+                logger.info("static graph: %d edges for job %s", edges, job.job_id)
+            except Exception as exc:
+                logger.warning("static graph builder failed (non-fatal): %s", exc)
 
             repo.mark_completed(
                 job,

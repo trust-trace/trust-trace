@@ -16,17 +16,29 @@ class FirmRepository:
         self.db = db
 
     # --- Postgres-backed methods (existing) ---
-    def get_or_create_firm(self, name: str, ticker: str | None = None, country: str = "PL") -> Firm:
+    def get_or_create_firm(
+        self, name: str, ticker: str | None = None, country: str = "PL"
+    ) -> Firm:
         existing = self.find_by_alias(name)
         if existing is not None:
+            if ticker and not existing.market_ticker:
+                existing.market_ticker = ticker.strip()
+                self.db.flush()
             return existing
 
         if ticker:
             existing = self.find_by_alias(ticker)
             if existing is not None:
+                if not existing.market_ticker:
+                    existing.market_ticker = ticker.strip()
+                    self.db.flush()
                 return existing
 
-        firm = Firm(full_name=name, country=country)
+        firm = Firm(
+            full_name=name,
+            country=country,
+            market_ticker=ticker.strip() if ticker else None,
+        )
         self.db.add(firm)
         self.db.flush()
 
@@ -37,7 +49,14 @@ class FirmRepository:
         # ensure graph node exists
         try:
             with get_neo4j_session() as g:
-                g.create_node("Company", {"company_id": firm.id, "full_name": firm.full_name, "country": firm.country})
+                g.create_node(
+                    "Company",
+                    {
+                        "company_id": firm.id,
+                        "full_name": firm.full_name,
+                        "country": firm.country,
+                    },
+                )
         except Exception:
             # Neo4j optional — ignore errors here
             pass
@@ -73,13 +92,16 @@ class FirmRepository:
 
         try:
             with get_neo4j_session() as g:
-                g.create_node("Alias", {
-                    "alias": alias,
-                    "alias_type": alias_type,
-                    "confidence": confidence,
-                    "is_primary": is_primary,
-                    "firm_id": firm_id,
-                })
+                g.create_node(
+                    "Alias",
+                    {
+                        "alias": alias,
+                        "alias_type": alias_type,
+                        "confidence": confidence,
+                        "is_primary": is_primary,
+                        "firm_id": firm_id,
+                    },
+                )
         except Exception:
             pass
 
@@ -93,13 +115,22 @@ class FirmRepository:
         regon: str | None = None,
         krs: str | None = None,
         country: str | None = None,
+        market_ticker: str | None = None,
+        market_exchange: str | None = None,
     ) -> Firm | None:
         firm = self.db.get(Firm, firm_id)
         if firm is None:
             return None
 
         changed = False
-        for field_name, value in (("nip", nip), ("regon", regon), ("krs", krs), ("country", country)):
+        for field_name, value in (
+            ("nip", nip),
+            ("regon", regon),
+            ("krs", krs),
+            ("country", country),
+            ("market_ticker", market_ticker),
+            ("market_exchange", market_exchange),
+        ):
             if value and not getattr(firm, field_name):
                 setattr(firm, field_name, str(value).strip())
                 changed = True

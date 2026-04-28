@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import type { Article } from '@/lib/data';
 import { SentimentBar, sentimentColor, sentimentLabel } from './sentiment-bar';
+import { TraceDrawer } from './trace-drawer';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -33,6 +35,7 @@ export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps
   const sc = sentimentColor(article.sentiment);
   const relTime = calcRelativeTime(article.date);
   const hasSourceUrl = Boolean(article.sourceUrl);
+  const [traceOpen, setTraceOpen] = useState(false);
 
   return (
     <div
@@ -161,11 +164,24 @@ export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps
                 <span className="tt-btn-ghost is-disabled" aria-disabled="true">
                   Raport wkrótce
                 </span>
+                <button
+                  type="button"
+                  className="tt-btn-ghost tt-btn-trace"
+                  onClick={() => setTraceOpen(true)}
+                >
+                  Pokaż trace
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+      <TraceDrawer
+        open={traceOpen}
+        onClose={() => setTraceOpen(false)}
+        classifier="EEM"
+        entityId={article.id}
+      />
     </div>
   );
 }

@@ -2196,3 +2196,520 @@
     width: calc(100% - 24px);
   }
 }
+
+/* =================================================================
+   Trace drawer & trace tab
+   ================================================================= */
+
+.tt-trace-backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(0.18 0.02 260 / 0.28);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  animation: tt-trace-fade-in 0.2s ease-out;
+}
+
+@keyframes tt-trace-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tt-trace-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.tt-trace-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 560px;
+  max-width: 100vw;
+  background: var(--tt-bg-card);
+  border-left: 1px solid var(--tt-line);
+  box-shadow: -8px 0 32px oklch(0.18 0.02 260 / 0.12);
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  animation: tt-trace-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+.tt-trace-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--tt-line);
+  flex-shrink: 0;
+}
+
+.tt-trace-drawer-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--tt-fg);
+  letter-spacing: -0.005em;
+}
+
+.tt-trace-drawer-sub {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--tt-fg-mute);
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+.tt-trace-drawer-close {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--tt-line);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--tt-fg-soft);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tt-trace-drawer-close:hover {
+  background: oklch(0.97 0.005 250);
+  color: var(--tt-fg);
+}
+
+.tt-trace-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Skeleton loading */
+
+.tt-trace-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.tt-trace-skeleton-bar {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--tt-bg-soft) 25%, oklch(0.94 0.005 260) 50%, var(--tt-bg-soft) 75%);
+  background-size: 200% 100%;
+  animation: tt-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes tt-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Error & empty states */
+
+.tt-trace-error {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+}
+
+.tt-trace-error-msg {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tt-fg);
+}
+
+.tt-trace-error-detail {
+  font-size: 11.5px;
+  color: var(--tt-fg-mute);
+}
+
+.tt-trace-empty {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.tt-trace-empty-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tt-fg);
+  margin-bottom: 6px;
+}
+
+.tt-trace-empty-desc {
+  font-size: 11.5px;
+  color: var(--tt-fg-mute);
+  line-height: 1.5;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+/* Trace card */
+
+.tt-trace-card {
+  border: 1px solid var(--tt-line);
+  border-radius: var(--tt-radius-lg);
+  background: var(--tt-bg-card);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.tt-trace-card.is-open {
+  box-shadow: var(--tt-shadow-md);
+}
+
+.tt-trace-card-head {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.tt-trace-card-head:hover {
+  background: var(--tt-bg-soft);
+}
+
+.tt-trace-card-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tt-trace-card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tt-trace-badge {
+  display: inline-block;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: oklch(1 0 0);
+  padding: 2px 7px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tt-trace-entity-type {
+  font-size: 11.5px;
+  color: var(--tt-fg-soft);
+}
+
+.tt-trace-entity-id {
+  font-size: 11px;
+  color: var(--tt-fg-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-trace-headline {
+  font-size: 12px;
+  color: var(--tt-fg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-trace-time {
+  font-size: 10.5px;
+  color: var(--tt-fg-mute);
+}
+
+.tt-trace-card-chev {
+  color: var(--tt-fg-mute);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tt-trace-card.is-open .tt-trace-card-chev {
+  transform: rotate(90deg);
+}
+
+.tt-trace-card-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--tt-line-soft);
+}
+
+.tt-trace-card-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 11.5px;
+  border-bottom: 1px dashed var(--tt-line-soft);
+}
+
+.tt-trace-meta-label {
+  color: var(--tt-fg-mute);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+/* Trace tree */
+
+.tt-trace-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.tt-trace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tt-trace-section-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tt-fg-soft);
+  font-family: var(--font-jetbrains-mono), monospace;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--tt-line-soft);
+}
+
+.tt-trace-tree-nested {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--tt-line-soft);
+}
+
+.tt-trace-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 11.5px;
+  padding: 2px 0;
+}
+
+.tt-trace-key {
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10.5px;
+  color: var(--tt-fg-mute);
+  letter-spacing: 0.02em;
+  word-break: break-word;
+}
+
+.tt-trace-val {
+  color: var(--tt-fg);
+  word-break: break-word;
+}
+
+.tt-trace-val.tt-trace-num {
+  font-family: var(--font-jetbrains-mono), monospace;
+  color: oklch(0.5 0.13 250);
+}
+
+.tt-trace-val.tt-trace-null {
+  color: var(--tt-fg-faint);
+  font-style: italic;
+}
+
+.tt-trace-val.tt-trace-bool {
+  font-weight: 600;
+}
+
+.tt-trace-val.tt-trace-bool.is-true {
+  color: oklch(0.55 0.13 155);
+}
+
+.tt-trace-val.tt-trace-bool.is-false {
+  color: oklch(0.55 0.18 25);
+}
+
+.tt-trace-val.tt-trace-url {
+  color: oklch(0.5 0.16 260);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: 11px;
+}
+
+.tt-trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tt-trace-list li {
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--tt-bg-soft);
+  border: 1px solid var(--tt-line);
+  font-size: 11px;
+  color: var(--tt-fg-soft);
+}
+
+.tt-trace-collapsible {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tt-trace-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--tt-fg-mute);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+.tt-trace-collapse-btn:hover {
+  color: var(--tt-fg-soft);
+}
+
+/* Trace button (ghost variant with accent left border) */
+
+.tt-btn-trace {
+  border-left: 3px solid oklch(0.55 0.16 250);
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+/* Traces tab (main panel) */
+
+.tt-trace-tab {
+  margin-bottom: 32px;
+}
+
+.tt-trace-table {
+  border: 1px solid var(--tt-line);
+  border-radius: var(--tt-radius-lg);
+  overflow: hidden;
+  background: var(--tt-bg-card);
+}
+
+.tt-trace-table-head {
+  display: grid;
+  grid-template-columns: 90px 1fr 120px 140px;
+  gap: 12px;
+  padding: 10px 16px;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--tt-fg-mute);
+  border-bottom: 1px solid var(--tt-line-soft);
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+.tt-trace-table-row {
+  all: unset;
+  display: grid;
+  grid-template-columns: 90px 1fr 120px 140px;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
+  border-bottom: 1px solid var(--tt-line-soft);
+  transition: background 0.15s;
+  align-items: center;
+}
+
+.tt-trace-table-row:last-child {
+  border-bottom: none;
+}
+
+.tt-trace-table-row:hover {
+  background: oklch(0.97 0.005 260 / 0.4);
+}
+
+.tt-trace-table-cell {
+  font-size: 12px;
+  color: var(--tt-fg-soft);
+  min-width: 0;
+}
+
+.tt-trace-table-desc {
+  white-space: normal;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tt-trace-method {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  padding: 2px 7px;
+  border-radius: 100px;
+  background: var(--tt-bg-soft);
+  border: 1px solid var(--tt-line);
+  color: var(--tt-fg-soft);
+  letter-spacing: 0.02em;
+}
+
+.tt-trace-type-pill {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 100px;
+  background: var(--tt-bg-soft);
+  border: 1px solid var(--tt-line);
+  color: var(--tt-fg-mute);
+}
+
+@media (max-width: 900px) {
+  .tt-trace-drawer {
+    width: 100vw;
+  }
+  .tt-trace-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .tt-trace-table-head,
+  .tt-trace-table-row {
+    grid-template-columns: 80px 1fr 100px;
+  }
+  .tt-trace-table-head > div:nth-child(3),
+  .tt-trace-table-row > div:nth-child(3) {
+    display: none;
+  }
+}

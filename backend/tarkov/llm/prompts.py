@@ -87,6 +87,30 @@ Article:
 """.strip()
 
 
+COMPANY_DISCOVERY_PROMPT = """
+You are an AML analyst extracting company names from a news article.
+Identify ALL companies, corporations, or business entities mentioned in the text.
+Return ONLY a JSON array.
+
+Each object must include:
+- company_name (the canonical/official company name)
+- ticker (stock ticker if mentioned or known, null otherwise)
+- matched_text (the exact text span in the article that refers to this company)
+- confidence (0.0-1.0)
+- aliases (array of alternative names/spellings found in the text)
+
+Rules:
+- Include parent companies, subsidiaries, and any named business entity.
+- Do NOT include government agencies, courts, or regulatory bodies as companies.
+- Do NOT include people names.
+- Prefer official full company names (e.g. "Zondacrypto sp. z o.o." over "Zonda").
+- If multiple spelling variants appear (e.g. "Zonda Crypto" and "Zondacrypto"), pick the most official as company_name and put variants in aliases.
+
+Article:
+{text}
+""".strip()
+
+
 FIRM_ENRICHMENT_PROMPT = """
 You are enriching a company master record.
 Use the article context and web search if needed to fill missing company data.

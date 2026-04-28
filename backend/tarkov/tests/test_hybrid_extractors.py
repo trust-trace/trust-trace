@@ -51,40 +51,20 @@ class FakeLLMClient:
         ]
 
 
-def _company_config(company_path: str) -> Config:
-    return Config(
-        database_url="sqlite+pysqlite:///:memory:",
-        log_level="INFO",
-        llm_provider="openai",
-        llm_api_key="test-key",
-        llm_model="gpt-4o-mini",
-        article_input_source="jsonl",
-        article_input_path="",
-        company_reference_path=company_path,
-        keywords_file_path="",
-        dead_letter_path="",
-        api_host="127.0.0.1",
-        api_port=8081,
-        enable_stage3_dispatch=False,
-        event_classifier_url="",
-        nsa_url="",
-        trustweb_url="",
-        enable_ingest_contract_headers=False,
-        enforce_payload_version_header=False,
-        expected_payload_version="1",
-    )
-
-
-def test_company_matcher_prefers_llm_selection(tmp_path):
-    companies = tmp_path / "companies.json"
-    companies.write_text(
-        '[{"name": "Acme Corp", "ticker": "ACME", "aliases": ["Acme Corp", "ACME"]}]',
-        encoding="utf-8",
-    )
+def test_company_matcher_prefers_llm_selection():
+    from tarkov.database.models import Firm, FirmAlias
 
     engine = init_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    matcher = CompanyMatcher(SessionLocal(), str(companies), llm_client=FakeLLMClient())
+    db = SessionLocal()
+    firm = Firm(full_name="Acme Corp", country="PL", market_ticker="ACME")
+    db.add(firm)
+    db.flush()
+    db.add(FirmAlias(firm_id=firm.id, alias="Acme Corp", alias_type="name", confidence=1.0, is_primary=True))
+    db.add(FirmAlias(firm_id=firm.id, alias="ACME", alias_type="ticker", confidence=1.0))
+    db.flush()
+
+    matcher = CompanyMatcher(db, llm_client=FakeLLMClient())
 
     matches = matcher.match_companies(SAMPLE_ARTICLE_1.article.text)
 

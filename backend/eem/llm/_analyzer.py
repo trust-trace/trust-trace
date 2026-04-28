@@ -35,6 +35,7 @@ def _analyze_event(event: _EventRow, firm_name: str) -> tuple[_EventFields, EEMR
         logger.warning("Falling back to deterministic EEM analysis for event %s: %s", event.event_id, exc)
         fields = _fallback_fields(event, firm_name)
         collector.record_fallback(exc)
+        collector.record_deterministic_result(fields, event_type=event.event_type)
     
     trace = collector.collect()
     return fields, trace

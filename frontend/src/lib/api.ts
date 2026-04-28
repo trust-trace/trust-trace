@@ -5,6 +5,7 @@ import type {
   GraphResponse,
   PipelineRunAccepted,
   PipelineRunStatus,
+  ReasoningTrace,
 } from '@/lib/data';
 
 function toRequestUrl(input: string): URL | string {
@@ -64,4 +65,22 @@ export function runPipeline(query: string, articleLimit = 30) {
 
 export function getPipelineRun(runId: string) {
   return readJson<PipelineRunStatus>(`/api/pipeline/${runId}`);
+}
+
+export function getTracesByCorrelation(correlationId: string) {
+  return readJson<ReasoningTrace[]>(
+    `/api/traces/correlation/${encodeURIComponent(correlationId)}`
+  );
+}
+
+export function getTraces(classifier: string, entityId: string) {
+  return readJson<ReasoningTrace[]>(
+    `/api/traces/${encodeURIComponent(classifier)}/${encodeURIComponent(entityId)}`
+  );
+}
+
+export function getCompanyTraces(companySlug: string) {
+  return readJson<ReasoningTrace[]>(
+    `/api/traces/company/${encodeURIComponent(companySlug)}`
+  );
 }

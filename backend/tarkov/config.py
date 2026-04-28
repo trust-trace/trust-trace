@@ -28,7 +28,6 @@ class Config:
 
     article_input_source: str
     article_input_path: str
-    company_reference_path: str
     keywords_file_path: str
     dead_letter_path: str
 
@@ -71,9 +70,6 @@ class Config:
             llm_web_search_enabled=env_bool("LLM_WEB_SEARCH_ENABLED", False),
             article_input_source=os.getenv("ARTICLE_INPUT_SOURCE", "jsonl"),
             article_input_path=os.getenv("ARTICLE_INPUT_PATH", "articles.jsonl"),
-            company_reference_path=os.getenv(
-                "COMPANY_REFERENCE_PATH", "backend/tarkov/data/companies.json"
-            ),
             keywords_file_path=os.getenv(
                 "KEYWORDS_FILE_PATH", "backend/tarkov/data/aml_keywords.json"
             ),

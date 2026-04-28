@@ -1,41 +1,24 @@
 import type { Company, HistoryRangeKey } from '@/lib/data';
 
-export function hasPendingScore(company: Company): boolean {
-  return (
-    company.score === 50 &&
-    company.trend === 0 &&
-    company.risk === 'medium' &&
-    company.history.length === 1 &&
-    company.history[0] === 50 &&
-    company.keywords.length === 0 &&
-    company.lastUpdate.trim() === ''
-  );
+const FALLBACK_HISTORY_RANGE: HistoryRangeKey = '12M';
+
+export function hasCompanyTradingView(company: Company): boolean {
+  return Boolean(company.hasTradingView && company.tradingViewSymbol);
 }
 
 export function getCompanyHistoryForRange(
   company: Company,
-  range: HistoryRangeKey
-): number[] | null {
-  const rangedHistory = company.historyByRange?.[range];
-  if (rangedHistory && rangedHistory.length >= 2) {
+  activeRange: HistoryRangeKey
+): number[] {
+  const rangedHistory = company.historyByRange?.[activeRange];
+  if (Array.isArray(rangedHistory) && rangedHistory.length > 0) {
     return rangedHistory;
   }
 
-  if (range === '12M') {
-    return company.history.length >= 2 ? company.history : null;
+  const fallbackHistory = company.historyByRange?.[FALLBACK_HISTORY_RANGE];
+  if (Array.isArray(fallbackHistory) && fallbackHistory.length > 0) {
+    return fallbackHistory;
   }
 
-  if (range === '6M') {
-    return company.history.length >= 6 ? company.history.slice(-6) : null;
-  }
-
-  if (range === '3M') {
-    return company.history.length >= 3 ? company.history.slice(-3) : null;
-  }
-
-  return null;
-}
-
-export function hasCompanyTradingView(company: Company): boolean {
-  return Boolean(company.hasTradingView && company.tradingViewSymbol);
+  return company.history.length > 0 ? company.history : [company.score];
 }

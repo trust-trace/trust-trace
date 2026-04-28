@@ -9,7 +9,6 @@ from reasoning.schemas import (
     EEMReasoningTrace,
     MarketReasoningTrace,
     NSAReasoningTrace,
-    RKRReasoningTrace,
     ReasoningTraceData,
     TarkovReasoningTrace,
 )
@@ -36,13 +35,6 @@ def format_trace_compact(trace: ReasoningTraceData) -> str:
             f"NSA Trace: person={trace.person_context.person_name}, "
             f"evidence_count={trace.evidence_summary.total_evidence_count}, "
             f"final_score={trace.aggregation_logic.clamped_score:.2f}"
-        )
-    elif isinstance(trace, RKRReasoningTrace):
-        return (
-            f"RKR Trace: language={trace.language_detected}, "
-            f"matches={len(trace.keyword_matches)}, "
-            f"risk_score={trace.score_calculation.final_risk_score:.2f}, "
-            f"passed={trace.threshold_decision.passed}"
         )
     elif isinstance(trace, TarkovReasoningTrace):
         return (
@@ -157,40 +149,6 @@ def format_trace_detailed(trace: ReasoningTraceData) -> str:
         if len(trace.scoring_breakdown) > 3:
             lines.append(f"  ... and {len(trace.scoring_breakdown) - 3} more items")
 
-    elif isinstance(trace, RKRReasoningTrace):
-        lines.append("=== RKR Reasoning Trace ===")
-        lines.append(f"Language Detected: {trace.language_detected}")
-
-        lines.append("\n--- Score Calculation ---")
-        sc = trace.score_calculation
-        lines.append(f"  Raw Sum: {sc.raw_sum:.2f}")
-        lines.append(f"  Normalization Divisor: {sc.normalization_divisor}")
-        lines.append(f"  Final Risk Score: {sc.final_risk_score:.4f}")
-        lines.append(f"  Capped at 1.0: {sc.capped_at_1_0}")
-
-        lines.append("\n--- Threshold Decision ---")
-        td = trace.threshold_decision
-        lines.append(f"  Threshold: {td.threshold_applied:.2f}")
-        lines.append(f"  Risk Score: {td.risk_score:.4f}")
-        lines.append(f"  Passed: {td.passed}")
-        lines.append(f"  Margin: {td.margin:.4f}")
-
-        lines.append("\n--- Categories Aggregated ---")
-        ca = trace.categories_aggregated
-        lines.append(f"  Unique Categories: {', '.join(ca.unique_categories)}")
-        for cat, count in ca.category_hit_counts.items():
-            lines.append(f"    {cat}: {count}")
-
-        lines.append("\n--- Top Keyword Matches ---")
-        for match in trace.keyword_matches[:5]:  # Show first 5
-            lines.append(f"  '{match.keyword}' (category: {match.category})")
-            lines.append(f"    Weight: {match.weight:.2f}, In Title: {match.in_title}")
-            lines.append(f"    Occurrences: {match.occurrences}")
-            lines.append(f"    Contribution: {match.contribution_to_score:.2f}")
-
-        if len(trace.keyword_matches) > 5:
-            lines.append(f"  ... and {len(trace.keyword_matches) - 5} more matches")
-
     elif isinstance(trace, TarkovReasoningTrace):
         lines.append("=== Tarkov Reasoning Trace ===")
         lines.append(f"Extraction Method: {trace.extraction_method}")
@@ -272,7 +230,6 @@ def format_trace_csv_header(trace_type: str) -> str:
     headers = {
         "EEM": "timestamp,classifier,entity_id,model_used,final_sentiment,final_impact,source_tier,keyword_count",
         "NSA": "timestamp,classifier,entity_id,person_id,person_name,total_evidence,clamped_score",
-        "RKR": "timestamp,classifier,entity_id,language,keyword_matches,final_risk_score,passed_threshold",
         "Tarkov": "timestamp,classifier,entity_id,extraction_method,event_type,final_confidence,final_risk_level",
         "Market": "timestamp,classifier,entity_id,firm_name,search_strategy,candidates_found,successful_fetches",
     }

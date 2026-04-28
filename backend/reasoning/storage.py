@@ -132,6 +132,29 @@ class ReasoningTraceRepository:
 
         return [self._model_to_storage(m) for m in models]
 
+    def get_by_classifier_and_entity_id(
+        self, classifier_name: str, entity_id: str
+    ) -> list[ReasoningTraceStorageModel]:
+        """Retrieve reasoning traces by classifier and entity ID.
+
+        Args:
+            classifier_name: Name of the classifier (e.g., "EEM", "NSA", "Tarkov")
+            entity_id: The ID of the entity being traced
+
+        Returns:
+            List of matching ReasoningTraceStorageModel records.
+        """
+        models = self._db.execute(
+            select(ReasoningTraceModel)
+            .where(
+                (ReasoningTraceModel.classifier_name == classifier_name)
+                & (ReasoningTraceModel.entity_id == entity_id)
+            )
+            .order_by(ReasoningTraceModel.created_at.desc())
+        ).scalars()
+
+        return [self._model_to_storage(m) for m in models]
+
     def get_by_classifier_and_entity_type(
         self, classifier_name: str, entity_type: str, limit: int = 100, offset: int = 0
     ) -> list[ReasoningTraceStorageModel]:
@@ -204,6 +227,52 @@ class ReasoningTraceRepository:
 
         self._db.flush()
         return count
+
+    def get_all_for_firm(
+        self, firm_id: int, limit: int = 200
+    ) -> list[ReasoningTraceStorageModel]:
+        """Retrieve all reasoning traces related to a firm.
+
+        Searches across multiple paths:
+        - correlation_id = str(firm_id) (EEM, Market)
+        - entity_id matching event unique_ids for the firm (EEM)
+        - entity_id matching person ids for the firm (NSA)
+        """
+        from sqlalchemy import or_
+
+        firm_id_str = str(firm_id)
+
+        event_ids: list[str] = []
+        person_ids: list[str] = []
+        try:
+            from tarkov.database.models import Event, Person
+
+            event_rows = self._db.execute(
+                select(Event.unique_id).where(Event.firm_id == firm_id)
+            ).scalars().all()
+            event_ids = [str(eid) for eid in event_rows]
+
+            person_rows = self._db.execute(
+                select(Person.id).where(Person.firm_id == firm_id)
+            ).scalars().all()
+            person_ids = [str(pid) for pid in person_rows]
+        except Exception:
+            pass
+
+        conditions = [ReasoningTraceModel.correlation_id == firm_id_str]
+        if event_ids:
+            conditions.append(ReasoningTraceModel.entity_id.in_(event_ids))
+        if person_ids:
+            conditions.append(ReasoningTraceModel.entity_id.in_(person_ids))
+
+        models = self._db.execute(
+            select(ReasoningTraceModel)
+            .where(or_(*conditions))
+            .order_by(ReasoningTraceModel.created_at.desc())
+            .limit(limit)
+        ).scalars()
+
+        return [self._model_to_storage(m) for m in models]
 
     @staticmethod
     def _model_to_storage(model: ReasoningTraceModel) -> ReasoningTraceStorageModel:

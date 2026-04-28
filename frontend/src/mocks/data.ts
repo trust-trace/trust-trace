@@ -4,6 +4,7 @@ import {
   COMPANY_RELATIONS,
   type Company,
   type GraphResponse,
+  type ReasoningTrace,
 } from '@/lib/data';
 
 const companiesById = new Map(COMPANIES.map((company) => [company.id, company]));
@@ -474,5 +475,229 @@ const graphFixtures: Record<string, GraphResponse> = {
 export const GRAPH_RESPONSES: Record<string, GraphResponse> = Object.fromEntries(
   COMPANIES.map((company) => [company.id, graphFixtures[company.id] ?? fallbackGraph(company.id)])
 );
+
+function deterministicFloat(seed: string, idx: number, min: number, max: number): number {
+  let h = 0;
+  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) & 0xffff;
+  const t = ((h + idx * 7919) % 1000) / 1000;
+  return +(min + t * (max - min)).toFixed(2);
+}
+
+function deterministicInt(seed: string, idx: number, min: number, max: number): number {
+  return Math.floor(deterministicFloat(seed, idx, min, max + 0.99));
+}
+
+const REFERENCE_DATE = new Date('2026-04-27T12:00:00Z');
+
+function makeEEMTrace(entityId: string, idx: number): ReasoningTrace {
+  const eventTypes = ['fraud', 'regulatory', 'financial', 'labour', 'environmental'];
+  const keywords = ['korupcja', 'zarząd', 'sankcje', 'restrukturyzacja', 'pranie pieniędzy', 'KNF', 'UOKiK'];
+  const baseSentiment = deterministicFloat(entityId, idx, -0.95, 0.6);
+  return {
+    classifier_name: 'EEM',
+    entity_type: 'event',
+    entity_id: entityId,
+    correlation_id: entityId,
+    trace_data: {
+      model_used: idx % 3 === 0 ? 'deterministic' : 'llm',
+      fallback_reason: idx % 3 === 0 ? 'LLM timeout exceeded 2000ms' : null,
+      sentiment_calculation: {
+        base_sentiment: baseSentiment,
+        event_type: eventTypes[idx % eventTypes.length],
+        keyword_influences: keywords.slice(0, deterministicInt(entityId, idx + 10, 1, 4)),
+        final_sentiment: +(baseSentiment * deterministicFloat(entityId, idx + 5, 0.8, 1.2)).toFixed(2),
+      },
+      impact_scoring: {
+        baseline_impact: deterministicFloat(entityId, idx + 20, 1, 8),
+        risk_level: deterministicInt(entityId, idx + 21, 1, 10),
+        keyword_boost: deterministicFloat(entityId, idx + 22, 0, 2),
+        final_impact: deterministicFloat(entityId, idx + 23, -8.5, 3),
+      },
+      source_tier_logic: {
+        tier_assigned: ['tier-1', 'tier-2', 'tier-3'][idx % 3],
+        authority_indicators: ['government source', 'verified journalist', 'official filing'].slice(0, (idx % 3) + 1),
+        reasoning: 'Source matched authority keyword list and domain credibility database.',
+      },
+      keyword_extraction: {
+        extracted_keywords: keywords.slice(0, 5),
+        dedup_count: deterministicInt(entityId, idx + 30, 0, 3),
+        top_6_keywords: keywords.slice(0, 6),
+      },
+    },
+    created_at: new Date(REFERENCE_DATE.getTime() - idx * 3600000).toISOString(),
+  };
+}
+
+function makeNSATrace(entityId: string, idx: number): ReasoningTrace {
+  const rawScore = deterministicFloat(entityId, idx, 10, 90);
+  return {
+    classifier_name: 'NSA',
+    entity_type: 'person',
+    entity_id: entityId,
+    correlation_id: null,
+    trace_data: {
+      evidence_summary: {
+        total_evidence_count: deterministicInt(entityId, idx, 3, 15),
+        evidence_by_source: { news: deterministicInt(entityId, idx + 1, 1, 8), registry: deterministicInt(entityId, idx + 2, 0, 4), filing: deterministicInt(entityId, idx + 3, 0, 3) },
+        evidence_by_claim_type: { corruption: deterministicInt(entityId, idx + 4, 0, 5), fraud: deterministicInt(entityId, idx + 5, 0, 3), misconduct: deterministicInt(entityId, idx + 6, 0, 4) },
+      },
+      scoring_breakdown: Array.from({ length: 3 }, (_, i) => ({
+        evidence_id: i + 1,
+        source_kind: ['news', 'registry', 'filing'][i % 3],
+        claim_type: ['corruption', 'fraud', 'misconduct'][i % 3],
+        claim_weight: deterministicFloat(entityId, idx + i + 10, 0.3, 1.0),
+        source_multiplier: deterministicFloat(entityId, idx + i + 13, 0.5, 2.0),
+        severity: deterministicFloat(entityId, idx + i + 16, 0.1, 1.0),
+        confidence: deterministicFloat(entityId, idx + i + 19, 0.4, 1.0),
+        official_bonus: i === 1 ? 0.15 : 0,
+        contribution_to_score: deterministicFloat(entityId, idx + i + 22, 2, 25),
+      })),
+      aggregation_logic: {
+        raw_score: rawScore,
+        clamped_score: Math.min(100, Math.max(0, rawScore)),
+        news_only_cap_applied: rawScore > 70,
+        news_only_cap_value: rawScore > 70 ? 70 : null,
+      },
+      person_context: {
+        person_id: deterministicInt(entityId, idx + 40, 100, 999),
+        person_name: entityId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        role: ['Board Member', 'CFO', 'Compliance Director', 'CEO'][idx % 4],
+        evidence_sources_hit: ['news', 'registry', 'filing'].slice(0, (idx % 3) + 1),
+      },
+    },
+    created_at: new Date(REFERENCE_DATE.getTime() - idx * 7200000).toISOString(),
+  };
+}
+
+function makeTarkovTrace(entityId: string, idx: number): ReasoningTrace {
+  const eventTypes = ['investigation', 'labour', 'regulatory', 'financial', 'operations'];
+  const keywordsSearched = ['CBA', 'korupcja', 'zatrzymanie', 'zarząd', 'prokuratura', 'śledztwo'];
+  const baseConf = deterministicFloat(entityId, idx, 0.3, 0.9);
+  return {
+    classifier_name: 'Tarkov',
+    entity_type: 'event_extraction',
+    entity_id: entityId,
+    correlation_id: entityId,
+    trace_data: {
+      extraction_method: idx % 2 === 0 ? 'keyword_based' : 'llm_based',
+      keyword_matching: {
+        event_type: eventTypes[idx % eventTypes.length],
+        keywords_searched: keywordsSearched,
+        keywords_found: keywordsSearched.slice(0, deterministicInt(entityId, idx + 5, 2, 6)),
+        hit_sentences: [
+          'CBA przeprowadziło akcję w siedzibie spółki.',
+          'Zatrzymanym przedstawiono zarzuty korupcyjne.',
+        ],
+        deduped_hit_count: deterministicInt(entityId, idx + 8, 1, 4),
+      },
+      confidence_calculation: {
+        base_confidence: baseConf,
+        keyword_count: deterministicInt(entityId, idx + 10, 2, 8),
+        keyword_boost: deterministicFloat(entityId, idx + 11, 0, 0.2),
+        final_confidence: +(baseConf + deterministicFloat(entityId, idx + 12, 0, 0.15)).toFixed(2),
+      },
+      risk_level_assignment: {
+        event_type: eventTypes[idx % eventTypes.length],
+        baseline_risk: deterministicInt(entityId, idx + 15, 3, 8),
+        keyword_count: deterministicInt(entityId, idx + 16, 2, 6),
+        boost_value: deterministicFloat(entityId, idx + 17, 0, 2),
+        final_risk_level: deterministicInt(entityId, idx + 18, 4, 10),
+      },
+      title_generation: {
+        article_title: 'CBA wkroczyło do siedziby spółki',
+        template_used: idx % 2 === 0 ? '{event_type}: {company}' : null,
+        generated_title: 'Investigation — CBA action at company HQ',
+      },
+      source_reference: {
+        url: 'https://example.com/article-' + entityId,
+        source_title: 'Rzeczpospolita',
+        credibility_score: deterministicFloat(entityId, idx + 20, 0.6, 1.0),
+        language: 'pl',
+        published_at: new Date(REFERENCE_DATE.getTime() - idx * 86400000).toISOString(),
+      },
+    },
+    created_at: new Date(REFERENCE_DATE.getTime() - idx * 5400000).toISOString(),
+  };
+}
+
+function makeMarketTrace(entityId: string, idx: number): ReasoningTrace {
+  const exchanges = ['WSE', 'LSE', 'XETRA'];
+  return {
+    classifier_name: 'Market',
+    entity_type: 'company',
+    entity_id: entityId,
+    correlation_id: null,
+    trace_data: {
+      ticker_search: {
+        firm_name: entityId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        search_strategy: (['exact', 'fuzzy', 'partial'] as const)[idx % 3],
+        candidates_found: deterministicInt(entityId, idx, 1, 5),
+        matching_process: Array.from({ length: 2 }, (_, i) => ({
+          candidate_name: `Candidate ${i + 1}`,
+          ticker: entityId.slice(0, 3).toUpperCase(),
+          exchange: exchanges[i % exchanges.length],
+          match_score: deterministicFloat(entityId, idx + i + 5, 0.5, 1.0),
+          selected: i === 0,
+          reason: i === 0 ? 'Highest match score' : 'Lower relevance',
+        })),
+      },
+      listing_selection: {
+        listings_considered: deterministicInt(entityId, idx + 10, 1, 4),
+        selected_listings: [{
+          tv_symbol: entityId.slice(0, 3).toUpperCase(),
+          tv_exchange: 'WSE',
+          ticker: entityId.slice(0, 3).toUpperCase(),
+          exchange: 'WSE',
+        }],
+      },
+      fetch_results: {
+        listings_processed: 1,
+        successful_fetches: 1,
+        failed_fetches: 0,
+        by_listing: [{
+          tv_symbol: entityId.slice(0, 3).toUpperCase(),
+          tv_exchange: 'WSE',
+          bars_fetched: deterministicInt(entityId, idx + 15, 200, 365),
+          bars_persisted: deterministicInt(entityId, idx + 16, 195, 365),
+          data_completeness: deterministicFloat(entityId, idx + 17, 0.9, 1.0),
+          error: null,
+        }],
+      },
+      fetch_parameters: {
+        n_bars_requested: 365,
+        date_range: {
+          start_date: '2025-04-27',
+          end_date: '2026-04-27',
+          days_back: 365,
+        },
+      },
+    },
+    created_at: new Date(REFERENCE_DATE.getTime() - idx * 10800000).toISOString(),
+  };
+}
+
+export function generateMockTraces(entityId: string, classifier?: string): ReasoningTrace[] {
+  const traces: ReasoningTrace[] = [];
+  const generators: Record<string, (id: string, idx: number) => ReasoningTrace> = {
+    EEM: makeEEMTrace,
+    NSA: makeNSATrace,
+    Tarkov: makeTarkovTrace,
+    Market: makeMarketTrace,
+  };
+
+  if (classifier && generators[classifier]) {
+    for (let i = 0; i < 3; i++) {
+      traces.push(generators[classifier](entityId, i));
+    }
+  } else {
+    for (const [, gen] of Object.entries(generators)) {
+      for (let i = 0; i < 2; i++) {
+        traces.push(gen(entityId, i));
+      }
+    }
+  }
+
+  return traces.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
 
 export { ARTICLES, COMPANIES, COMPANY_RELATIONS };
