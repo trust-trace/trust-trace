@@ -11,7 +11,7 @@ export default function Home() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [relations, setRelations] = useState<CompanyRelation[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [selectedId, setSelectedId] = useState('jsw');
+  const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +63,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || !companies.some((company) => company.id === selectedId)) {
       return;
     }
 
@@ -90,7 +90,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [companies, selectedId]);
 
   const company = companies.find((currentCompany) => currentCompany.id === selectedId) ?? companies[0] ?? null;
 

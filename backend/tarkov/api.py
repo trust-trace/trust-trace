@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - guarded again in create_app
 from tarkov.config import Config
 from tarkov.database.repositories.ingestion_job_repo import IngestionJobRepository
 from tarkov.database.session import SessionLocal, create_all, get_engine, init_engine
+from tarkov.frontend_graph_api import FrontendGraphService
 from tarkov.pipeline.ingestion_worker import IngestionWorker
 from tarkov.utils.logger import get_logger, setup_logging
 
@@ -48,6 +49,7 @@ def create_app(config: Config | None = None):
 
     app = FastAPI(title="Tarkov API", version="0.1.0")
     worker = IngestionWorker(cfg)
+    frontend_graph_service = FrontendGraphService(cfg)
     worker.prepare_eem()
     worker.start()
 
@@ -65,23 +67,77 @@ def create_app(config: Config | None = None):
             _check_db_connection()
             return {"status": "ok", "service": "tarkov", "db": "ok"}
         except Exception as exc:
-            raise HTTPException(status_code=503, detail=f"DB health check failed: {exc}") from exc
+            raise HTTPException(
+                status_code=503, detail=f"DB health check failed: {exc}"
+            ) from exc
+
+    @app.get("/api/companies")
+    def list_frontend_companies() -> list[dict]:
+        session = SessionLocal()
+        try:
+            return frontend_graph_service.list_companies(session)
+        except Exception as exc:
+            logger.exception("Failed to load frontend companies: %s", exc)
+            raise HTTPException(
+                status_code=500, detail="Failed to load companies"
+            ) from exc
+        finally:
+            session.close()
+
+    @app.get("/api/relations")
+    def list_frontend_relations() -> list[dict]:
+        session = SessionLocal()
+        try:
+            return frontend_graph_service.list_relations(session)
+        except Exception as exc:
+            logger.exception("Failed to load frontend relations: %s", exc)
+            raise HTTPException(
+                status_code=500, detail="Failed to load relations"
+            ) from exc
+        finally:
+            session.close()
+
+    @app.get("/api/companies/{company_id}/articles")
+    def list_frontend_company_articles(company_id: str) -> list[dict]:
+        session = SessionLocal()
+        try:
+            return frontend_graph_service.list_articles(session, company_id)
+        except Exception as exc:
+            logger.exception(
+                "Failed to load frontend articles for %s: %s", company_id, exc
+            )
+            raise HTTPException(
+                status_code=500, detail="Failed to load company articles"
+            ) from exc
+        finally:
+            session.close()
 
     @app.post("/v1/articles", status_code=202)
     async def receive_article(request: FastAPIRequest):
         try:
             raw_payload = await request.json()
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {exc}") from exc
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON payload: {exc}"
+            ) from exc
 
         if not isinstance(raw_payload, dict):
-            raise HTTPException(status_code=400, detail="Expected a JSON object payload")
+            raise HTTPException(
+                status_code=400, detail="Expected a JSON object payload"
+            )
 
         correlation_id = None
         if cfg.enable_ingest_contract_headers:
-            correlation_id = request.headers.get("X-Correlation-Id") or request.headers.get("x-correlation-id")
-            payload_version = request.headers.get("X-Payload-Version") or request.headers.get("x-payload-version")
-            if cfg.enforce_payload_version_header and payload_version != cfg.expected_payload_version:
+            correlation_id = request.headers.get(
+                "X-Correlation-Id"
+            ) or request.headers.get("x-correlation-id")
+            payload_version = request.headers.get(
+                "X-Payload-Version"
+            ) or request.headers.get("x-payload-version")
+            if (
+                cfg.enforce_payload_version_header
+                and payload_version != cfg.expected_payload_version
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -99,9 +155,15 @@ def create_app(config: Config | None = None):
             except Exception as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-            job = IngestionJobRepository(session).enqueue(article, correlation_id or str(uuid.uuid4()))
+            job = IngestionJobRepository(session).enqueue(
+                article, correlation_id or str(uuid.uuid4())
+            )
             session.commit()
-            return {"status": "started", "job_id": job.job_id, "ingest_key": job.ingest_key}
+            return {
+                "status": "started",
+                "job_id": job.job_id,
+                "ingest_key": job.ingest_key,
+            }
         except HTTPException:
             raise
         except Exception as exc:

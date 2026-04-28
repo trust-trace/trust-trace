@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 
 export function MswProvider({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(process.env.NODE_ENV !== 'development');
+  const shouldMock =
+    process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ENABLE_MSW === 'true';
+  const [ready, setReady] = useState(!shouldMock);
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') {
+    if (!shouldMock) {
       return;
     }
 
@@ -27,7 +29,7 @@ export function MswProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [shouldMock]);
 
   if (!ready) {
     return null;
