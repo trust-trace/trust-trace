@@ -1,10 +1,5 @@
 # Timeline Scoring — Implementation Plan
 
-> Replace single-point scores with an 8-bucket historical timeline.
-> Both EEM and TrustWeb produce `list[TimelineScore]` instead of a single number.
-
----
-
 ## 1. Core Concept
 
 Today, both scoring modules output **one score per firm**:
