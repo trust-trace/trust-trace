@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Company, Risk } from '@/lib/data';
+import { AnalysisLauncher } from './analysis-launcher';
 import { Sparkline } from './sparkline';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
 
@@ -25,9 +26,25 @@ interface SidebarProps {
   companies: Company[];
   selectedId: string;
   onSelect: (id: string) => void;
+  analysisQuery: string;
+  onAnalysisQueryChange: (value: string) => void;
+  onStartAnalysis: () => void | Promise<void>;
+  analysisBusy: boolean;
+  analysisStatus: string | null;
+  analysisError: string | null;
 }
 
-export function Sidebar({ companies, selectedId, onSelect }: SidebarProps) {
+export function Sidebar({
+  companies,
+  selectedId,
+  onSelect,
+  analysisQuery,
+  onAnalysisQueryChange,
+  onStartAnalysis,
+  analysisBusy,
+  analysisStatus,
+  analysisError,
+}: SidebarProps) {
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('risk');
 
@@ -68,6 +85,16 @@ export function Sidebar({ companies, selectedId, onSelect }: SidebarProps) {
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-head">
+        <AnalysisLauncher
+          query={analysisQuery}
+          onQueryChange={onAnalysisQueryChange}
+          onSubmit={onStartAnalysis}
+          busy={analysisBusy}
+          status={analysisStatus}
+          error={analysisError}
+          compact
+        />
+
         <div className="tt-search">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <circle cx="11" cy="11" r="7" />
@@ -112,7 +139,9 @@ export function Sidebar({ companies, selectedId, onSelect }: SidebarProps) {
 
       <div className="tt-list">
         {filtered.length === 0 && (
-          <div className="tt-empty">Brak wyników dla &bdquo;{query}&rdquo;</div>
+          <div className="tt-empty">
+            {query ? `Brak wyników dla „${query}”` : 'Baza jest pusta. Uruchom analizę powyżej.'}
+          </div>
         )}
         {filtered.map((c, idx) => {
           const isActive = c.id === selectedId;

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCompanies, getCompanyArticles, getCompanyRelations, getGraph } from '@/lib/api';
+import {
+  getCompanies,
+  getCompanyArticles,
+  getCompanyRelations,
+  getGraph,
+  getPipelineRun,
+  runPipeline,
+} from '@/lib/api';
 
 describe('api', () => {
   it('loads companies', async () => {
@@ -29,6 +36,20 @@ describe('api', () => {
     expect(graph.rootId).toBe('company:jsw');
     expect(graph.nodes.some((node) => node.entityType === 'Person')).toBe(true);
     expect(graph.nodes.some((node) => node.entityType === 'Event')).toBe(true);
+  });
+
+  it('starts pipeline run', async () => {
+    const response = await runPipeline('JSW');
+
+    expect(response.status).toBe('accepted');
+    expect(response.run_id).toContain('run-jsw');
+  });
+
+  it('loads pipeline status', async () => {
+    const status = await getPipelineRun('run-jsw');
+
+    expect(status.run_id).toBe('run-jsw');
+    expect(status.status).toBe('running');
   });
 
   it('throws on failed response', async () => {

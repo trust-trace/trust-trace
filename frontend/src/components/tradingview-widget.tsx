@@ -3,10 +3,10 @@
 import { useEffect, useRef } from 'react';
 
 interface TradingViewWidgetProps {
-  symbol?: string;
+  symbol: string;
 }
 
-export function TradingViewWidget({ symbol = 'GPW:CDR' }: TradingViewWidgetProps) {
+export function TradingViewWidget({ symbol }: TradingViewWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

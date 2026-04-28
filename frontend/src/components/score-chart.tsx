@@ -2,23 +2,35 @@
 
 import { useId } from 'react';
 
+import type { HistoryRangeKey } from '@/lib/data';
+
 interface ScoreChartProps {
   history: number[];
   color: string;
+  range: HistoryRangeKey;
 }
 
-export function ScoreChart({ history, color }: ScoreChartProps) {
+const LABELS_BY_RANGE: Record<HistoryRangeKey, string[]> = {
+  '12M': ['M-11', 'M-9', 'M-7', 'M-5', 'M-3', 'now'],
+  '6M': ['M-5', 'M-4', 'M-3', 'M-2', 'M-1', 'now'],
+  '3M': ['M-2', 'M-1', 'M-1', 'M-0', 'M-0', 'now'],
+  '30D': ['D-30', 'D-24', 'D-18', 'D-12', 'D-6', 'now'],
+};
+
+export function ScoreChart({ history, color, range: chartRange }: ScoreChartProps) {
   const gradId = useId();
   const W = 640;
   const H = 120;
   const PAD = 16;
-  const min = Math.min(...history) - 5;
-  const max = Math.max(...history) + 5;
-  const range = max - min || 1;
+  const safeHistory = history.length > 0 ? history : [0];
+  const min = Math.min(...safeHistory) - 5;
+  const max = Math.max(...safeHistory) + 5;
+  const valueRange = max - min || 1;
 
-  const pts = history.map((v, i) => {
-    const x = PAD + (i / (history.length - 1)) * (W - PAD * 2);
-    const y = PAD + (1 - (v - min) / range) * (H - PAD * 2);
+  const pointCount = safeHistory.length;
+  const pts = safeHistory.map((v, i) => {
+    const x = pointCount === 1 ? W / 2 : PAD + (i / (pointCount - 1)) * (W - PAD * 2);
+    const y = PAD + (1 - (v - min) / valueRange) * (H - PAD * 2);
     return [x, y] as [number, number];
   });
 
@@ -27,7 +39,7 @@ export function ScoreChart({ history, color }: ScoreChartProps) {
     d + ` L${pts[pts.length - 1][0]},${H - PAD} L${PAD},${H - PAD} Z`;
 
   const gridLines = [0.25, 0.5, 0.75];
-  const labels = ['M-11', 'M-9', 'M-7', 'M-5', 'M-3', 'now'];
+  const labels = LABELS_BY_RANGE[chartRange];
 
   return (
     <svg viewBox={`0 0 ${W} ${H + 22}`} className="tt-chart" aria-hidden="true">

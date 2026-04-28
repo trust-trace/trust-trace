@@ -1,6 +1,9 @@
 export type Risk = 'high' | 'medium' | 'low';
 export type SourceTier = 'tier-1' | 'tier-2' | 'tier-3';
 export type GraphRelationType = 'person' | 'partnership' | 'business';
+export type HistoryRangeKey = '12M' | '6M' | '3M' | '30D';
+
+export type CompanyHistoryByRange = Record<HistoryRangeKey, number[]>;
 
 export interface Company {
   id: string;
@@ -14,7 +17,10 @@ export interface Company {
   articles: number;
   lastUpdate: string;
   history: number[];
+  historyByRange?: Partial<CompanyHistoryByRange>;
   keywords: string[];
+  tradingViewSymbol?: string;
+  hasTradingView?: boolean;
 }
 
 export interface Article {
@@ -122,6 +128,26 @@ export interface GraphResponse {
   rootId: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
+}
+
+export interface PipelineRunAccepted {
+  status: string;
+  run_id: string;
+}
+
+export interface PipelineRunStatus {
+  run_id: string;
+  query: string;
+  status: string;
+  phase: string;
+  article_target: number;
+  articles_scraped: number;
+  articles_processed: number;
+  firm_ids: string[];
+  final_scores: Record<string, number>;
+  error: string | null;
+  created_at: string | null;
+  completed_at: string | null;
 }
 
 export const COMPANIES: Company[] = [

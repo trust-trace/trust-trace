@@ -1,4 +1,11 @@
-import type { Article, Company, CompanyRelation, GraphResponse } from '@/lib/data';
+import type {
+  Article,
+  Company,
+  CompanyRelation,
+  GraphResponse,
+  PipelineRunAccepted,
+  PipelineRunStatus,
+} from '@/lib/data';
 
 function toRequestUrl(input: string): URL | string {
   if (/^https?:\/\//.test(input)) {
@@ -11,6 +18,16 @@ function toRequestUrl(input: string): URL | string {
 
 async function readJson<T>(input: string): Promise<T> {
   const response = await fetch(toRequestUrl(input));
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${input} (${response.status})`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function sendJson<T>(input: string, init: RequestInit): Promise<T> {
+  const response = await fetch(toRequestUrl(input), init);
 
   if (!response.ok) {
     throw new Error(`Request failed: ${input} (${response.status})`);
@@ -33,4 +50,18 @@ export function getCompanyRelations() {
 
 export function getGraph(companyId: string) {
   return readJson<GraphResponse>(`/api/graph/${companyId}`);
+}
+
+export function runPipeline(query: string, articleLimit = 30) {
+  return sendJson<PipelineRunAccepted>('/api/pipeline/run', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ query, article_limit: articleLimit }),
+  });
+}
+
+export function getPipelineRun(runId: string) {
+  return readJson<PipelineRunStatus>(`/api/pipeline/${runId}`);
 }
