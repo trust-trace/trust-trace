@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
 import json
+import os
 import threading
 from datetime import datetime
 
@@ -31,19 +33,35 @@ class IngestionWorker:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._rkr_processor = RkrArticleProcessor()
+        self._eem_ready = False
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
 
+        self.prepare_eem()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, name="tarkov-ingestion-worker", daemon=True)
         self._thread.start()
+
+    def prepare_eem(self) -> None:
+        self._ensure_eem_ready()
 
     def stop(self) -> None:
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
+
+    def _ensure_eem_ready(self) -> None:
+        if self._eem_ready:
+            return
+
+        os.environ["DATABASE_URL"] = self.config.database_url
+        importlib.import_module("eem.database.models")
+        eem_session = importlib.import_module("eem.database.session")
+        eem_session.init_engine(self.config.database_url)
+        eem_session.create_all()
+        self._eem_ready = True
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
@@ -122,10 +140,22 @@ class IngestionWorker:
                 article, correlation_id=job.correlation_id
             )
 
+            if result is None:
+                repo.mark_skipped(job)
+                session.commit()
+                return
+
+            try:
+                self._run_eem(result.company_matches)
+            except Exception as exc:
+                repo.mark_retry(job, f"EEM failed: {exc}")
+                session.commit()
+                return
+
             repo.mark_completed(
                 job,
-                article_id=result.article_id if result is not None else None,
-                processed_at=result.processed_at if result is not None else datetime.utcnow(),
+                article_id=result.article_id,
+                processed_at=result.processed_at,
             )
             session.commit()
         except Exception as exc:
@@ -141,3 +171,23 @@ class IngestionWorker:
             logger.exception("ingestion job failed job_id=%s: %s", job_id, exc)
         finally:
             session.close()
+
+    def _run_eem(self, company_match_ids: list[str]) -> None:
+        if not company_match_ids:
+            return
+
+        self._ensure_eem_ready()
+        eem = importlib.import_module("eem")
+        unique_ids = []
+        seen = set()
+        for value in company_match_ids:
+            try:
+                firm_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if firm_id not in seen:
+                seen.add(firm_id)
+                unique_ids.append(firm_id)
+
+        for firm_id in unique_ids:
+            eem.enrich_firm(firm_id)

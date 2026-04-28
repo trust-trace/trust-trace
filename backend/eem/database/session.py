@@ -13,13 +13,16 @@ class Base(DeclarativeBase):
 
 
 _engine: Engine | None = None
+_engine_url: str | None = None
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False)
 
 
 def init_engine(database_url: str) -> Engine:
-    global _engine
-    if _engine is not None:
+    global _engine, _engine_url
+    if _engine is not None and _engine_url == database_url:
         return _engine
+    if _engine is not None:
+        _engine.dispose()
     if "sqlite" in database_url and ":memory:" in database_url:
         _engine = create_engine(
             database_url,
@@ -29,6 +32,7 @@ def init_engine(database_url: str) -> Engine:
     else:
         _engine = create_engine(database_url)
     SessionLocal.configure(bind=_engine)
+    _engine_url = database_url
     return _engine
 
 

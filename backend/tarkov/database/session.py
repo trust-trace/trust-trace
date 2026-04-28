@@ -22,6 +22,7 @@ class Base(DeclarativeBase):
 
 
 _engine: Engine | None = None
+_engine_url: str | None = None
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, future=True)
 
 # Neo4j driver
@@ -30,7 +31,11 @@ _neo4j_driver: BoltDriver | None = None
 
 def init_engine(database_url: str) -> Engine:
     """Initialize SQLAlchemy engine (Postgres/SQLite)."""
-    global _engine
+    global _engine, _engine_url
+    if _engine is not None and _engine_url == database_url:
+        return _engine
+    if _engine is not None:
+        _engine.dispose()
     if database_url.startswith("sqlite") and ":memory:" in database_url:
         _engine = create_engine(
             database_url,
@@ -42,6 +47,7 @@ def init_engine(database_url: str) -> Engine:
         _engine = create_engine(database_url, future=True)
 
     SessionLocal.configure(bind=_engine)
+    _engine_url = database_url
     return _engine
 
 

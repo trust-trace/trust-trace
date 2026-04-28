@@ -28,13 +28,20 @@ Rules:
 
 
 def build_user_message(event: _EventRow, firm_name: str) -> str:
+    def _fmt_date(value):
+        if value is None:
+            return "unknown date"
+        if hasattr(value, "strftime"):
+            return value.strftime("%Y-%m-%d")
+        return str(value)
+
     lines = [
         f'Analyze this AML event for company "{firm_name}":',
         "",
         f"Event type: {event.event_type}",
         f"Title: {event.title}",
         f"Original risk level: {event.risk_level}/10",
-        f"Event date: {event.occurred_at.strftime('%Y-%m-%d')}",
+        f"Event date: {_fmt_date(event.occurred_at)}",
     ]
 
     if event.source_text_quote:
@@ -43,9 +50,7 @@ def build_user_message(event: _EventRow, firm_name: str) -> str:
     if event.sources:
         lines += ["", "Sources:"]
         for s in event.sources:
-            date_str = (
-                s.published_at.strftime("%Y-%m-%d") if s.published_at else "unknown date"
-            )
+            date_str = _fmt_date(s.published_at)
             title = s.title or s.url
             lines.append(f"- [{title}, {date_str}] {s.content_excerpt}")
 

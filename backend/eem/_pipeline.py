@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+import os
 
 import eem.config as config
 from eem._types import FirmNotFoundError, _EventFields
@@ -40,10 +41,11 @@ def _compute_score(
 
 
 def _run(firm_id: int) -> float:
-    if not config.DATABASE_URL:
+    database_url = os.environ.get("DATABASE_URL") or config.DATABASE_URL
+    if not database_url:
         raise RuntimeError("DATABASE_URL is not set in environment")
 
-    init_engine(config.DATABASE_URL)
+    init_engine(database_url)
 
     with get_db() as db:
         reader = _EventReader(db)

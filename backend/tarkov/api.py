@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover - guarded again in create_app
 
 from tarkov.config import Config
 from tarkov.database.repositories.ingestion_job_repo import IngestionJobRepository
-from tarkov.database.session import SessionLocal, create_all, init_engine
+from tarkov.database.session import SessionLocal, create_all, get_engine, init_engine
 from tarkov.pipeline.ingestion_worker import IngestionWorker
 from tarkov.utils.logger import get_logger, setup_logging
 
@@ -26,6 +26,14 @@ def _check_db_connection() -> None:
         session.execute(text("SELECT 1"))
 
 
+def _prepare_eem_schema() -> None:
+    from eem.database.session import Base as EemBase
+
+    import eem.database.models  # noqa: F401  # populate metadata
+
+    EemBase.metadata.create_all(bind=get_engine())
+
+
 def create_app(config: Config | None = None):
     try:
         from fastapi import FastAPI, HTTPException
@@ -36,9 +44,11 @@ def create_app(config: Config | None = None):
     setup_logging(cfg.log_level)
     init_engine(cfg.database_url)
     create_all()
+    _prepare_eem_schema()
 
     app = FastAPI(title="Tarkov API", version="0.1.0")
     worker = IngestionWorker(cfg)
+    worker.prepare_eem()
     worker.start()
 
     @app.on_event("startup")

@@ -18,13 +18,58 @@ class _ParseError(Exception):
 
 def _analyze_event(event: _EventRow, firm_name: str) -> _EventFields:
     user_msg = build_user_message(event, firm_name)
-    raw = chat_completion(
-        [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ]
+    try:
+        raw = chat_completion(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ]
+        )
+        return _parse_response(raw)
+    except Exception as exc:
+        logger.warning("Falling back to deterministic EEM analysis for event %s: %s", event.event_id, exc)
+        return _fallback_fields(event, firm_name)
+
+
+def _fallback_fields(event: _EventRow, firm_name: str) -> _EventFields:
+    lowered = f"{event.title} {event.source_text_quote or ''}".lower()
+    if event.event_type in {"investment", "expansion", "partnership"}:
+        sentiment = 0.35
+        impact = min(10.0, max(1.0, event.risk_level * 0.6))
+        source_tier = "tier-2"
+        keywords = ["inwestycja", "wzrost", "partnerstwo"]
+    else:
+        sentiment = -0.65
+        impact = -min(10.0, max(1.0, float(event.risk_level)))
+        source_tier = "tier-1" if any(term in lowered for term in ("prokuratura", "knf", "cba", "sąd")) else "tier-2"
+        keywords = _fallback_keywords(event.event_type)
+
+    excerpt = (
+        f"{firm_name}: {event.title}. "
+        f"{event.source_text_quote or 'Opis sugeruje zdarzenie wymagające dalszej analizy.'}"
+    )[:260]
+    entities = [firm_name, *[person.name for person in event.people]]
+    deduped_entities = list(dict.fromkeys(entity for entity in entities if entity))
+    return _EventFields(
+        sentiment=sentiment,
+        impact=impact,
+        source_tier=source_tier,
+        keywords=keywords,
+        excerpt=excerpt,
+        entities=deduped_entities,
     )
-    return _parse_response(raw)
+
+
+def _fallback_keywords(event_type: str) -> list[str]:
+    mapping = {
+        "money_laundering": ["pranie pieniędzy", "AML", "transakcje podejrzane"],
+        "fraud": ["oszustwo", "nadużycie", "wyłudzenie"],
+        "regulatory_action": ["postępowanie", "nadzór", "kara"],
+        "sanctions": ["sankcje", "monitoring", "ryzyko reputacyjne"],
+        "bankruptcy": ["upadłość", "restrukturyzacja", "niewypłacalność"],
+        "corruption": ["korupcja", "łapownictwo", "śledztwo"],
+    }
+    return mapping.get(event_type, ["analiza", "ryzyko", "zdarzenie"])
 
 
 def _parse_response(raw: str) -> _EventFields:

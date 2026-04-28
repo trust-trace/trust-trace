@@ -14,9 +14,10 @@ from tarkov.config import Config
 from tarkov.database.models import ArticleMetadata, ConnectionEntity, Event, Firm, IngestionJob, RkrScore
 from tarkov.database.session import SessionLocal
 from tarkov.tests.fixtures.sample_articles import SAMPLE_ARTICLE_1
+from eem.database.models import FirmScore
 
 
-def wait_for_job(job_id: str, timeout_seconds: float = 5.0) -> IngestionJob:
+def wait_for_job(job_id: str, timeout_seconds: float = 20.0) -> IngestionJob:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
         db = SessionLocal()
@@ -282,6 +283,7 @@ def test_article_ingestion_persists_rkr_and_tarkov(tmp_path):
         assert db.query(Firm).count() >= 1
         assert db.query(Event).count() >= 1
         assert db.query(ArticleMetadata).count() >= 1
+        assert db.query(FirmScore).count() >= 1
     finally:
         db.close()
 
