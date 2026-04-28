@@ -20,7 +20,7 @@ export function hasCompanyTradingView(company: Company): boolean {
 export function getCompanyHistoryForRange(
   company: Company,
   activeRange: HistoryRangeKey
-): number[] {
+): number[] | null {
   const rangedHistory = company.historyByRange?.[activeRange];
   if (Array.isArray(rangedHistory) && rangedHistory.length > 0) {
     return rangedHistory;
@@ -31,5 +31,7 @@ export function getCompanyHistoryForRange(
     return fallbackHistory;
   }
 
-  return company.history.length > 0 ? company.history : [company.score];
+  if (company.history.length > 1) return company.history;
+  if (company.history.length === 1) return null;
+  return [company.score];
 }
