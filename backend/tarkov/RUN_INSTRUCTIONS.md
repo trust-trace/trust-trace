@@ -36,6 +36,7 @@ LOG_LEVEL=INFO
 LLM_PROVIDER=none  # or "openai" or "anthropic"
 LLM_API_KEY=
 LLM_MODEL=gpt-4o-mini
+LLM_WEB_SEARCH_ENABLED=false  # set true to enable OpenRouter web search for enrichment
 
 # File paths
 ARTICLE_INPUT_SOURCE=jsonl

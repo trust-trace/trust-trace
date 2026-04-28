@@ -27,8 +27,10 @@ class AMLScoringEventHandler:
         tasks = []
         if "event_classifier" in event.target_modules and parsed.events:
             tasks.append(self.event_classifier.score_events(parsed.company_matches, parsed.events, cid))
-        if "nsa" in event.target_modules and parsed.people:
-            tasks.append(self.nsa.score_people(parsed.company_matches, parsed.people, cid))
+        firm_ids = event.firm_ids or parsed.firm_ids
+        if "nsa" in event.target_modules and firm_ids:
+            for firm_id in firm_ids:
+                tasks.append(self.nsa.score_company(firm_id, cid))
 
         if not tasks:
             return []

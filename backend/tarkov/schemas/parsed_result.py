@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class LLMSummary(BaseModel):
@@ -50,6 +50,7 @@ class ParsedResult(BaseModel):
     events: list[EventExtraction] = Field(default_factory=list)
     people: list[PersonExtraction] = Field(default_factory=list)
     company_matches: list[str] = Field(default_factory=list)
+    firm_ids: list[int] = Field(default_factory=list)
     language: str = "en"
     total_risk_score: float = 0.0
 
@@ -59,5 +60,16 @@ class ParsingEvent(BaseModel):
     timestamp: datetime
     source_system: str = "tarkov"
     parsed_result: ParsedResult
+    firm_ids: list[int] = Field(default_factory=list)
     correlation_id: str
     target_modules: list[str] = Field(default_factory=lambda: ["event_classifier", "nsa"])
+
+    @model_validator(mode="after")
+    def _sync_firm_ids(self):
+        parsed_firm_ids = list(self.parsed_result.firm_ids)
+        if not self.firm_ids:
+            self.firm_ids = parsed_firm_ids
+            return self
+        if self.firm_ids != parsed_firm_ids:
+            raise ValueError("firm_ids must match parsed_result.firm_ids")
+        return self

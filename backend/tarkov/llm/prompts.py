@@ -87,6 +87,33 @@ Article:
 """.strip()
 
 
+FIRM_ENRICHMENT_PROMPT = """
+You are enriching a company master record.
+Use the article context and web search if needed to fill missing company data.
+Prefer official registry, exchange, or company sources when verifying identifiers.
+
+Return ONLY a JSON object with any of these keys when you can verify them:
+- nip
+- regon
+- krs
+- country
+- aliases (array of strings)
+
+Rules:
+- Only return fields that are missing or empty in the current record.
+- Do not guess identifiers.
+- If a value cannot be verified, omit the key.
+- Prefer official or authoritative sources.
+- Include short source URLs in a "sources" array if you use web search.
+
+Current firm:
+{firm_json}
+
+Article context:
+{article_text}
+""".strip()
+
+
 PERSON_EXTRACTION_HYBRID_PROMPT = """
 You are extracting people from a news article.
 Return ONLY a JSON array.

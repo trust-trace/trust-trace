@@ -56,6 +56,7 @@ class ArticleProcessor:
             openrouter_base_url=config.openrouter_base_url,
             openrouter_http_referer=config.openrouter_http_referer,
             openrouter_x_title=config.openrouter_x_title,
+            web_search_enabled=config.llm_web_search_enabled,
         )
         self.summary_generator = SummaryGenerator(self.llm_client)
         self.company_matcher = CompanyMatcher(db_session, config.company_reference_path, llm_client=self.llm_client)
@@ -86,7 +87,11 @@ class ArticleProcessor:
                 print("[PROCESSOR] -> skipped (no company matches)")
                 return None
 
-            firms = [self.company_matcher.get_or_create_firm(m.company_name, m.ticker) for m in company_matches]
+            firms = []
+            for match in company_matches:
+                firm = self.company_matcher.get_or_create_firm(match.company_name, match.ticker)
+                self.company_matcher.enrich_firm_profile(firm, article.article.text)
+                firms.append(firm)
             print(f"[PROCESSOR] firms      : {[(f.id, f.full_name) for f in firms]}")
             events = self.event_extractor.extract_events_keyword_based(article)
             print(f"[PROCESSOR] events     : {[(e.event_type, e.risk_level) for e in events]}")
@@ -158,6 +163,7 @@ class ArticleProcessor:
                 events=[*events, *connection_events],
                 people=people,
                 company_matches=[str(f.id) for f in firms],
+                firm_ids=[f.id for f in firms],
                 language=article.article.language,
                 total_risk_score=(sum(e.risk_level for e in events) / len(events)) if events else 0.0,
             )

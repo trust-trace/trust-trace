@@ -9,6 +9,7 @@ import click
 from tarkov.config import Config
 from tarkov.database.session import SessionLocal, init_engine, init_neo4j
 from tarkov.pipeline.processor import ArticleProcessor
+from tarkov.pipeline.stage3_dispatch import build_stage3_result_emitter
 from tarkov.schemas.article import ArticleIn
 from tarkov.storage.article_reader import ArticleReader
 from tarkov.utils.logger import get_logger, setup_logging
@@ -34,7 +35,7 @@ def process_articles(input_source: str, input_path: str, batch_size: int) -> Non
     session = SessionLocal()
 
     try:
-        processor = ArticleProcessor(session, config)
+        processor = ArticleProcessor(session, config, result_emitter=build_stage3_result_emitter(config))
         for batch in ArticleReader(input_source, input_path).read_article_batch(batch_size):
             processor.process_articles_batch(batch)
         logger.info("All articles processed")
@@ -55,7 +56,9 @@ def process_single(article_path: str) -> None:
         with open(article_path, "r", encoding="utf-8") as fh:
             payload = json.load(fh)
         article = ArticleIn.model_validate(payload)
-        result = ArticleProcessor(session, config).process_article(article)
+        result = ArticleProcessor(session, config, result_emitter=build_stage3_result_emitter(config)).process_article(
+            article
+        )
         if result is None:
             logger.warning("Article processed without company matches")
         else:

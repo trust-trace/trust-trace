@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from tarkov.config import Config
 from tarkov.database.models import ArticleMetadata
 from tarkov.database.session import Base, init_engine
 from tarkov.pipeline.processor import ArticleProcessor
+from tarkov.schemas.parsed_result import LLMSummary, ParsedResult, ParsingEvent
 from tarkov.tests.fixtures.sample_articles import SAMPLE_ARTICLE_1
+
+
+class NSAClientStub:
+    def __init__(self):
+        self.calls = []
+
+    async def score_company(self, firm_id, correlation_id):
+        self.calls.append((firm_id, correlation_id))
+        return {"status": "ok", "firm_id": firm_id}
+
+
+class EventClassifierStub:
+    def __init__(self):
+        self.calls = []
+
+    async def score_events(self, company_matches, events, correlation_id):
+        self.calls.append((company_matches, events, correlation_id))
+        return {"status": "ok"}
 
 
 def test_process_article_full_flow(tmp_path):
@@ -58,3 +79,152 @@ def test_process_article_full_flow(tmp_path):
     assert metadata.http_status == SAMPLE_ARTICLE_1.metadata.http_status
     assert metadata.canonical_url == SAMPLE_ARTICLE_1.article.canonical_url
     assert metadata.word_count is None
+
+
+def test_stage3_result_emitter_registers_nsa_dispatch(tmp_path):
+    from tarkov.config import Config
+    from tarkov.pipeline.stage3_dispatch import build_stage3_result_emitter
+
+    config = Config(
+        database_url="sqlite+pysqlite:///:memory:",
+        log_level="INFO",
+        llm_provider="openai",
+        llm_api_key="",
+        llm_model="gpt-4o-mini",
+        article_input_source="jsonl",
+        article_input_path="",
+        company_reference_path=str(tmp_path / "companies.json"),
+        keywords_file_path="",
+        dead_letter_path=str(tmp_path / "dead_letters.jsonl"),
+        api_host="127.0.0.1",
+        api_port=8081,
+        enable_stage3_dispatch=True,
+        event_classifier_url="http://localhost:8082",
+        nsa_url="http://localhost:8092",
+        trustweb_url="",
+        enable_ingest_contract_headers=False,
+        enforce_payload_version_header=False,
+        expected_payload_version="1",
+    )
+
+    emitter = build_stage3_result_emitter(config)
+
+    assert len(emitter.async_handlers) == 1
+
+
+def test_stage3_event_handler_dispatches_nsa_with_firm_ids() -> None:
+    from tarkov.pipeline.event_handlers import AMLScoringEventHandler
+
+    event_classifier = EventClassifierStub()
+    nsa = NSAClientStub()
+    handler = AMLScoringEventHandler(event_classifier, nsa)
+    parsed_result = ParsedResult(
+        article_id="article-1",
+        processed_at=datetime.utcnow(),
+        llm_summary=LLMSummary(text="summary", confidence=1.0),
+        firm_ids=[123],
+    )
+    event = ParsingEvent(
+        timestamp=parsed_result.processed_at,
+        parsed_result=parsed_result,
+        firm_ids=list(parsed_result.firm_ids),
+        correlation_id="cid-1",
+    )
+
+    import asyncio
+
+    asyncio.run(handler.handle_parsed_event(event))
+
+    assert event.firm_ids == [123]
+    assert nsa.calls == [(123, "cid-1")]
+    assert event_classifier.calls == []
+
+
+def test_stage3_event_handler_dispatches_all_persisted_firm_ids() -> None:
+    from tarkov.pipeline.event_handlers import AMLScoringEventHandler
+
+    event_classifier = EventClassifierStub()
+    nsa = NSAClientStub()
+    handler = AMLScoringEventHandler(event_classifier, nsa)
+    parsed_result = ParsedResult(
+        article_id="article-2",
+        processed_at=datetime.utcnow(),
+        llm_summary=LLMSummary(text="summary", confidence=1.0),
+        firm_ids=[101, 202, 303],
+    )
+    event = ParsingEvent(
+        timestamp=parsed_result.processed_at,
+        parsed_result=parsed_result,
+        firm_ids=list(parsed_result.firm_ids),
+        correlation_id="cid-2",
+    )
+
+    import asyncio
+
+    asyncio.run(handler.handle_parsed_event(event))
+
+    assert event.firm_ids == [101, 202, 303]
+    assert nsa.calls == [(101, "cid-2"), (202, "cid-2"), (303, "cid-2")]
+    assert event_classifier.calls == []
+
+
+def test_stage3_event_handler_skips_nsa_when_no_firm_ids_present() -> None:
+    from tarkov.pipeline.event_handlers import AMLScoringEventHandler
+
+    event_classifier = EventClassifierStub()
+    nsa = NSAClientStub()
+    handler = AMLScoringEventHandler(event_classifier, nsa)
+    parsed_result = ParsedResult(
+        article_id="article-5",
+        processed_at=datetime.utcnow(),
+        llm_summary=LLMSummary(text="summary", confidence=1.0),
+        firm_ids=[],
+    )
+    event = ParsingEvent(
+        timestamp=parsed_result.processed_at,
+        parsed_result=parsed_result,
+        correlation_id="cid-5",
+    )
+
+    import asyncio
+
+    asyncio.run(handler.handle_parsed_event(event))
+
+    assert nsa.calls == []
+    assert event_classifier.calls == []
+
+
+def test_parsing_event_fills_firm_ids_from_parsed_result() -> None:
+    parsed_result = ParsedResult(
+        article_id="article-3",
+        processed_at=datetime.utcnow(),
+        llm_summary=LLMSummary(text="summary", confidence=1.0),
+        firm_ids=[7, 8],
+    )
+
+    event = ParsingEvent(
+        timestamp=parsed_result.processed_at,
+        parsed_result=parsed_result,
+        correlation_id="cid-3",
+    )
+
+    assert event.firm_ids == [7, 8]
+
+
+def test_parsing_event_rejects_mismatched_firm_ids() -> None:
+    parsed_result = ParsedResult(
+        article_id="article-4",
+        processed_at=datetime.utcnow(),
+        llm_summary=LLMSummary(text="summary", confidence=1.0),
+        firm_ids=[11],
+    )
+
+    import pytest
+
+    with pytest.raises(ValueError, match="firm_ids must match parsed_result.firm_ids"):
+        ParsingEvent(
+            timestamp=parsed_result.processed_at,
+            parsed_result=parsed_result,
+            firm_ids=[12],
+            correlation_id="cid-4",
+        )
