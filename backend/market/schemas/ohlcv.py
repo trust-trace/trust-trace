@@ -5,8 +5,6 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from reasoning.schemas import MarketReasoningTrace
-
 
 class ListingMatch(BaseModel):
     symbol: str       # e.g. "PKN.WA", "AAPL"
@@ -34,4 +32,4 @@ class FetchResult(BaseModel):
     firm_name: str
     found: bool
     charts: list[ChartData]
-    reasoning_trace: Optional[MarketReasoningTrace] = None  # NEW: Optional reasoning trace
+    reasoning_trace_id: Optional[int] = None  # NEW: ID to reasoning trace in database
