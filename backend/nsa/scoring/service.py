@@ -6,6 +6,7 @@ from typing import Any
 from nsa.schemas.api import ScoreCompanyResponse
 from nsa.schemas.domain import PersonEvidence, PersonScoreInput
 from nsa.scoring.rules import score_person
+from reasoning.storage import ReasoningTraceRepository
 
 
 @dataclass(frozen=True)
@@ -17,11 +18,12 @@ class NSAService:
         object.__setattr__(self, "repository", repository)
         object.__setattr__(self, "fetchers", tuple(fetchers))
 
-    def score_company(self, firm_id: int, correlation_id: str) -> ScoreCompanyResponse:
+    def score_company(self, firm_id: int, correlation_id: str, db_session: Any = None) -> ScoreCompanyResponse:
         company_context: Any = self.repository.load_company_context(firm_id)
         people_payload: list[dict] = []
         person_scores: list[float] = []
         evidence_count = 0
+        trace_repo = ReasoningTraceRepository(db_session) if db_session else None
 
         for person in company_context.people:
             evidence: list[PersonEvidence] = []
@@ -44,7 +46,18 @@ class NSAService:
                 role=getattr(person, "role", None),
                 evidence=tuple(evidence),
             )
-            result = score_person(person_input)
+            result, trace = score_person(person_input)
+            
+            # Store trace if database session is provided
+            if trace_repo:
+                trace_repo.save(
+                    classifier_name="NSA",
+                    entity_type="person",
+                    entity_id=str(person.id),
+                    trace_data=trace.model_dump(),
+                    correlation_id=correlation_id,
+                )
+            
             person_scores.append(result.person_risk_score)
             people_payload.append(
                 {

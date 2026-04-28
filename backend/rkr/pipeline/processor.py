@@ -6,6 +6,7 @@ from ..scanner.article_scorer import DEFAULT_THRESHOLD, score_article
 from ..scanner.language_engine import LanguageEngineCache
 from ..scanner.regex_engine import EngineMatch
 from ..schemas.rkr_result import EnrichedArticle, RkrMatch, RkrResult
+from reasoning.storage import ReasoningTraceRepository
 
 logger = logging.getLogger(__name__)
 
@@ -13,23 +14,27 @@ logger = logging.getLogger(__name__)
 def _build_rkr_result(
     matches: list[EngineMatch],
     threshold: float,
-) -> RkrResult:
-    risk_score, categories_hit, passed = score_article(matches, threshold)
-    return RkrResult(
-        matched_keywords=[
-            RkrMatch(
-                keyword=m.keyword,
-                category=m.category,
-                weight=m.weight,
-                in_title=m.in_title,
-                context=m.context,
-                occurrences=m.occurrences,
-            )
-            for m in matches
-        ],
-        categories_hit=categories_hit,
-        risk_score=risk_score,
-        passed_threshold=passed,
+    article_id: str | None = None,
+) -> tuple[RkrResult, dict]:
+    risk_score, categories_hit, passed, trace = score_article(matches, threshold, article_id)
+    return (
+        RkrResult(
+            matched_keywords=[
+                RkrMatch(
+                    keyword=m.keyword,
+                    category=m.category,
+                    weight=m.weight,
+                    in_title=m.in_title,
+                    context=m.context,
+                    occurrences=m.occurrences,
+                )
+                for m in matches
+            ],
+            categories_hit=categories_hit,
+            risk_score=risk_score,
+            passed_threshold=passed,
+        ),
+        trace.model_dump(),
     )
 
 
@@ -38,20 +43,32 @@ class ArticleProcessor:
         self.threshold = threshold
         self._engine_cache = LanguageEngineCache()
 
-    def process_article(self, raw: dict) -> EnrichedArticle:
+    def process_article(self, raw: dict, db_session=None) -> EnrichedArticle:
         lang = raw.get("article", {}).get("language", "en")
         title = raw.get("article", {}).get("title", "")
         text = raw.get("article", {}).get("text", "")
+        article_id = raw.get("metadata", {}).get("id", None) or raw.get("article", {}).get("id", None)
 
         engine = self._engine_cache.get_engine(lang)
         matches = engine.scan(text, title)
-        rkr = _build_rkr_result(matches, self.threshold)
+        rkr_result, trace_data = _build_rkr_result(matches, self.threshold, article_id)
+        
+        # Store trace if database session is provided
+        if db_session and article_id:
+            trace_repo = ReasoningTraceRepository(db_session)
+            trace_repo.save(
+                classifier_name="RKR",
+                entity_type="article",
+                entity_id=str(article_id),
+                trace_data=trace_data,
+                correlation_id=None,
+            )
 
         return EnrichedArticle(
             source=raw.get("source", {}),
             article=raw.get("article", {}),
             metadata=raw.get("metadata", {}),
-            rkr=rkr,
+            rkr=rkr_result,
         )
 
     def process_file(

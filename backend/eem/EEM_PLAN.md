@@ -14,7 +14,6 @@
 ## Public API
 
 ```python
-# eem/__init__.py exports exactly this:
 from eem import enrich_firm
 ```
 
