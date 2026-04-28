@@ -159,6 +159,8 @@ class CompanyMatcher:
             "regon": firm.regon,
             "krs": firm.krs,
             "country": firm.country,
+            "market_ticker": firm.market_ticker,
+            "market_exchange": firm.market_exchange,
         }
         enriched = self.llm_client.enrich_firm_profile(current, article_text)
         if not isinstance(enriched, dict):
@@ -171,6 +173,8 @@ class CompanyMatcher:
             regon=enriched.get("regon"),
             krs=enriched.get("krs"),
             country=enriched.get("country"),
+            market_ticker=enriched.get("market_ticker"),
+            market_exchange=enriched.get("market_exchange"),
         )
 
         if isinstance(aliases, list):

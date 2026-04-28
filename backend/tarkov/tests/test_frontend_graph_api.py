@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from eem.database.models import Base as EemBase, EventEnrichment, FirmScore
+from pipeline.models import FinalScoreTimeline
 from tarkov.config import Config
 from tarkov.database.models import (
     Base as TarkovBase,
@@ -118,8 +119,186 @@ def test_list_companies_shapes_frontend_payload(monkeypatch):
             "articles": 1,
             "lastUpdate": "2026-04-27T11:00:00",
             "history": [70, 76, 82],
+            "historyByRange": {
+                "12M": [70, 76, 82],
+                "6M": [70, 76, 82],
+                "3M": [70, 76, 82],
+                "30D": [70, 76, 82],
+            },
             "keywords": ["fraud", "audit"],
+            "tradingViewSymbol": "",
+            "hasTradingView": False,
         }
+    ]
+
+
+def test_list_companies_falls_back_to_sql_firms_when_graph_is_empty(monkeypatch):
+    session = build_session()
+    session.add(
+        Firm(
+            id=1,
+            full_name="Acme Holdings S.A.",
+            nip="1234567890",
+            country="PL",
+        )
+    )
+    session.add(
+        FirmScore(
+            firm_id=1,
+            score=82,
+            risk="low",
+            trend=4,
+            score_history="[70, 76, 82]",
+            keywords='["fraud", "audit"]',
+            computed_at=datetime(2026, 4, 27, 12, 0, 0),
+        )
+    )
+    session.add(
+        Event(
+            unique_id="evt-1",
+            firm_id=1,
+            title="Acme investigation update",
+            event_type="investigation",
+            event_category="classical",
+            risk_level=7,
+            occurred_at=datetime(2026, 4, 27, 10, 0, 0),
+        )
+    )
+    session.add(
+        Source(
+            event_id="evt-1",
+            url="https://example.com/acme",
+            title="Acme investigation update",
+            source_category="article",
+            published_at=datetime(2026, 4, 27, 11, 0, 0),
+        )
+    )
+    session.commit()
+
+    service = FrontendGraphService(build_config())
+    monkeypatch.setattr(service, "_query_company_nodes", lambda: [])
+
+    companies = service.list_companies(session)
+
+    assert companies == [
+        {
+            "id": "acme-holdings",
+            "name": "Acme Holdings S.A.",
+            "short": "Acme Holdings",
+            "nip": "1234567890",
+            "sector": "Unknown",
+            "score": 82,
+            "trend": 4,
+            "risk": "low",
+            "articles": 1,
+            "lastUpdate": "2026-04-27T11:00:00",
+            "history": [70, 76, 82],
+            "historyByRange": {
+                "12M": [70, 76, 82],
+                "6M": [70, 76, 82],
+                "3M": [70, 76, 82],
+                "30D": [70, 76, 82],
+            },
+            "keywords": ["fraud", "audit"],
+            "tradingViewSymbol": "",
+            "hasTradingView": False,
+        }
+    ]
+
+
+def test_list_companies_prefers_latest_timeline_run(monkeypatch):
+    session = build_session()
+    session.add(Firm(id=1, full_name="Acme Holdings S.A.", country="PL"))
+    session.add(
+        FirmScore(
+            firm_id=1,
+            score=82,
+            risk="low",
+            trend=4,
+            score_history="[70, 76, 82]",
+            keywords='["fraud", "audit"]',
+            computed_at=datetime(2026, 4, 27, 12, 0, 0),
+        )
+    )
+    session.add_all(
+        [
+            FinalScoreTimeline(
+                firm_id=1,
+                run_id="old-run",
+                bucket_index=0,
+                bucket_start=datetime(2026, 1, 1),
+                bucket_end=datetime(2026, 1, 31),
+                eem_score=40,
+                trustweb_score=40,
+                nsa_score=40,
+                final_score=40,
+                risk_level="medium",
+                computed_at=datetime(2026, 4, 1, 0, 0, 0),
+            ),
+            FinalScoreTimeline(
+                firm_id=1,
+                run_id="new-run",
+                bucket_index=0,
+                bucket_start=datetime(2026, 2, 1),
+                bucket_end=datetime(2026, 2, 28),
+                eem_score=80,
+                trustweb_score=80,
+                nsa_score=80,
+                final_score=80,
+                risk_level="low",
+                computed_at=datetime(2026, 4, 2, 0, 0, 0),
+            ),
+            FinalScoreTimeline(
+                firm_id=1,
+                run_id="new-run",
+                bucket_index=1,
+                bucket_start=datetime(2026, 3, 1),
+                bucket_end=datetime(2026, 3, 31),
+                eem_score=82,
+                trustweb_score=82,
+                nsa_score=82,
+                final_score=82,
+                risk_level="low",
+                computed_at=datetime(2026, 4, 2, 0, 0, 0),
+            ),
+        ]
+    )
+    session.commit()
+
+    service = FrontendGraphService(build_config())
+    monkeypatch.setattr(
+        service,
+        "_query_company_nodes",
+        lambda: [{"company_id": "1", "name": "Acme Holdings S.A."}],
+    )
+
+    companies = service.list_companies(session)
+
+    assert companies[0]["history"] == [80, 82]
+
+
+def test_list_companies_merges_partial_graph_rows_with_sql_firms(monkeypatch):
+    session = build_session()
+    session.add_all(
+        [
+            Firm(id=1, full_name="Acme Holdings S.A.", country="PL"),
+            Firm(id=2, full_name="Beta Logistics Sp. z o.o.", country="PL"),
+        ]
+    )
+    session.commit()
+
+    service = FrontendGraphService(build_config())
+    monkeypatch.setattr(
+        service,
+        "_query_company_nodes",
+        lambda: [{"company_id": "1", "name": "Acme Holdings S.A."}],
+    )
+
+    companies = service.list_companies(session)
+
+    assert [company["id"] for company in companies] == [
+        "acme-holdings",
+        "beta-logistics",
     ]
 
 
@@ -521,7 +700,7 @@ def test_get_graph_falls_back_to_graph_company_lookup_when_sql_firm_missing(
                 "score": 50,
                 "trend": 0,
                 "risk": "medium",
-                "history": [50],
+                "history": [50] * 12,
                 "keywords": [],
                 "articles": 0,
                 "lastUpdate": "",

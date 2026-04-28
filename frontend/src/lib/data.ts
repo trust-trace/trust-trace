@@ -1,6 +1,9 @@
 export type Risk = 'high' | 'medium' | 'low';
 export type SourceTier = 'tier-1' | 'tier-2' | 'tier-3';
 export type GraphRelationType = 'person' | 'partnership' | 'business';
+export type HistoryRangeKey = '12M' | '6M' | '3M' | '30D';
+
+export type CompanyHistoryByRange = Record<HistoryRangeKey, number[]>;
 
 export interface Company {
   id: string;
@@ -15,6 +18,9 @@ export interface Company {
   lastUpdate: string;
   history: number[];
   keywords: string[];
+  tradingViewSymbol?: string;
+  hasTradingView?: boolean;
+  historyByRange?: CompanyHistoryByRange;
 }
 
 export interface Article {

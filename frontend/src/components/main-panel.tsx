@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getGraph } from '@/lib/api';
-import type { Article, Company, GraphResponse } from '@/lib/data';
+import type { Article, Company, GraphResponse, HistoryRangeKey } from '@/lib/data';
 import { ScoreChart } from './score-chart';
 import { TradingViewWidget } from './tradingview-widget';
 import { ArticleRow } from './article-row';
 import { CompanyGraph } from './company-graph';
+import { getCompanyHistoryForRange, hasCompanyTradingView } from './main-panel-helpers';
 import { riskColor, riskLabel } from './sidebar';
 import { ToggleGroup, type ToggleOption } from './toggle-group';
 
@@ -40,12 +41,20 @@ interface OverviewPanelProps {
 function OverviewPanel({ company, articles, loading, error, accentColor }: OverviewPanelProps) {
   const [openId, setOpenId] = useState<string | null>(articles[0]?.id ?? null);
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [activeTab, setActiveTab] = useState('12M');
+  const [activeTab, setActiveTab] = useState<HistoryRangeKey>('12M');
   const [showTVChart, setShowTVChart] = useState(false);
+  const tradingViewAvailable = hasCompanyTradingView(company);
+  const displayedHistory = getCompanyHistoryForRange(company, activeTab);
 
   useEffect(() => {
     setOpenId(articles[0]?.id ?? null);
   }, [articles]);
+
+  useEffect(() => {
+    if (!tradingViewAvailable) {
+      setShowTVChart(false);
+    }
+  }, [tradingViewAvailable]);
 
   const filtered = useMemo(() => {
     if (filter === 'neg') return articles.filter((article) => article.sentiment <= -0.2);
@@ -54,7 +63,7 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
     return articles;
   }, [articles, filter]);
 
-  const timeTabs: ToggleOption[] = [
+  const timeTabs: ToggleOption<HistoryRangeKey>[] = [
     { value: '12M', label: '12M' },
     { value: '6M', label: '6M' },
     { value: '3M', label: '3M' },
@@ -71,26 +80,32 @@ function OverviewPanel({ company, articles, loading, error, accentColor }: Overv
     <>
       <section className="tt-chart-section">
         <div className="tt-section-head">
-          <div>
-            <div className="tt-section-title">Historia scoringu</div>
-            <div className="tt-section-sub">Ostatnich 12 miesięcy · agregat dzienny</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'oklch(0.55 0.01 260)', fontFamily: 'var(--font-jetbrains-mono), monospace', letterSpacing: '0.04em' }}>
+            <div>
+              <div className="tt-section-title">Historia scoringu</div>
+              <div className="tt-section-sub">Zakres {activeTab} · dane z backendu</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: tradingViewAvailable ? 'pointer' : 'not-allowed', fontSize: 11, color: tradingViewAvailable ? 'oklch(0.55 0.01 260)' : 'oklch(0.7 0.01 260)', fontFamily: 'var(--font-jetbrains-mono), monospace', letterSpacing: '0.04em' }}>
               <input
                 type="checkbox"
                 checked={showTVChart}
+                disabled={!tradingViewAvailable}
                 onChange={(e) => setShowTVChart(e.target.checked)}
-                style={{ accentColor: '#2962ff', cursor: 'pointer' }}
+                style={{ accentColor: '#2962ff', cursor: tradingViewAvailable ? 'pointer' : 'not-allowed' }}
               />
               TRADINGVIEW
             </label>
             <ToggleGroup options={timeTabs} value={activeTab} onChange={setActiveTab} size="sm" />
           </div>
         </div>
+        {!tradingViewAvailable && (
+          <div className="tt-section-sub" style={{ marginBottom: 12 }}>
+            Brak symbolu giełdowego w danych backendu
+          </div>
+        )}
         <div style={{ position: 'relative' }}>
-          <ScoreChart history={company.history} color={accentColor} />
-          {showTVChart && <TradingViewWidget symbol="GPW:CDR" />}
+          <ScoreChart history={displayedHistory} color={accentColor} range={activeTab} />
+          {showTVChart && company.tradingViewSymbol && <TradingViewWidget symbol={company.tradingViewSymbol} />}
         </div>
       </section>
 
