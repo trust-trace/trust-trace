@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo-placeholder.png" alt="Trust Trace Logo" width="200"/>
+  <img src="docs/assets/logo.png" alt="Trust Trace Logo" width="200"/>
 </p>
 
 <h1 align="center">Trust Trace</h1>
@@ -21,13 +21,18 @@
 
 ## Spis tresci
 
+- [Spis tresci](#spis-tresci)
 - [O projekcie](#o-projekcie)
 - [Demo](#demo)
-- [Zrzuty ekranu](#zrzuty-ekranu)
 - [Architektura](#architektura)
 - [Moduly](#moduly)
 - [Tech Stack](#tech-stack)
+  - [Frontend](#frontend)
+  - [Backend](#backend)
+  - [Crawler](#crawler)
+  - [Infrastruktura](#infrastruktura)
 - [Szybki start](#szybki-start)
+  - [**SETUP.md -- Jak uruchomic projekt**](#setupmd----jak-uruchomic-projekt)
 - [Zespol](#zespol)
 
 ---
@@ -43,71 +48,17 @@ Trust Trace to kompleksowy system do automatycznej analizy ryzyka AML (Anti-Mone
 
 Kazda decyzja systemu jest transparentna dzieki mechanizmowi **reasoning traces** -- pelny audit trail wyjasniajacy dlaczego dana firma otrzymala dany scoring.
 
----
+
 
 ## Demo
 
 <p align="center">
-  <em>Pipeline w akcji -- od scrapowania do wynikow</em>
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo-pipeline.gif" alt="Demo pipeline" width="800"/>
+  <img src="docs/assets/ReadmeDemo/recording1.gif" alt="Demo pipeline" width="800"/>
 </p>
 
-<p align="center">
-  <em>Interaktywny graf relacji miedzy firmami</em>
-</p>
-
-<p align="center">
-  <img src="docs/assets/demo-graph.gif" alt="Demo grafu" width="800"/>
-</p>
-
----
-
-## Zrzuty ekranu
-
-<details>
-<summary><strong>Dashboard -- lista firm z scoringiem</strong></summary>
-<br/>
-<p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" alt="Dashboard" width="800"/>
-</p>
-</details>
-
-<details>
-<summary><strong>Szczegoly firmy -- artykuly, zdarzenia, scoring</strong></summary>
-<br/>
-<p align="center">
-  <img src="docs/assets/screenshot-company-detail.png" alt="Szczegoly firmy" width="800"/>
-</p>
-</details>
-
-<details>
-<summary><strong>Graf relacji (Graph View)</strong></summary>
-<br/>
-<p align="center">
-  <img src="docs/assets/screenshot-graph.png" alt="Graf relacji" width="800"/>
-</p>
-</details>
-
-<details>
-<summary><strong>Reasoning Traces -- audit trail decyzji</strong></summary>
-<br/>
-<p align="center">
-  <img src="docs/assets/screenshot-traces.png" alt="Reasoning traces" width="800"/>
-</p>
-</details>
-
-<details>
-<summary><strong>Panel uruchamiania pipeline</strong></summary>
-<br/>
-<p align="center">
-  <img src="docs/assets/screenshot-pipeline.png" alt="Pipeline panel" width="800"/>
-</p>
-</details>
-
----
 
 ## Architektura
 
@@ -219,13 +170,13 @@ Po uruchomieniu:
 
 ## Zespol
 
-| Osoba | Rola |
-|-------|------|
-| **Jakub Mazurek** | Developer |
-| **Wiktor Sekreta** | Developer |
-| **Szymon Sidor** | Developer |
-| **Tymoteusz Mosiolek** | Developer |
-| **Marcel Geba** | Developer |
+| Osoba |
+|-------|
+| **Jakub Mazurek** |
+| **Wiktor Sekreta** |
+| **Szymon Sidor** |
+| **Tymoteusz Mosiolek** |
+| **Marcel Geba** |
 
 ---
 
