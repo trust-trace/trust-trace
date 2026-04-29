@@ -7,7 +7,7 @@ import json
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from tarkov.database.models import IngestionJob
@@ -52,6 +52,22 @@ class IngestionJobRepository:
     def get_by_ingest_key(self, ingest_key: str) -> IngestionJob | None:
         stmt = select(IngestionJob).where(IngestionJob.ingest_key == ingest_key)
         return self.db.execute(stmt).scalar_one_or_none()
+
+    def count_processing(self) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(IngestionJob)
+            .where(IngestionJob.status == "processing")
+        )
+        return int(self.db.scalar(stmt) or 0)
+
+    def count_queued(self) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(IngestionJob)
+            .where(IngestionJob.status.in_(["pending", "retrying"]))
+        )
+        return int(self.db.scalar(stmt) or 0)
 
     def get_due_jobs(self, *, limit: int = 10, stale_after_seconds: int = 300) -> list[IngestionJob]:
         stale_cutoff = datetime.utcnow() - timedelta(seconds=stale_after_seconds)

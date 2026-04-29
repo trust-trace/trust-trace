@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Article } from '@/lib/data';
 import { SentimentBar, sentimentColor, sentimentLabel } from './sentiment-bar';
+import { ScoringTransparencyPopover } from './scoring-transparency-popover';
 import { TraceDrawer } from './trace-drawer';
 
 function formatDate(iso: string): string {
@@ -111,18 +112,21 @@ export function ArticleRow({ article, expanded, onToggle, idx }: ArticleRowProps
               <div className="tt-art-label" style={{ marginTop: 18 }}>
                 Wpływ na scoring
               </div>
-              <div
-                className="tt-impact-big"
-                style={{
-                  color:
-                    article.impact < 0
-                      ? 'oklch(0.55 0.18 25)'
-                      : 'oklch(0.55 0.13 155)',
-                }}
-              >
-                {article.impact > 0 ? '+' : ''}
-                {article.impact.toFixed(1)}
-                <span className="tt-impact-unit">pkt</span>
+              <div className="tt-impact-big-row">
+                <div
+                  className="tt-impact-big"
+                  style={{
+                    color:
+                      article.impact < 0
+                        ? 'oklch(0.55 0.18 25)'
+                        : 'oklch(0.55 0.13 155)',
+                  }}
+                >
+                  {article.impact > 0 ? '+' : ''}
+                  {article.impact.toFixed(1)}
+                  <span className="tt-impact-unit">pkt</span>
+                </div>
+                <ScoringTransparencyPopover article={article} />
               </div>
 
               <div className="tt-art-meta-rows">
