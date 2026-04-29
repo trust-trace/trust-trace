@@ -6,6 +6,10 @@ export function hasCompanyTradingView(company: Company): boolean {
   return Boolean(company.hasTradingView && company.tradingViewSymbol);
 }
 
+export function hasPendingScore(company: Company): boolean {
+  return company.score === 0 && !company.lastUpdate;
+}
+
 export function getCompanyHistoryForRange(
   company: Company,
   activeRange: HistoryRangeKey
